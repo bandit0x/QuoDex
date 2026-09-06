@@ -167,6 +167,13 @@ async fn enable_temporary_click_through(
     Ok(())
 }
 
+/// 退出应用（设置面板退出按钮）。macOS 无 Dock 图标且窗口无边框，
+/// 除托盘菜单外这是唯一的可见退出入口；窗口关闭仅隐藏到托盘。
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -207,7 +214,8 @@ pub fn run() {
             read_zcode_quota_snapshot,
             load_display_preferences,
             save_display_preferences,
-            enable_temporary_click_through
+            enable_temporary_click_through,
+            quit_app
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Codex Meter");

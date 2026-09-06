@@ -5,6 +5,7 @@ import { OpticalShell } from "./OpticalShell";
 import {
   enableTemporaryClickThrough,
   loadDisplayPreferences,
+  quitApplication,
   readCapacitySnapshot,
   saveDisplayPreferences,
 } from "./capacityClient";
@@ -57,6 +58,7 @@ interface AppProps {
   setWindowPosition?: (position: OverlayPosition) => Promise<void>;
   openSettingsWindow?: (layout: OverlayLayout) => Promise<SettingsWindowPresentation>;
   closeSettingsWindow?: (presentation: SettingsWindowPresentation) => Promise<void>;
+  quitApp?: () => Promise<void>;
   motionSessionSeed?: number;
 }
 
@@ -452,6 +454,7 @@ export function App({
   setWindowPosition = setOverlayWindowPosition,
   openSettingsWindow = openOverlaySettings,
   closeSettingsWindow = closeOverlaySettings,
+  quitApp = quitApplication,
   motionSessionSeed,
 }: AppProps) {
   const codexSlot = useSourceSlot(loadSnapshot, "Codex");
@@ -788,6 +791,11 @@ export function App({
     await openSettings();
   }, [closeSettings, openSettings, settingsPresentation]);
 
+  // 与托盘"退出"一致：直接退出，不做二次确认（偏好已持久化，无会话数据可丢）
+  const quitMeter = useCallback(() => {
+    quitApp().catch(() => setControlMessage("退出未能执行 · CRV-307"));
+  }, [quitApp]);
+
   useEffect(() => {
     if (!settingsPresentation) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1034,7 +1042,11 @@ export function App({
                 </button>
               </div>
             </div>
-            <small>右键可再次打开 · 不会注册开机启动</small>
+            <div className="quit-row">
+              <button type="button" className="quit-button" onClick={quitMeter}>
+                退出应用
+              </button>
+            </div>
         </aside>
       )}
       {controlMessage && <span className="control-message" role="status">{controlMessage}</span>}

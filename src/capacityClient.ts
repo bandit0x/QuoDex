@@ -16,3 +16,7 @@ export function saveDisplayPreferences(preferences: DisplayPreferences): Promise
 export function enableTemporaryClickThrough(durationMs = 10_000): Promise<void> {
   return invoke("enable_temporary_click_through", { durationMs });
 }
+
+export function quitApplication(): Promise<void> {
+  return invoke("quit_app");
+}

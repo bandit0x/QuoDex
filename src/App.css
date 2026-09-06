@@ -894,6 +894,24 @@ input:focus-visible {
 .app-frame--compact.app-frame--settings-below .settings-popover { top: 272px; }
 .app-frame--expanded.app-frame--settings-below .settings-popover { top: 332px; }
 
+/* 退出应用：除托盘菜单外唯一的可见退出入口 */
+.quit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.settings-popover button.quit-button {
+  padding: 0 18px;
+  color: #ffd7d0;
+  border-color: rgba(255, 129, 112, 0.4);
+  background: rgba(163, 54, 44, 0.28);
+}
+.settings-popover button.quit-button:hover {
+  border-color: rgba(255, 149, 132, 0.62);
+  background: rgba(163, 54, 44, 0.46);
+}
+
 .settings-heading,
 .settings-popover label,
 .toggle-row {

@@ -457,6 +457,24 @@ describe("Codex capacity overlay", () => {
     expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument();
   });
 
+  it("quits the application from the settings dialog", async () => {
+    const user = userEvent.setup();
+    const quitApp = vi.fn(async () => undefined);
+    render(
+      <App
+        {...inertPreferences}
+        loadSnapshot={async () => healthySnapshot}
+        quitApp={quitApp}
+      />,
+    );
+
+    await screen.findByText("76%", { exact: false });
+    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    await user.click(screen.getByRole("button", { name: "退出应用" }));
+    await waitFor(() => expect(quitApp).toHaveBeenCalledTimes(1));
+  });
+
   it("anchors settings above a collapsed shell and restores the prior layout on Escape", async () => {
     const user = userEvent.setup();
     const openSettingsWindow = vi.fn(async () => ({
