@@ -80,7 +80,11 @@ jobs:
         run: ./scripts/fetch-webview2-fixed-runtime.ps1
       - name: 打包 NSIS 安装器
         shell: pwsh
-        run: npm run package:installer
+        # runner 预装的 PowerShell 7 会污染 PSModulePath，导致 powershell.exe 5.1
+        # 加载不了 Microsoft.PowerShell.Security 模块（Get-AuthenticodeSignature 用）
+        run: |
+          $env:PSModulePath = [System.Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
+          npm run package:installer
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
