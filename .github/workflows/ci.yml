@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  # 测试与编译验证：macOS + Windows 双平台矩阵
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: 安装依赖
+        run: npm ci
+      - name: TypeScript 类型检查
+        run: npm run typecheck
+      - name: 前端测试
+        run: npm test
+      - name: 前端生产构建
+        run: npm run build
+      - name: Rust 测试
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # 打 tag（v*）时打包 macOS 应用（.app + dmg）
+  package-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: 打包 macOS 应用
+        run: npm run package:app
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-meter-macos
+          path: release/macos/*
+
+  # 打 tag（v*）时打包 Windows NSIS 安装器（含 WebView2 固定运行时）
+  package-windows:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: 下载 WebView2 固定运行时
+        shell: pwsh
+        run: ./scripts/fetch-webview2-fixed-runtime.ps1
+      - name: 打包 NSIS 安装器
+        shell: pwsh
+        run: npm run package:installer
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-meter-windows
+          path: release/CodexMeter-*.exe
