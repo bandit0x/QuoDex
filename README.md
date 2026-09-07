@@ -6,7 +6,7 @@
 
 _Windows 11 上的轻量 Codex 配额桌面浮窗。_
 
-当前版本：**0.1.6**
+当前版本：**0.1.7**
 
 ---
 
@@ -45,6 +45,11 @@ _图 1：Codex Meter 正常状态；TomatoCloud 显示绿色健康路由（UK ·
 其他确定性测试状态包括[加载状态](docs/verification/screenshots/v8-half-loading.png)和[窄条状态](docs/verification/screenshots/v8-half-collapsed.png)。这些截图均使用测试夹具生成。
 
 ## 📦 版本更新
+
+### 0.1.7 · 设置面板退出应用与多平台 CI
+
+- 设置面板新增退出应用入口
+- 新增 macOS 与 Windows 双平台测试和打包流水线，并修复 Windows 打包环境变量污染
 
 ### 0.1.6 · 支持macOS
 
