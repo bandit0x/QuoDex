@@ -20,7 +20,7 @@ function Get-ChildProcessIds {
 
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 if ([string]::IsNullOrWhiteSpace($Executable)) {
-    $Executable = Join-Path $projectRoot "release\QuoDex-0.0.8-win-x64\QuoDex.exe"
+    $Executable = Join-Path $projectRoot "release\QuoDex-0.1.8-win-x64\QuoDex.exe"
 }
 $Executable = [System.IO.Path]::GetFullPath($Executable)
 if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {

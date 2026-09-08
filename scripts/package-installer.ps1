@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.0.8",
+    [string]$Version = "0.1.8",
     [string]$WebView2RuntimePath = ""
 )
 
