@@ -179,7 +179,9 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     configure_bundled_webview2_runtime();
 
-    let app = tauri::Builder::default()
+    // macOS 的 set_activation_policy 需要 mut；其余平台不使用，抑制 unused_mut
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    let mut app = tauri::Builder::default()
         .manage(CapacityService::from_environment())
         .manage(TomatoCloudService::new())
         .manage(ZCodeQuotaService::from_environment())
