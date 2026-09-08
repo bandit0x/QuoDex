@@ -1,29 +1,29 @@
-# Codex Meter
+# QuoDex
 
 <p align="center">
-  <img src="src-tauri/icons/icon.png" width="112" alt="Codex Meter 七瓣交织图标">
+  <img src="src-tauri/icons/icon.png" width="112" alt="QuoDex 七瓣交织图标">
 </p>
 
-_Windows 11 上的轻量 Codex 配额桌面浮窗。_
+_Windows 11 与 macOS 上的轻量配额桌面浮窗，原名 Codex Meter。_
 
-当前版本：**0.1.7**
+当前版本：**0.0.8**
 
 ---
 
-Codex Meter 通过本机 Codex `app-server` 读取只读配额数据，在一个可拖动的液态玻璃浮窗中并列展示 **5 小时额度**和**一周额度**；同时支持读取 **ZCode 编程包**（bigmodel coding-plan）的配额，可手动切换或轮播显示两个来源。应用手动启动、常驻通知区域，不创建开机启动项，也不会占用普通任务栏位置。
+**QuoDex**（**Quo**ta + Co**dex**）通过本机 Codex `app-server` 读取只读配额数据，在一个可拖动的液态玻璃浮窗中并列展示 **5 小时额度**和**一周额度**；同时支持读取 **ZCode 编程包**（bigmodel coding-plan）的配额，可手动切换或轮播显示两个来源。应用手动启动、常驻通知区域，不创建开机启动项，也不会占用普通任务栏位置。
 
 > [!IMPORTANT]
-> Codex Meter 是非官方社区项目，与 OpenAI 或 ChatGPT 无隶属、赞助或背书关系。
+> QuoDex 是非官方社区项目，与 OpenAI 或 ChatGPT 无隶属、赞助或背书关系。
 
-![Codex Meter 正常状态，TomatoCloud 健康路由 UK · 42 ms](docs/verification/screenshots/v8-half-healthy.png)
+![QuoDex 正常状态，TomatoCloud 健康路由 UK · 42 ms](docs/verification/screenshots/quodex-compact.png)
 
-_图 1：Codex Meter 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 ms）。截图使用测试数据，不包含真实账号或配额信息。_
+_图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 ms）。截图使用测试数据，不包含真实账号或配额信息。_
 
 ## ✨ 主要功能
 
 - 以同等视觉层级展示 5 小时和一周剩余额度
 - 液体高度随剩余百分比线性变化
-- 每 5 秒自动刷新，也可在展开视图中手动刷新
+- 每 5 秒自动刷新，紧跟额度消耗节奏，也可在展开视图中手动刷新
 - 展示额度重置时间和可用完整重置次数
 - 支持紧凑、展开和窄条三种布局
 - 支持窗口拖动惯性，以及随液位与每次启动种子变化的独立液体晃动
@@ -38,13 +38,137 @@ _图 1：Codex Meter 正常状态；TomatoCloud 显示绿色健康路由（UK ·
 
 ## 🖼️ 界面状态
 
-| 紧凑视图 | 展开视图 | 失败状态 |
+| 紧凑视图 | 展开视图 | 路由阻塞 |
 | --- | --- | --- |
-| ![Codex Meter 紧凑视图，TomatoCloud 健康](docs/verification/screenshots/v8-half-healthy.png) | ![Codex Meter 展开视图，TomatoCloud 健康](docs/verification/screenshots/v8-half-expanded.png) | ![Codex Meter TomatoCloud 路由阻塞状态](docs/verification/screenshots/v8-half-failed.png) |
+| ![QuoDex 紧凑视图，TomatoCloud 健康](docs/verification/screenshots/quodex-compact.png) | ![QuoDex 展开视图，刷新与设置入口](docs/verification/screenshots/quodex-expanded.png) | ![QuoDex TomatoCloud 路由阻塞状态](docs/verification/screenshots/quodex-route-blocked.png) |
 
-其他确定性测试状态包括[加载状态](docs/verification/screenshots/v8-half-loading.png)和[窄条状态](docs/verification/screenshots/v8-half-collapsed.png)。这些截图均使用测试夹具生成。
+其他确定性测试状态包括[加载状态](docs/verification/screenshots/quodex-loading.png)和[窄条状态](docs/verification/screenshots/quodex-collapsed.png)。这些截图均由测试夹具生成，可随时用 `?fixture=` 开发页面复现。
 
-## 📦 版本更新
+## 🚀 Quick Start
+
+**运行要求**：Windows 11 x64（macOS 11+ 为实验性支持，见下文构建章节），且当前用户已登录 Codex。
+
+1. 从 [GitHub Releases](https://github.com/bandit0x/Codex-Meter/releases) 下载并运行安装包 `QuoDex-<版本>-win-x64-setup.exe`；或下载便携包并**完整解压**（保持目录结构完整，不要单独移动 `QuoDex.exe`）
+2. 双击 `QuoDex.exe`（或桌面快捷方式），浮窗即显示额度
+3. 按住浮窗非按钮区域拖动位置；点击右下角箭头展开刷新、穿透、设置等操作
+4. 关闭浮窗只是隐藏到通知区域；完全退出请右键托盘图标选择「退出」
+
+应用不会自动开机启动，重启 Windows 后需再次手动运行。
+
+## 🛠️ 从源码运行
+
+### 开发环境
+
+- Node.js 24
+- Rust MSVC 工具链
+- Visual Studio C++ Build Tools
+- Tauri 2 所需的 Windows 构建组件[^tauri-prerequisites]
+
+在 PowerShell 中运行：
+
+```powershell
+npm.cmd ci
+npm.cmd run tauri:dev
+```
+
+开发构建默认使用测试夹具。需要连接当前用户的真实 Codex 账号时：
+
+```powershell
+$env:CODEX_CREDITS_USE_LIVE = "1"
+npm.cmd run tauri:dev
+```
+
+不要直接双击 `src-tauri\target\debug\codex-credits-view.exe`；它是开发版，会访问 `localhost:1420`，必须通过 `npm.cmd run tauri:dev` 启动并保持 Vite 服务运行。
+
+界面截图可由确定性测试夹具复现：启动 `npm.cmd run dev` 后访问 `http://localhost:1420/?fixture=v7-healthy`（另有 `v7-expanded`、`v7-collapsed`、`v7-loading`、`v7-route-blocked`、`zcode-healthy`、`zcode-failed`、`zcode-carousel`）。
+
+### 运行检查
+
+```powershell
+npm.cmd run typecheck
+npm.cmd run test
+npm.cmd run build
+cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri\Cargo.toml
+```
+
+### 构建便携包
+
+先下载并验证 Microsoft WebView2 Fixed Version Runtime：
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\fetch-webview2-fixed-runtime.ps1
+```
+
+然后构建应用并生成便携目录：
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\package-portable.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\verify-portable-brand.ps1
+```
+
+输出位于 `release/QuoDex-<版本>-win-x64/`，目录结构为 `QuoDex.exe` + `codex-runtime/` + `webview2-runtime/`。请将整个目录压缩后作为 GitHub Release 附件发布，不要把运行时或构建产物提交进源码仓库。
+
+### 构建安装包
+
+完成 WebView2 Fixed Version Runtime 下载后运行：
+
+```powershell
+npm.cmd run package:installer
+```
+
+输出位于 `release/QuoDex-<版本>-win-x64-setup.exe`。安装器会内置 Codex 与 WebView2 运行时，并在桌面创建或替换 `QuoDex` 快捷方式。
+
+### macOS 构建（实验性）
+
+macOS 11+（Intel 或 Apple Silicon），需要 Node.js 24、Rust 工具链和 Xcode Command Line Tools：
+
+```bash
+npm ci
+npm run tauri:dev        # 开发模式
+npm run package:app      # 构建 .app / .dmg
+```
+
+输出位于 `release/macos/QuoDex.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
+
+## 🔐 数据与隐私
+
+QuoDex 启动独立的本机 Codex `app-server` 进程，通过只读 JSON-RPC 请求获取账号配额。认证和网络通信仍由官方 Codex 运行时处理。[^codex-app-server]
+
+应用不会：
+
+- 读取其他进程的内存
+- 读取浏览器 Cookie 或登录令牌
+- 要求 `.env`、API Key 或个人访问令牌
+- 修改账号状态或自动使用完整重置次数
+- 将配额、日志或配置上传到第三方服务
+
+TomatoCloud 监测同样只使用公开的本机可观测边界：检查运行所需进程、读取已启用的 Windows 本地系统代理，并通过该代理完成真实 HTTPS 请求。应用不会读取 TomatoCloud 的私有 IPC、日志、配置、内存或凭据。仅进程仍在运行并不代表连接健康；只有 Route Probe 成功时才显示绿色状态、出口国家缩写和 `XX ms` 延迟。
+
+本地仅保存窗口位置、透明度和减少动效等显示偏好。
+
+## 🧱 技术组成
+
+| 层 | 技术 | 职责 |
+| --- | --- | --- |
+| 桌面外壳 | Tauri 2、Rust | 窗口、托盘、进程生命周期和 JSON-RPC |
+| 用户界面 | React 19、TypeScript、Vite | 配额状态、交互、设置和错误恢复 |
+| 材质与动效 | WebGL2、GLSL | 光学舱体、体积液体、折射和惯性反馈 |
+| 配额数据 | `@openai/codex` | 本机 `app-server` 和账号配额接口 |
+| 渲染运行时 | Microsoft Edge WebView2 | Windows WebView 渲染 |
+
+项目固定使用已经验证的 Codex 和 WebView2 运行时版本，以减少不同机器之间的协议及渲染差异。
+
+## 📦 更新日志
+
+### 0.0.8 · 更名 QuoDex，5 秒刷新
+
+- 项目更名为 **QuoDex**（Quota + Codex，原名 Codex Meter）：窗口标题、托盘、桌面快捷方式、便携包/安装包/macOS 应用产物与 CI 流水线统一采用新名称
+- 额度自动刷新间隔由 60 秒缩短为 **5 秒**，紧跟额度消耗节奏
+- README 配图全部由当前构建的确定性测试夹具重新生成
 
 ### 0.1.7 · 设置面板退出应用与多平台 CI
 
@@ -91,168 +215,12 @@ _图 1：Codex Meter 正常状态；TomatoCloud 显示绿色健康路由（UK ·
 
 - 将前端、Tauri、Rust 和安装脚本的版本统一为 `0.1.1`
 - 安装器构建使用隔离的 Cargo 目标目录，避免构建缓存污染发布目录，并可靠定位 NSIS 输出
-- 便携包和安装包文件名统一采用 `CodexMeter-0.1.1-win-x64` 版本格式
+- 便携包和安装包文件名统一采用版本化格式
 - 增加 Windows 可执行文件图标和便携包品牌校验所需的发布证据
-
-## 🚀 安装与使用
-
-Codex Meter 提供 Windows x64 安装包和便携包。两种版本都会在安装或首次启动时创建桌面快捷方式；已有的 `Codex Meter.lnk` 会被替换并指向当前程序。
-
-### 运行要求
-
-- Windows 11 x64
-- 当前 Windows 用户已经登录 Codex
-- 完整解压便携包，不要只复制可执行文件
-
-便携目录必须保持以下结构：
-
-```text
-CodexMeter-<版本>-win-x64/
-├── Codex Meter.exe
-├── codex-runtime/
-└── webview2-runtime/
-```
-
-### 启动步骤
-
-1. 完整解压便携包
-2. 双击 `Codex Meter.exe`
-3. 在浮窗非按钮区域按住鼠标左键拖动窗口
-4. 点击右下角箭头展开详情、刷新、穿透或显示设置
-5. 关闭浮窗后，通过 Windows 通知区域图标重新显示或退出程序
-
-不要直接双击 `src-tauri\target\debug\codex-credits-view.exe`；它是开发版，会访问 `localhost:1420`，必须通过 `npm.cmd run tauri:dev` 启动并保持 Vite 服务运行。日常使用请从便携包、安装器或桌面 `Codex Meter` 快捷方式启动。
-
-应用不会自动开机启动。重新启动 Windows 后，需要再次手动运行 `Codex Meter.exe`。
-
-## 🔐 数据与隐私
-
-Codex Meter 启动独立的本机 Codex `app-server` 进程，通过只读 JSON-RPC 请求获取账号配额。认证和网络通信仍由官方 Codex 运行时处理。[^codex-app-server]
-
-应用不会：
-
-- 读取其他进程的内存
-- 读取浏览器 Cookie 或登录令牌
-- 要求 `.env`、API Key 或个人访问令牌
-- 修改账号状态或自动使用完整重置次数
-- 将配额、日志或配置上传到第三方服务
-
-TomatoCloud 监测同样只使用公开的本机可观测边界：检查运行所需进程、读取已启用的 Windows 本地系统代理，并通过该代理完成真实 HTTPS 请求。应用不会读取 TomatoCloud 的私有 IPC、日志、配置、内存或凭据。仅进程仍在运行并不代表连接健康；只有 Route Probe 成功时才显示绿色状态、出口国家缩写和 `XX ms` 延迟。
-
-本地仅保存窗口位置、透明度和减少动效等显示偏好。
-
-## 🛠️ 从源码运行
-
-### 开发环境
-
-- Node.js 24
-- Rust MSVC 工具链
-- Visual Studio C++ Build Tools
-- Tauri 2 所需的 Windows 构建组件[^tauri-prerequisites]
-
-在 PowerShell 中运行：
-
-```powershell
-npm.cmd ci
-npm.cmd run tauri:dev
-```
-
-开发构建默认使用测试夹具。需要连接当前用户的真实 Codex 账号时：
-
-```powershell
-$env:CODEX_CREDITS_USE_LIVE = "1"
-npm.cmd run tauri:dev
-```
-
-### 运行检查
-
-```powershell
-npm.cmd run typecheck
-npm.cmd run test
-npm.cmd run build
-cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri\Cargo.toml
-```
-
-### 构建便携包
-
-先下载并验证 Microsoft WebView2 Fixed Version Runtime：
-
-```powershell
-pwsh.exe -NoProfile -ExecutionPolicy Bypass `
-  -File scripts\fetch-webview2-fixed-runtime.ps1
-```
-
-然后构建应用并生成便携目录：
-
-```powershell
-pwsh.exe -NoProfile -ExecutionPolicy Bypass `
-  -File scripts\package-portable.ps1
-pwsh.exe -NoProfile -ExecutionPolicy Bypass `
-  -File scripts\verify-portable-brand.ps1
-```
-
-输出位于 `release/CodexMeter-<版本>-win-x64/`。请将整个目录压缩后作为 GitHub Release 附件发布，不要把运行时或构建产物提交进源码仓库。
-
-### 构建安装包
-
-完成 WebView2 Fixed Version Runtime 下载后运行：
-
-```powershell
-npm.cmd run package:installer
-```
-
-输出位于 `release/CodexMeter-<版本>-win-x64-setup.exe`。安装器会内置 Codex 与 WebView2 运行时，并在桌面创建或替换 `Codex Meter` 快捷方式。
-
-### macOS 构建（实验性）
-
-macOS 11+（Intel 或 Apple Silicon），需要 Node.js 24、Rust 工具链和 Xcode Command Line Tools：
-
-```bash
-npm ci
-npm run tauri:dev        # 开发模式
-npm run package:app      # 构建 .app / .dmg
-```
-
-输出位于 `release/macos/Codex Meter.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
-
-## 🧱 技术组成
-
-| 层 | 技术 | 职责 |
-| --- | --- | --- |
-| 桌面外壳 | Tauri 2、Rust | 窗口、托盘、进程生命周期和 JSON-RPC |
-| 用户界面 | React 19、TypeScript、Vite | 配额状态、交互、设置和错误恢复 |
-| 材质与动效 | WebGL2、GLSL | 光学舱体、体积液体、折射和惯性反馈 |
-| 配额数据 | `@openai/codex` | 本机 `app-server` 和账号配额接口 |
-| 渲染运行时 | Microsoft Edge WebView2 | Windows WebView 渲染 |
-
-项目固定使用已经验证的 Codex 和 WebView2 运行时版本，以减少不同机器之间的协议及渲染差异。
-
-## 🩺 常见问题
-
-### 显示“无法读取 Codex 配额”
-
-确认当前 Windows 用户已经登录 Codex，然后在展开视图中点击“重试”。如果仍然失败，请记录界面上的 `CRV-xxx` 诊断码。
-
-### 双击后提示缺少 WebView2
-
-请使用完整便携包，并确认 `webview2-runtime` 与 `Codex Meter.exe` 保持同级。不要单独移动 EXE。
-
-### 关闭窗口后程序仍在运行
-
-这是预期行为。关闭按钮只会把浮窗隐藏到通知区域；需要完全退出时，请右键通知区域图标并选择“退出”。
-
-### 鼠标无法操作浮窗
-
-可能启用了临时穿透模式。等待 10 秒后会自动恢复。
-
-### TomatoCloud 显示红色报警
-
-红色状态表示健康 Route Probe 连续两次未能通过，不只是 TomatoCloud 进程缺失。应用会显示稳定诊断码并每秒复测；第一次瞬时失败会保留上一次绿色状态。请先确认 TomatoCloud 已连接，再在浮窗中点击“重试”。恢复后会回到绿色指示灯，并显示新的出口国家缩写与延迟。
 
 ## 🤝 参与贡献
 
-欢迎提交 Issue 和 Pull Request。问题报告请包含 Windows 版本、复现步骤和诊断码；请勿公开上传令牌、日志、账号截图或其他敏感信息。
+欢迎提交 Issue 和 Pull Request。问题报告请包含系统版本、复现步骤和诊断码；请勿公开上传令牌、日志、账号截图或其他敏感信息。
 
 提交代码前，请运行“运行检查”中的前端与 Rust 命令。涉及界面的修改请附上真实 Tauri/WebView2 截图。
 

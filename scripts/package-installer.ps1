@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.7",
+    [string]$Version = "0.0.8",
     [string]$WebView2RuntimePath = ""
 )
 
@@ -89,7 +89,7 @@ if ($null -eq $builtInstaller) {
     throw "Tauri did not produce an NSIS installer under $bundleRoot."
 }
 
-$outputInstaller = Join-Path $releaseRoot "CodexMeter-$Version-win-x64-setup.exe"
+$outputInstaller = Join-Path $releaseRoot "QuoDex-$Version-win-x64-setup.exe"
 Copy-Item -LiteralPath $builtInstaller.FullName -Destination $outputInstaller -Force
 
 [pscustomobject]@{

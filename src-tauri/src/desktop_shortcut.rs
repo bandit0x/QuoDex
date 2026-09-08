@@ -27,8 +27,8 @@ use windows::Win32::{
     UI::Shell::{FOLDERID_Desktop, SHGetKnownFolderPath, KF_FLAG_DEFAULT},
 };
 
-const SHORTCUT_FILE_NAME: &str = "Codex Meter.lnk";
-const PENDING_SHORTCUT_FILE_NAME: &str = "Codex Meter.pending.lnk";
+const SHORTCUT_FILE_NAME: &str = "QuoDex.lnk";
+const PENDING_SHORTCUT_FILE_NAME: &str = "QuoDex.pending.lnk";
 
 struct ComApartment {
     should_uninitialize: bool,
@@ -84,7 +84,7 @@ fn save_shortcut(executable: &Path, shortcut: &Path) -> windows::core::Result<()
         shell_link.SetPath(PCWSTR(executable_wide.as_ptr()))?;
         shell_link.SetWorkingDirectory(PCWSTR(working_directory_wide.as_ptr()))?;
         shell_link.SetIconLocation(PCWSTR(executable_wide.as_ptr()), 0)?;
-        shell_link.SetDescription(windows::core::w!("Open Codex Meter"))?;
+        shell_link.SetDescription(windows::core::w!("Open QuoDex"))?;
 
         let persist_file: IPersistFile = shell_link.cast()?;
         persist_file.Save(PCWSTR(shortcut_wide.as_ptr()), true)
@@ -150,7 +150,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("codex-meter-shortcut-{unique}"));
+        let root = std::env::temp_dir().join(format!("quodex-shortcut-{unique}"));
         fs::create_dir_all(&root).expect("fixture directory");
         let executable = std::env::current_exe().expect("test executable");
         let shortcut = root.join(SHORTCUT_FILE_NAME);

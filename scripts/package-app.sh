@@ -5,7 +5,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-app_name="Codex Meter"
+app_name="QuoDex"
 version=$(node -p "require('./package.json').version")
 bundle_dir="src-tauri/target/release/bundle"
 out_dir="release/macos"

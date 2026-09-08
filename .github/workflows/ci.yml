@@ -56,7 +56,7 @@ jobs:
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: codex-meter-macos
+          name: quodex-macos
           path: release/macos/*
 
   # 打 tag（v*）时打包 Windows NSIS 安装器（含 WebView2 固定运行时）
@@ -88,5 +88,5 @@ jobs:
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: codex-meter-windows
-          path: release/CodexMeter-*.exe
+          name: quodex-windows
+          path: release/QuoDex-*.exe

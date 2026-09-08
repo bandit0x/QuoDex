@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.6",
+    [string]$Version = "0.0.8",
     [string]$WebView2RuntimePath = "",
     [string]$BuildTargetDir = ""
 )
@@ -15,7 +15,7 @@ $buildTargetRoot = if ([string]::IsNullOrWhiteSpace($BuildTargetDir)) {
 $sourceExe = Join-Path $buildTargetRoot "release\codex-credits-view.exe"
 $sourceRuntime = Join-Path $projectRoot "node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe"
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot "release"))
-$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot "CodexMeter-$Version-win-x64"))
+$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot "QuoDex-$Version-win-x64"))
 $runtimeDir = Join-Path $outputRoot "codex-runtime\bin"
 $webview2Dir = Join-Path $outputRoot "webview2-runtime"
 
@@ -71,7 +71,7 @@ if (Test-Path -LiteralPath $outputRoot) {
 }
 [System.IO.Directory]::CreateDirectory($runtimeDir) | Out-Null
 [System.IO.Directory]::CreateDirectory($webview2Dir) | Out-Null
-Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $outputRoot "Codex Meter.exe") -Force
+Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $outputRoot "QuoDex.exe") -Force
 Copy-Item -LiteralPath $sourceRuntime -Destination (Join-Path $runtimeDir "codex.exe") -Force
 Copy-Item -Path (Join-Path $WebView2RuntimePath "*") -Destination $webview2Dir -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "README.md") -Destination $outputRoot -Force
@@ -80,7 +80,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") -Destin
 $files = Get-ChildItem -LiteralPath $outputRoot -File -Recurse |
     Sort-Object FullName
 $manifest = [ordered]@{
-    product = "Codex Meter"
+    product = "QuoDex"
     version = $Version
     platform = "windows-x64"
     webview2Mode = "fixed-runtime"

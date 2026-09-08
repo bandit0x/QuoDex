@@ -81,7 +81,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("capacity")
         .icon(icon)
-        .tooltip("Codex Meter")
+        .tooltip("QuoDex")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
@@ -179,14 +179,14 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     configure_bundled_webview2_runtime();
 
-    let mut app = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(CapacityService::from_environment())
         .manage(TomatoCloudService::new())
         .manage(ZCodeQuotaService::from_environment())
         .setup(|app| {
             #[cfg(all(target_os = "windows", not(debug_assertions)))]
             if let Err(error) = desktop_shortcut::replace_desktop_shortcut() {
-                eprintln!("failed to create the Codex Meter desktop shortcut: {error}");
+                eprintln!("failed to create the QuoDex desktop shortcut: {error}");
             }
             let store = PreferencesStore::new(app.handle());
             if let Some(window) = app.get_webview_window("main") {
@@ -218,7 +218,7 @@ pub fn run() {
             quit_app
         ])
         .build(tauri::generate_context!())
-        .expect("failed to build Codex Meter");
+        .expect("failed to build QuoDex");
 
     // skipTaskbar 在 macOS 的等价物：不进 Dock，只保留菜单栏托盘图标
     #[cfg(target_os = "macos")]
@@ -249,7 +249,7 @@ mod webview2_tests {
             .expect("clock")
             .as_nanos();
         let root = std::env::temp_dir().join(format!("crv-webview2-{unique}"));
-        let executable = root.join("Codex Meter.exe");
+        let executable = root.join("QuoDex.exe");
         let runtime = root.join(FIXED_WEBVIEW2_DIRECTORY);
         fs::create_dir_all(&runtime).expect("runtime directory");
         fs::write(&executable, []).expect("portable executable fixture");

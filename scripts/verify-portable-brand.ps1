@@ -20,7 +20,7 @@ function Get-ChildProcessIds {
 
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 if ([string]::IsNullOrWhiteSpace($Executable)) {
-    $Executable = Join-Path $projectRoot "release\CodexMeter-0.1.6-win-x64\Codex Meter.exe"
+    $Executable = Join-Path $projectRoot "release\QuoDex-0.0.8-win-x64\QuoDex.exe"
 }
 $Executable = [System.IO.Path]::GetFullPath($Executable)
 if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
@@ -33,7 +33,7 @@ $evidenceDirectory = if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
     [System.IO.Path]::GetFullPath($EvidenceDirectory)
 }
 [System.IO.Directory]::CreateDirectory($evidenceDirectory) | Out-Null
-$profileRoot = Join-Path $env:TEMP ("codex-meter-verification-" + [guid]::NewGuid().ToString("N"))
+$profileRoot = Join-Path $env:TEMP ("quodex-verification-" + [guid]::NewGuid().ToString("N"))
 [System.IO.Directory]::CreateDirectory($profileRoot) | Out-Null
 
 Add-Type -AssemblyName System.Drawing
@@ -54,11 +54,11 @@ public static class CodexMeterWindowApi {
 $process = $null
 try {
     $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Executable)
-    if ($version.ProductName -ne "Codex Meter" -or $version.FileDescription -ne "Codex Meter") {
-        throw "Executable metadata does not identify Codex Meter."
+    if ($version.ProductName -ne "QuoDex" -or $version.FileDescription -ne "QuoDex") {
+        throw "Executable metadata does not identify QuoDex."
     }
 
-    $iconPath = Join-Path $evidenceDirectory "codex-meter-exe-icon.png"
+    $iconPath = Join-Path $evidenceDirectory "quodex-exe-icon.png"
     $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Executable)
     try {
         $bitmap = $icon.ToBitmap()
@@ -83,29 +83,29 @@ try {
     do {
         Start-Sleep -Milliseconds 200
         $process.Refresh()
-        if ($process.HasExited) { throw "Codex Meter exited during startup with code $($process.ExitCode)." }
+        if ($process.HasExited) { throw "QuoDex exited during startup with code $($process.ExitCode)." }
     } while ($process.MainWindowHandle -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
-    if ($process.MainWindowHandle -eq [IntPtr]::Zero) { throw "Codex Meter did not create a main window within 30 seconds." }
+    if ($process.MainWindowHandle -eq [IntPtr]::Zero) { throw "QuoDex did not create a main window within 30 seconds." }
 
     $handle = $process.MainWindowHandle
     $text = [System.Text.StringBuilder]::new(256)
     do {
         [void]$text.Clear()
         [void][CodexMeterWindowApi]::GetWindowText($handle, $text, $text.Capacity)
-        if ($text.ToString() -eq "Codex Meter") { break }
+        if ($text.ToString() -eq "QuoDex") { break }
         Start-Sleep -Milliseconds 200
         $process.Refresh()
-        if ($process.HasExited) { throw "Codex Meter exited while initializing with code $($process.ExitCode)." }
+        if ($process.HasExited) { throw "QuoDex exited while initializing with code $($process.ExitCode)." }
     } while ([DateTime]::UtcNow -lt $deadline)
     $rect = [CodexMeterWindowApi+Rect]::new()
     if (-not [CodexMeterWindowApi]::GetWindowRect($handle, [ref]$rect)) { throw "Could not read the window rectangle." }
-    if ($text.ToString() -ne "Codex Meter") { throw "Unexpected window title: $($text.ToString())" }
+    if ($text.ToString() -ne "QuoDex") { throw "Unexpected window title: $($text.ToString())" }
     if (($rect.Right - $rect.Left) -ne 300 -or ($rect.Bottom - $rect.Top) -ne 130) {
         throw "Unexpected compact window size: $($rect.Right - $rect.Left)x$($rect.Bottom - $rect.Top)"
     }
 
     Start-Sleep -Seconds 3
-    $windowPath = Join-Path $evidenceDirectory "codex-meter-real-window.png"
+    $windowPath = Join-Path $evidenceDirectory "quodex-real-window.png"
     $windowCaptureStatus = "captured"
     try {
         $windowBitmap = [System.Drawing.Bitmap]::new($rect.Right - $rect.Left, $rect.Bottom - $rect.Top)
@@ -125,19 +125,19 @@ try {
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $nameCondition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty,
-        "Codex Meter"
+        "QuoDex"
     )
     $namedElements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $nameCondition)
     $taskbarButtons = @($namedElements | Where-Object {
         $_.Current.ClassName -eq "TaskListButton" -or
         $_.Current.AutomationId -like "Taskbar.TaskListButtonAutomationPeer*"
     })
-    if ($taskbarButtons.Count -ne 0) { throw "Codex Meter unexpectedly created a taskbar button." }
+    if ($taskbarButtons.Count -ne 0) { throw "QuoDex unexpectedly created a taskbar button." }
 
     [void][CodexMeterWindowApi]::SendMessage($handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 800
     $process.Refresh()
-    if ($process.HasExited) { throw "Closing the overlay terminated Codex Meter instead of hiding it to the tray." }
+    if ($process.HasExited) { throw "Closing the overlay terminated QuoDex instead of hiding it to the tray." }
     if ([CodexMeterWindowApi]::IsWindowVisible($handle)) { throw "Closing the overlay did not hide the main window." }
 
     [pscustomobject]@{
