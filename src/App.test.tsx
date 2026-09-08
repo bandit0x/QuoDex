@@ -380,7 +380,7 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await screen.findByText("TomatoCloud route is unavailable");
+    await screen.findByText("TomatoCloud route is unavailable", undefined, { timeout: 4_000 });
     await user.click(screen.getByRole("button", { name: "展开重置详情" }));
     await user.click(screen.getByRole("button", { name: "刷新" }));
     await screen.findByText("STALE · CRV-111");

@@ -95,7 +95,7 @@ const defaultPreferences: DisplayPreferences = {
   y: null,
   source: "carousel",
 };
-const REFRESH_INTERVAL_MS = 60_000;
+const REFRESH_INTERVAL_MS = 5_000;
 const CAROUSEL_INTERVAL_MS = 10_000;
 const CLICK_THROUGH_DURATION_MS = 10_000;
 const ROUTE_HEALTHY_INTERVAL_MS = 5_000;
