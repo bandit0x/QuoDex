@@ -321,7 +321,7 @@ async fn route_probe(
                 "--output",
                 "-",
                 "--write-out",
-                "\n%{http_code} %{time_total}",
+                "\n%{http_code} %{time_appconnect} %{time_starttransfer}",
                 "--connect-timeout",
                 settings.connect_timeout,
                 "--max-time",
@@ -426,13 +426,18 @@ fn parse_curl_output(raw: &str) -> Option<RouteProbeResult> {
     let (body, metadata) = raw.rsplit_once('\n')?;
     let mut fields = metadata.split_whitespace();
     let http_status = fields.next()?.parse::<u16>().ok()?;
-    let latency_seconds = fields.next()?.parse::<f64>().ok()?;
-    if !latency_seconds.is_finite() || latency_seconds < 0.0 {
+    let appconnect_seconds = fields.next()?.parse::<f64>().ok()?;
+    let starttransfer_seconds = fields.next()?.parse::<f64>().ok()?;
+    if !appconnect_seconds.is_finite()
+        || !starttransfer_seconds.is_finite()
+        || appconnect_seconds < 0.0
+        || starttransfer_seconds < appconnect_seconds
+    {
         return None;
     }
     Some(RouteProbeResult {
         http_status,
-        latency_ms: (latency_seconds * 1_000.0).round() as u64,
+        latency_ms: ((starttransfer_seconds - appconnect_seconds) * 1_000.0).round() as u64,
         body: body.trim().to_owned(),
     })
 }
@@ -518,11 +523,18 @@ mod tests {
 
     #[test]
     fn parses_curl_metadata_and_normalizes_exit_country() {
-        let result = parse_curl_output("{\"ip\":\"203.0.113.10\",\"country\":\"GB\"}\n200 0.0427")
-            .expect("probe result");
+        let result =
+            parse_curl_output("{\"ip\":\"203.0.113.10\",\"country\":\"GB\"}\n200 1.0000 1.0427")
+                .expect("probe result");
         assert_eq!(result.http_status, 200);
         assert_eq!(result.latency_ms, 43);
         assert_eq!(country_code_from_body(&result.body).as_deref(), Some("UK"));
+    }
+
+    #[test]
+    fn measures_route_latency_after_tls_handshake() {
+        let result = parse_curl_output("{}\n200 4.4543 4.6693").expect("probe result");
+        assert_eq!(result.latency_ms, 215);
     }
 
     #[cfg(target_os = "windows")]
