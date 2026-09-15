@@ -132,6 +132,24 @@ npm run package:app      # 构建 .app / .dmg
 
 输出位于 `release/macos/QuoDex.app`。打包脚本会把 `@openai/codex` 的平台原生二进制捆绑进 `QuoDex.app/Contents/MacOS/codex-runtime/bin/`（对齐 Windows 便携包；未安装 npm 依赖时跳过并告警）。安装后的应用按「捆绑的 codex-runtime → PATH → ChatGPT.app / Codex.app 内嵌 CLI → Homebrew 等常见安装位置」定位 Codex，与桌面版共享 `~/.codex` 登录态。注意 DMG 生成于运行时注入之前，不含捆绑运行时，请优先分发 `.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
 
+## ⚙️ 环境变量覆盖
+
+用于上游改名、端点迁移或私有部署场景，无需重新构建即可修正探测目标。注意 macOS 图形界面启动的应用读不到 shell 的 `export`，需用 `launchctl setenv <变量> <值>` 设置后重启应用；Windows 用系统环境变量。
+
+| 变量 | 作用 |
+| --- | --- |
+| `CODEX_CREDITS_USE_LIVE=1` | 开发构建连接真实 Codex（默认使用测试夹具） |
+| `CODEX_CREDITS_APP_SERVER_EXECUTABLE` | 指定 Codex 可执行文件，可配 `CODEX_CREDITS_APP_SERVER_ARGS`（JSON 数组） |
+| `CODEX_CREDITS_ZCODE_CONFIG_DIR` | 指定 ZCode 配置目录（默认探测 `~/.zcode/v2`，回退 `~/.zcode`） |
+| `ZCODE_BIGMODEL_USAGE_API_KEY` / `BIGMODEL_USAGE_API_KEY` | 覆盖 ZCode 配额 API Key |
+| `ZCODE_BIGMODEL_USAGE_QUOTA_URL` / `BIGMODEL_USAGE_QUOTA_URL` | 覆盖 ZCode 配额完整 URL |
+| `CODEX_CREDITS_COUNTRY_ENDPOINT` | 覆盖 TomatoCloud 国家探测端点（默认 `https://api.country.is/`） |
+| `CODEX_CREDITS_HEALTH_ENDPOINT` | 覆盖 TomatoCloud 连通性探测端点（默认 `https://www.gstatic.com/generate_204`） |
+| `CODEX_CREDITS_TOMATO_PROCESSES` | 覆盖 TomatoCloud 必需进程名单（逗号分隔，覆盖平台默认值） |
+| `CODEX_CREDITS_CONFIG_DIR` | 面板偏好存储目录 |
+
+另外，ZCode provider 的 `options.quotaURL`（`~/.zcode/v2/config.json`）可完整指定配额接口地址，优先级低于上面的配额 URL 环境变量。
+
 ## 🔐 数据与隐私
 
 QuoDex 启动独立的本机 Codex `app-server` 进程，通过只读 JSON-RPC 请求获取账号配额。认证和网络通信仍由官方 Codex 运行时处理。[^codex-app-server]

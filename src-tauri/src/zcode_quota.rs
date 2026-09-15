@@ -66,6 +66,10 @@ struct ZCodeProviderOptions {
     api_key: String,
     #[serde(rename = "baseURL")]
     base_url: String,
+    /// 可选的完整配额 URL；留空则从 baseURL 推导 `<origin>/api/monitor/usage/quota/limit`，
+    /// 用于 bigmodel 调整路径后无需等发版即可在配置侧修复。
+    #[serde(rename = "quotaURL")]
+    quota_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,26 +190,42 @@ fn resolve_quota_request(
     })
 }
 
+/// 解析顺序：显式环境变量 > `$HOME/.zcode/v2`（当前布局）> `$HOME/.zcode`
+/// （兜底 ZCode 目录结构迁移，例如移除版本子目录）。
+fn zcode_config_candidates(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<PathBuf> {
+    if let Some(dir) = lookup("CODEX_CREDITS_ZCODE_CONFIG_DIR") {
+        return vec![PathBuf::from(dir)];
+    }
+    let Some(home) = lookup("HOME").or_else(|| lookup("USERPROFILE")) else {
+        return Vec::new();
+    };
+    let home = PathBuf::from(home);
+    vec![home.join(".zcode").join("v2"), home.join(".zcode")]
+}
+
 fn read_config_request(
     lookup: &dyn Fn(&str) -> Option<String>,
 ) -> Result<QuotaRequest, Diagnostic> {
-    let config_dir = lookup("CODEX_CREDITS_ZCODE_CONFIG_DIR")
-        .map(PathBuf::from)
-        .or_else(|| {
-            lookup("HOME")
-                .or_else(|| lookup("USERPROFILE"))
-                .map(|home| PathBuf::from(home).join(".zcode").join("v2"))
-        });
-    let Some(config_dir) = config_dir else {
-        return Err(
-            Diagnostic::new("CRV-501", "未检测到 ZCode 配置").with_detail("无法定位用户目录")
-        );
+    let mut tried = Vec::new();
+    let mut raw = None;
+    for dir in zcode_config_candidates(lookup) {
+        let path = dir.join("config.json");
+        match fs::read_to_string(&path) {
+            Ok(content) => {
+                raw = Some(content);
+                break;
+            }
+            Err(error) => tried.push(format!("{}: {error}", path.display())),
+        }
+    }
+    let Some(raw) = raw else {
+        let detail = if tried.is_empty() {
+            "无法定位用户目录".to_owned()
+        } else {
+            format!("尝试读取失败: {}", tried.join("; "))
+        };
+        return Err(Diagnostic::new("CRV-501", "未检测到 ZCode 配置").with_detail(detail));
     };
-    let path = config_dir.join("config.json");
-    let raw = fs::read_to_string(&path).map_err(|error| {
-        Diagnostic::new("CRV-501", "未检测到 ZCode 配置")
-            .with_detail(format!("无法读取 {}: {error}", path.display()))
-    })?;
     let config: ZCodeConfigFile = serde_json::from_str(&raw).map_err(|error| {
         Diagnostic::new("CRV-501", "ZCode 配置无法解析").with_detail(error.to_string())
     })?;
@@ -230,13 +250,19 @@ fn read_config_request(
         if api_key.is_empty() {
             continue;
         }
-        let Some(url) = quota_url_from_base_url(&entry.options.base_url) else {
-            return Err(
-                Diagnostic::new("CRV-503", "ZCode 编程包配置不完整").with_detail(format!(
-                    "provider {id} 的 baseURL 无法解析: {}",
-                    entry.options.base_url
-                )),
-            );
+        let explicit_quota_url = entry.options.quota_url.trim();
+        let url = if explicit_quota_url.is_empty() {
+            let Some(url) = quota_url_from_base_url(&entry.options.base_url) else {
+                return Err(
+                    Diagnostic::new("CRV-503", "ZCode 编程包配置不完整").with_detail(format!(
+                        "provider {id} 的 baseURL 无法解析: {}",
+                        entry.options.base_url
+                    )),
+                );
+            };
+            url
+        } else {
+            explicit_quota_url.to_owned()
         };
         return Ok(QuotaRequest { url, api_key });
     }
@@ -721,6 +747,47 @@ mod tests {
 
         let request = resolve_quota_request(&lookup).expect("resolve from home");
         assert_eq!(request.api_key, "home-key");
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn explicit_provider_quota_url_overrides_derived_path() {
+        let mut config = coding_plan_config(true, "config-key");
+        config["provider"]["builtin:bigmodel-coding-plan"]["options"]["quotaURL"] =
+            serde_json::json!("https://quota.example.test/custom/path");
+        let dir = write_temp_config(&config);
+        let lookup = |name: &str| {
+            (name == "CODEX_CREDITS_ZCODE_CONFIG_DIR").then(|| dir.to_string_lossy().into_owned())
+        };
+
+        let request = resolve_quota_request(&lookup).expect("resolve from config");
+        assert_eq!(request.url, "https://quota.example.test/custom/path");
+        assert_eq!(request.api_key, "config-key");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn config_dir_falls_back_to_versionless_zcode_dir() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let home = std::env::temp_dir().join(format!("crv-zcode-root-{unique}"));
+        let config_dir = home.join(".zcode");
+        fs::create_dir_all(&config_dir).expect("config dir");
+        fs::write(
+            config_dir.join("config.json"),
+            serde_json::to_string_pretty(&coding_plan_config(true, "root-key"))
+                .expect("config json"),
+        )
+        .expect("write config");
+        let home_for_lookup = home.clone();
+        let lookup = move |name: &str| {
+            (name == "HOME").then(|| home_for_lookup.to_string_lossy().into_owned())
+        };
+
+        let request = resolve_quota_request(&lookup).expect("resolve from versionless dir");
+        assert_eq!(request.api_key, "root-key");
         let _ = fs::remove_dir_all(&home);
     }
 

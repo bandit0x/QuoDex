@@ -161,12 +161,17 @@ fn local_runtime_candidates() -> Vec<PathBuf> {
             );
         }
     }
+    // 仓库内 vendored 运行时仅用于开发联调（CODEX_CREDITS_USE_LIVE=1）：
+    // env! 的编译期绝对路径不得进入发行版，否则会在构建机上“碰巧生效”，
+    // 掩盖捆绑 runtime 缺失、兜底目录不覆盖等真实解析问题。
+    #[cfg(debug_assertions)]
     candidates.push(project_local_runtime());
     candidates
 }
 
 /// The `@openai/codex` npm package ships a vendored CLI per platform; pick the
 /// one matching this machine's vendor triple.
+#[cfg(debug_assertions)]
 fn project_local_runtime() -> PathBuf {
     let packages = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -701,6 +706,7 @@ mod tests {
         let _ = fs::remove_dir(folder);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn project_local_official_runtime_is_preferred_when_installed() {
         let expected = if cfg!(target_os = "windows") {

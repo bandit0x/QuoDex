@@ -2,6 +2,7 @@ use crate::capacity::Diagnostic;
 use serde::Serialize;
 use std::{
     collections::HashSet,
+    env,
     sync::Mutex,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -26,6 +27,33 @@ const REQUIRED_PROCESSES: [&str; 2] = ["tomato-cloud.exe", "tomato-dataplane-age
 // macOS 客户端由 tomato-cloud + 特权助手 io.tomato.cloud.helper.bundle 组成
 #[cfg(not(target_os = "windows"))]
 const REQUIRED_PROCESSES: [&str; 2] = ["tomato-cloud", "tomato-helper"];
+
+/// 上游改名/迁移时的逃生门：探测端点与必需进程可用
+/// `CODEX_CREDITS_HEALTH_ENDPOINT` / `CODEX_CREDITS_COUNTRY_ENDPOINT` /
+/// `CODEX_CREDITS_TOMATO_PROCESSES` 环境变量覆盖。
+fn resolve_endpoint(lookup: &dyn Fn(&str) -> Option<String>, var: &str, default: &str) -> String {
+    lookup(var)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default.to_owned())
+}
+
+fn resolve_required_processes(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<String> {
+    if let Some(raw) = lookup("CODEX_CREDITS_TOMATO_PROCESSES") {
+        let names = raw
+            .split([',', ';'])
+            .map(|name| name.trim().to_owned())
+            .filter(|name| !name.is_empty())
+            .collect::<Vec<_>>();
+        if !names.is_empty() {
+            return names;
+        }
+    }
+    REQUIRED_PROCESSES
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect()
+}
 
 #[derive(Clone, Copy)]
 struct ProbeSettings {
@@ -76,6 +104,17 @@ impl TomatoCloudService {
     }
 
     pub async fn read_connection(&self) -> TomatoConnectionSnapshot {
+        let lookup = |name: &str| {
+            env::var(name)
+                .ok()
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        };
+        let required_processes = resolve_required_processes(&lookup);
+        let health_endpoint =
+            resolve_endpoint(&lookup, "CODEX_CREDITS_HEALTH_ENDPOINT", HEALTH_ENDPOINT);
+        let country_endpoint =
+            resolve_endpoint(&lookup, "CODEX_CREDITS_COUNTRY_ENDPOINT", COUNTRY_ENDPOINT);
         let country_code = self
             .last_country_code
             .lock()
@@ -86,10 +125,9 @@ impl TomatoCloudService {
             Ok(processes) => processes,
             Err(diagnostic) => return TomatoConnectionSnapshot::blocked(country_code, diagnostic),
         };
-        let missing = REQUIRED_PROCESSES
+        let missing = required_processes
             .iter()
-            .copied()
-            .filter(|process| !running_processes.contains(*process))
+            .filter(|process| !running_processes.contains(process.as_str()))
             .collect::<Vec<_>>();
         if !missing.is_empty() {
             return TomatoConnectionSnapshot::blocked(
@@ -111,7 +149,7 @@ impl TomatoCloudService {
             );
         }
 
-        let health_probe = match route_probe(&proxy, HEALTH_ENDPOINT, HEALTH_PROBE).await {
+        let health_probe = match route_probe(&proxy, &health_endpoint, HEALTH_PROBE).await {
             Ok(probe) if (200..300).contains(&probe.http_status) => probe,
             Ok(probe) => {
                 return TomatoConnectionSnapshot::blocked(
@@ -123,7 +161,7 @@ impl TomatoCloudService {
             Err(diagnostic) => return TomatoConnectionSnapshot::blocked(country_code, diagnostic),
         };
 
-        let country_code = match route_probe(&proxy, COUNTRY_ENDPOINT, COUNTRY_PROBE).await {
+        let country_code = match route_probe(&proxy, &country_endpoint, COUNTRY_PROBE).await {
             Ok(probe) if probe.http_status == 200 => {
                 let country_code = country_code_from_body(&probe.body).or(country_code);
                 if let Some(country_code) = country_code.as_ref() {
@@ -536,5 +574,60 @@ mod tests {
     #[test]
     fn rejects_malformed_probe_metadata() {
         assert!(parse_curl_output("not a probe result").is_none());
+    }
+
+    fn lookup_from<'a>(map: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |name| {
+            map.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    }
+
+    #[test]
+    fn endpoints_can_be_overridden_and_blank_values_fall_back() {
+        let lookup = lookup_from(&[(
+            "CODEX_CREDITS_HEALTH_ENDPOINT",
+            "https://probe.example.test/204",
+        )]);
+        assert_eq!(
+            resolve_endpoint(&lookup, "CODEX_CREDITS_HEALTH_ENDPOINT", HEALTH_ENDPOINT),
+            "https://probe.example.test/204"
+        );
+        assert_eq!(
+            resolve_endpoint(&lookup, "CODEX_CREDITS_COUNTRY_ENDPOINT", COUNTRY_ENDPOINT),
+            COUNTRY_ENDPOINT
+        );
+
+        let blank = lookup_from(&[("CODEX_CREDITS_HEALTH_ENDPOINT", "   ")]);
+        assert_eq!(
+            resolve_endpoint(&blank, "CODEX_CREDITS_HEALTH_ENDPOINT", HEALTH_ENDPOINT),
+            HEALTH_ENDPOINT
+        );
+    }
+
+    #[test]
+    fn process_requirements_can_be_overridden_per_deployment() {
+        let lookup = lookup_from(&[(
+            "CODEX_CREDITS_TOMATO_PROCESSES",
+            "tomato-cloud, tomato-agent ;",
+        )]);
+        assert_eq!(
+            resolve_required_processes(&lookup),
+            vec!["tomato-cloud".to_owned(), "tomato-agent".to_owned()]
+        );
+
+        let defaults = REQUIRED_PROCESSES
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(resolve_required_processes(&lookup_from(&[])), defaults);
+        assert_eq!(
+            resolve_required_processes(&lookup_from(&[(
+                "CODEX_CREDITS_TOMATO_PROCESSES",
+                " , ;"
+            )])),
+            defaults
+        );
     }
 }
