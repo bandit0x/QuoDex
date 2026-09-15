@@ -128,6 +128,7 @@ impl TomatoCloudService {
         let missing = required_processes
             .iter()
             .filter(|process| !running_processes.contains(process.as_str()))
+            .map(String::as_str)
             .collect::<Vec<_>>();
         if !missing.is_empty() {
             return TomatoConnectionSnapshot::blocked(
