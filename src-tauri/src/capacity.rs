@@ -232,16 +232,38 @@ fn extra_executable_candidates() -> Vec<PathBuf> {
 fn extra_executable_candidates() -> Vec<PathBuf> {
     // Finder 启动的 .app 拿不到登录 shell 的 PATH，补查常见安装位置
     let binary = crate::platform::codex_binary_name();
-    let mut candidates = vec![
-        PathBuf::from("/opt/homebrew/bin").join(binary),
-        PathBuf::from("/usr/local/bin").join(binary),
-    ];
+    let mut candidates = desktop_app_bundled_candidates();
+    candidates.push(PathBuf::from("/opt/homebrew/bin").join(binary));
+    candidates.push(PathBuf::from("/usr/local/bin").join(binary));
     if let Some(home) = env::var_os("HOME") {
         let home = PathBuf::from(home);
         candidates.push(home.join(".local/bin").join(binary));
         candidates.push(home.join("bin").join(binary));
     }
     candidates
+}
+
+/// Codex 桌面版把 CLI 内嵌在应用包里（当前随 ChatGPT.app 分发，独立 Codex.app
+/// 为预留布局），并与 `~/.codex` 共享登录态；对 Finder 启动的场景这是最常见的
+/// 来源，对齐 Windows 侧扫描 WindowsApps 的兜底逻辑。
+#[cfg(target_os = "macos")]
+fn desktop_app_bundled_candidates() -> Vec<PathBuf> {
+    let mut roots = vec![PathBuf::from("/Applications")];
+    if let Some(home) = env::var_os("HOME") {
+        roots.push(PathBuf::from(home).join("Applications"));
+    }
+    let mut candidates = Vec::new();
+    for root in roots {
+        for app in ["ChatGPT.app", "Codex.app"] {
+            candidates.push(root.join(app).join("Contents/Resources/codex"));
+        }
+    }
+    candidates
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+fn desktop_app_bundled_candidates() -> Vec<PathBuf> {
+    Vec::new()
 }
 
 fn find_on_path(executable: &str, path_value: Option<std::ffi::OsString>) -> Option<PathBuf> {
@@ -716,6 +738,29 @@ mod tests {
             let home = PathBuf::from(home);
             assert!(candidates.contains(&home.join(".local/bin").join(binary)));
             assert!(candidates.contains(&home.join("bin").join(binary)));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn finder_fallback_prefers_desktop_app_bundled_cli() {
+        let candidates = extra_executable_candidates();
+
+        assert_eq!(
+            candidates.first(),
+            Some(&PathBuf::from(
+                "/Applications/ChatGPT.app/Contents/Resources/codex"
+            ))
+        );
+        assert!(candidates.contains(&PathBuf::from(
+            "/Applications/Codex.app/Contents/Resources/codex"
+        )));
+        if let Some(home) = env::var_os("HOME") {
+            let home_chats = PathBuf::from(home)
+                .join("Applications")
+                .join("ChatGPT.app")
+                .join("Contents/Resources/codex");
+            assert!(candidates.contains(&home_chats));
         }
     }
 }

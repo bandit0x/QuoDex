@@ -130,7 +130,7 @@ npm run tauri:dev        # 开发模式
 npm run package:app      # 构建 .app / .dmg
 ```
 
-输出位于 `release/macos/QuoDex.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
+输出位于 `release/macos/QuoDex.app`。打包脚本会把 `@openai/codex` 的平台原生二进制捆绑进 `QuoDex.app/Contents/MacOS/codex-runtime/bin/`（对齐 Windows 便携包；未安装 npm 依赖时跳过并告警）。安装后的应用按「捆绑的 codex-runtime → PATH → ChatGPT.app / Codex.app 内嵌 CLI → Homebrew 等常见安装位置」定位 Codex，与桌面版共享 `~/.codex` 登录态。注意 DMG 生成于运行时注入之前，不含捆绑运行时，请优先分发 `.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
 
 ## 🔐 数据与隐私
 
