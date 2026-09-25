@@ -1,6 +1,6 @@
 [package]
 name = "codex-credits-view"
-version = "0.1.8"
+version = "0.1.9"
 description = "A read-only Codex capacity overlay for Windows 11 and macOS"
 authors = ["Codex Credits View contributors"]
 edition = "2021"

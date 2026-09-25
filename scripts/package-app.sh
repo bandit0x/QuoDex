@@ -36,10 +36,18 @@ else
   echo "WARNING: 未找到 @openai/codex 平台二进制（请先 npm install）；应用将依赖用户已安装的 Codex。" >&2
 fi
 
-dmg=$(find "$bundle_dir/dmg" -name "${app_name}_${version}_"*.dmg -print -quit 2>/dev/null || true)
-if [ -n "${dmg:-}" ]; then
-  cp "$dmg" "$out_dir/"
-fi
+# tauri 生成的 DMG 早于 codex-runtime 注入，不含捆绑运行时；用注入后的
+# .app 重建 DMG，让两种分发形态都完整（保留拖拽安装的 Applications 链接）
+case "$(uname -m)" in
+  arm64) dmg_arch="aarch64" ;;
+  *)     dmg_arch="x64" ;;
+esac
+dmg="$out_dir/${app_name}_${version}_${dmg_arch}.dmg"
+staging=$(mktemp -d)
+cp -R "$out_dir/$app_name.app" "$staging/"
+ln -s /Applications "$staging/Applications"
+hdiutil create -volname "$app_name" -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null
+rm -rf "$staging"
 
 echo "Packaged: $out_dir/$app_name.app"
-[ -n "${dmg:-}" ] && echo "Packaged: $out_dir/$(basename "$dmg")"
+echo "Packaged: $dmg"
