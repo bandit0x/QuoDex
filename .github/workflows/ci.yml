@@ -112,9 +112,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          assets=()
+          for f in release/macos/*.dmg release/QuoDex-*.exe; do
+            [ -e "$f" ] && assets+=("$f")
+          done
           gh release create "$GITHUB_REF_NAME" \
             --title "QuoDex $GITHUB_REF_NAME" \
             --generate-notes \
-            release/macos/*.dmg \
-            release/macos/*.app.zip \
-            release/QuoDex-*.exe
+            "${assets[@]}"
