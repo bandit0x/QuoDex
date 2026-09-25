@@ -170,7 +170,7 @@ const fixtureProps: React.ComponentProps<typeof App> = fixtureEnabled
       setWindowLayout: async () => undefined,
       // 设置面板桩：浏览器里没有 tauri invoke，让 ?fixture= 页面能截图设置状态
       openSettingsWindow: async () => ({
-        baseLayout: fixtureLayout,
+        baseLayout: fixtureLayout === "collapsed" ? ("compact" as const) : fixtureLayout,
         placement: "above" as const,
         windowPosition: { x: 0, y: 0 },
         windowSize: { width: overlayLayoutSizes[fixtureLayout].width, height: 360 },

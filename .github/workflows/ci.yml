@@ -90,3 +90,31 @@ jobs:
         with:
           name: quodex-windows
           path: release/QuoDex-*.exe
+
+  # 双平台包齐全后发布 GitHub Release（dmg + exe）
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package-macos, package-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quodex-macos
+          path: release/macos
+      - uses: actions/download-artifact@v4
+        with:
+          name: quodex-windows
+          path: release
+      - name: 发布 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "QuoDex $GITHUB_REF_NAME" \
+            --generate-notes \
+            release/macos/*.dmg \
+            release/macos/*.app.zip \
+            release/QuoDex-*.exe

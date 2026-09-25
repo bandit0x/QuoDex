@@ -480,12 +480,11 @@ function freshnessText(
   snapshot: Pick<CapacitySnapshot, "fiveHour" | "weekly" | "observedAtMs">,
   stale: boolean,
   diagnostic?: Diagnostic,
-  weeklyOnly = false,
-  poolOnly = false,
+  options?: { weeklyOnly?: boolean; poolOnly?: boolean },
 ): string {
   const unavailable = [
-    weeklyOnly || snapshot.fiveHour ? null : "5-hour unavailable",
-    poolOnly || snapshot.weekly ? null : "Week unavailable",
+    options?.weeklyOnly || snapshot.fiveHour ? null : "5-hour unavailable",
+    options?.poolOnly || snapshot.weekly ? null : "Week unavailable",
   ].filter(Boolean);
 
   if (stale) return `STALE · ${diagnostic?.code ?? "cached snapshot"}`;
@@ -1018,7 +1017,7 @@ export function App({
                   <span>FULL RESETS <b>{codexSnapshot.fullResetCredits?.availableCount ?? "—"}</b></span>
                   <RouteStatus route={routeConnection} alert={routeBlocked} />
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic, activeIsPro)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic, { weeklyOnly: activeIsPro })}
                   </span>
                 </>
               )}
@@ -1028,7 +1027,7 @@ export function App({
                     <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                   )}
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, false, zcodeIsTrial)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
                   </span>
                 </>
               )}
@@ -1040,7 +1039,7 @@ export function App({
                         <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                       )}
                       <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, false, zcodeIsTrial)}
+                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
                       </span>
                     </>
                   ) : codexSnapshot ? (

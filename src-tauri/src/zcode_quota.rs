@@ -12,11 +12,18 @@ use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(15);
+/// curl --config 经 stdin 传头时引号/换行是注入边界，所有外部提供的头值都要过这道护栏
+fn curl_config_safe(value: &str) -> bool {
+    !value.contains('"') && !value.contains('\n')
+}
 const QUOTA_PATH: &str = "/api/monitor/usage/quota/limit";
 /// 体验套餐余额路径，拼接在 zcode-plan 网关根（baseURL 去掉 `/anthropic`）之后
 const BALANCE_PATH: &str = "/billing/balance";
 /// config.json 没有 start-plan 条目时的默认网关根（生产环境实测值）
 const DEFAULT_ZCODE_PLAN_GATEWAY: &str = "https://zcode.z.ai/api/v1/zcode-plan";
+/// 个人套餐调试用的显式 env 覆盖键；出现任一即固定个人套餐语义
+const ENV_API_KEY_KEYS: [&str; 2] = ["ZCODE_BIGMODEL_USAGE_API_KEY", "BIGMODEL_USAGE_API_KEY"];
+const ENV_QUOTA_URL_KEYS: [&str; 2] = ["ZCODE_BIGMODEL_USAGE_QUOTA_URL", "BIGMODEL_USAGE_QUOTA_URL"];
 
 /// config.json 中参与额度探测的套餐形态：coding-plan 为个人套餐，start-plan 为
 /// ZCode 发放的体验套餐（Start Plan）。体验套餐可用时优先于个人套餐显示。
@@ -131,14 +138,12 @@ struct QuotaLimit {
 }
 
 /// billing/balance 响应：体验套餐额度。字段为 snake_case，与监控端点的
-/// camelCase 约定不同，两种响应不得共用结构体。
+/// camelCase 约定不同，两种响应不得共用结构体。成功以 code==0 判定。
 #[derive(Debug, Deserialize)]
 struct BalanceResponse {
     code: Option<i64>,
     #[serde(default)]
     msg: Option<String>,
-    #[serde(default)]
-    success: Option<bool>,
     #[serde(default)]
     data: Option<BalanceData>,
 }
@@ -225,7 +230,7 @@ impl TelemetryState {
         self.device_mid
             .as_deref()
             .map(str::trim)
-            .filter(|mid| !mid.is_empty() && !mid.contains('"') && !mid.contains('\n'))
+            .filter(|mid| !mid.is_empty() && curl_config_safe(mid))
             .map(str::to_owned)
     }
 }
@@ -284,10 +289,7 @@ where
     F: Fn(QuotaRequest) -> Fut,
     Fut: std::future::Future<Output = Result<String, Diagnostic>> + Send,
 {
-    let env_override = lookup("ZCODE_BIGMODEL_USAGE_API_KEY").is_some()
-        || lookup("BIGMODEL_USAGE_API_KEY").is_some()
-        || lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL").is_some()
-        || lookup("BIGMODEL_USAGE_QUOTA_URL").is_some();
+    let env_override = has_env_override(&lookup);
     if prefer_start && !env_override {
         if let Some(request) = resolve_start_plan_request(&lookup) {
             if let Ok(body) = fetch(request).await {
@@ -303,6 +305,11 @@ where
     parse_quota_payload(&body)
 }
 
+fn has_env_override(lookup: &dyn Fn(&str) -> Option<String>) -> bool {
+    ENV_API_KEY_KEYS.iter().any(|key| lookup(key).is_some())
+        || ENV_QUOTA_URL_KEYS.iter().any(|key| lookup(key).is_some())
+}
+
 fn env_lookup(name: &str) -> Option<String> {
     env::var(name)
         .ok()
@@ -314,8 +321,9 @@ fn resolve_quota_request(
     lookup: &dyn Fn(&str) -> Option<String>,
 ) -> Result<QuotaRequest, Diagnostic> {
     let config = read_config_request(lookup);
-    let api_key = lookup("ZCODE_BIGMODEL_USAGE_API_KEY")
-        .or_else(|| lookup("BIGMODEL_USAGE_API_KEY"))
+    let api_key = ENV_API_KEY_KEYS
+        .iter()
+        .find_map(|key| lookup(key))
         .or_else(|| {
             config
                 .as_ref()
@@ -323,8 +331,9 @@ fn resolve_quota_request(
                 .map(|request| request.api_key.clone())
                 .filter(|key| !key.is_empty())
         });
-    let url = lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL")
-        .or_else(|| lookup("BIGMODEL_USAGE_QUOTA_URL"))
+    let url = ENV_QUOTA_URL_KEYS
+        .iter()
+        .find_map(|key| lookup(key))
         .or_else(|| {
             config
                 .as_ref()
@@ -334,7 +343,7 @@ fn resolve_quota_request(
         });
 
     if let (Some(api_key), Some(url)) = (&api_key, &url) {
-        if api_key.contains('"') || api_key.contains('\n') {
+        if !curl_config_safe(api_key) {
             return Err(Diagnostic::new(
                 "CRV-503",
                 "ZCode API Key 含有无法安全传递的字符",
@@ -459,7 +468,7 @@ fn resolve_start_plan_request(lookup: &dyn Fn(&str) -> Option<String>) -> Option
         id.ends_with("-start-plan") && !entry.options.api_key.trim().is_empty()
     })?;
     let api_key = entry.options.api_key.trim();
-    if api_key.contains('"') || api_key.contains('\n') {
+    if !curl_config_safe(api_key) {
         return None;
     }
     let explicit_quota_url = entry.options.quota_url.trim();
@@ -661,7 +670,8 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
         Diagnostic::new("CRV-506", "ZCode 体验套餐余额响应无法解析")
             .with_detail(error.to_string())
     })?;
-    if payload.success != Some(true) && payload.code != Some(0) {
+    // 网关以 code==0 为成功标志（实测响应不含 success 字段）
+    if payload.code != Some(0) {
         let message = payload
             .msg
             .unwrap_or_else(|| "体验套餐余额服务未返回成功状态".to_owned());
