@@ -76,3 +76,5 @@ node node_modules/vite/bin/vite.js preview --outDir /tmp/quodex-pro-ui-dist --ho
 - `CODEX_CREDITS_USE_LIVE=1`（真实 prolite 账号）：单只全宽 WEEK 舱 11% LEFT、CODEX|PRO 徽章、Resets Sat 21:28、FULL RESETS 3——`docs/verification/pro-ui/native-live-pro.png`，与协议探测值一致。
 
 已知限制：原生窗口仅验证紧凑态（无辅助功能权限，无法脚本点击切换展开/窄条，展开/窄条/失败等状态由浏览器验证入口覆盖）；Pro 档仅有 prolite 一个真实账号可验证，`pro` 档行为按同一协议字段与产品规则处理；正式版 QuoDex.app（0.1.9，验证时用户正在运行）不含本功能，需随下个版本发布。
+
+补充（同日稍晚）：发布形态构建的关键发现——裸 `cargo build --release` 不启用 `custom-protocol` feature，context 仍指向 devUrl（localhost:1420），窗口因透明无内容而完全不可见；必须 `cargo build --release --features tauri/custom-protocol`（`tauri build` 自动携带）。release 构建（含该 feature）在真实 prolite 账号原生渲染 PRO 单仓（周 9%，数据随用量自然变化），并已替换安装进本机 `/Applications/QuoDex.app`（旧包备份于 `release/backup/QuoDex-0.1.9-pre-pro.app`，未改版本号），安装后实拍见 `docs/verification/pro-ui/native-installed-pro.png`。正式发版时仍应走 package-app.sh 完整打包并升版本号。
