@@ -75,6 +75,7 @@ const healthyZcodeSnapshot: ZCodeQuotaSnapshot = {
     quotaRemaining: 4200,
   },
   planLevel: "pro",
+  planKind: "coding_plan",
   observedAtMs: 1_800_000_000_000,
 };
 
@@ -602,6 +603,40 @@ describe("dual quota sources", () => {
 
     expect(await screen.findByRole("group", { name: "5 HOUR quota" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Start trial plan as a single TRIAL pool", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async () => ({
+          ...healthyZcodeSnapshot,
+          fiveHour: {
+            usedPercent: 35,
+            remainingPercent: 65,
+            windowDurationMins: 0,
+            resetsAt: 1_800_000_000,
+            quotaTotal: 1500,
+            quotaUsed: 525,
+            quotaRemaining: 975,
+          },
+          weekly: null,
+          planLevel: "Start",
+          planKind: "start_plan",
+        })}
+      />,
+    );
+
+    const trial = await screen.findByRole("group", { name: "TRIAL quota" });
+    expect(trial).toHaveClass("quota-cell--moonlight");
+    expect(within(trial).getByText("65%", { exact: false })).toBeInTheDocument();
+    expect(within(trial).getByText("975 / 1500")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
+    expect(screen.getByText("START")).toBeInTheDocument();
+    // 体验套餐没有周窗口概念，footer 不应提示 Week unavailable
+    expect(screen.queryByText(/Week unavailable/)).not.toBeInTheDocument();
   });
 
   it("alternates the active source every ten seconds in carousel mode", async () => {

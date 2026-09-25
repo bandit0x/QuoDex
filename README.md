@@ -32,6 +32,7 @@ _图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 m
 - 支持 10 秒鼠标穿透、透明度调节和减少动效
 - 数据读取失败时保留最近一次有效数据，并显示稳定诊断码
 - 支持 ZCode 编程包额度源：自动发现 `~/.zcode` 中启用的 coding-plan
+- 支持 ZCode 体验套餐（Start Plan）：体验套餐可用时优先于个人套餐显示，额度桶聚合为单池 TRIAL 舱并以 START 徽章标识；体验套餐不可用时回落个人套餐
 - 左上角来源徽章（Codex 青 / ZCode 翡翠绿）标识当前显示的额度来源；ZCode 的 5 小时舱使用月光银、周舱使用翡翠绿，窄条模式以对应色点区分
 - 设置面板可切换「Codex / Zcode / 轮播」，轮播每 10 秒交替展示两个来源
 
@@ -41,7 +42,7 @@ _图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 m
 | --- | --- | --- |
 | ![QuoDex 紧凑视图，TomatoCloud 健康](docs/verification/screenshots/quodex-compact.png) | ![QuoDex 展开视图，刷新与设置入口](docs/verification/screenshots/quodex-expanded.png) | ![QuoDex TomatoCloud 路由阻塞状态](docs/verification/screenshots/quodex-route-blocked.png) |
 
-其他确定性测试状态包括[加载状态](docs/verification/screenshots/quodex-loading.png)和[窄条状态](docs/verification/screenshots/quodex-collapsed.png)。这些截图均由测试夹具生成，可随时用 `?fixture=` 开发页面复现。
+其他确定性测试状态包括[加载状态](docs/verification/screenshots/quodex-loading.png)、[窄条状态](docs/verification/screenshots/quodex-collapsed.png)和[ZCode 体验套餐 TRIAL 单池](docs/verification/screenshots/quodex-zcode-trial.png)。这些截图均由测试夹具生成，可随时用 `?fixture=` 开发页面复现（体验套餐对应 `?fixture=zcode-trial`）。
 
 ## 🚀 Quick Start
 

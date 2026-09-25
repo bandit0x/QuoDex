@@ -50,6 +50,24 @@ const visualZcodeFixture: ZCodeQuotaSnapshot = {
     quotaRemaining: 4200,
   },
   planLevel: "pro",
+  planKind: "coding_plan",
+  observedAtMs: Date.now(),
+};
+
+const visualZcodeTrialFixture: ZCodeQuotaSnapshot = {
+  sourceState: "healthy",
+  fiveHour: {
+    usedPercent: 35,
+    remainingPercent: 65,
+    windowDurationMins: 0,
+    resetsAt: 1_789_600_000,
+    quotaTotal: 1500,
+    quotaUsed: 525,
+    quotaRemaining: 975,
+  },
+  weekly: null,
+  planLevel: "Start",
+  planKind: "start_plan",
   observedAtMs: Date.now(),
 };
 
@@ -82,6 +100,7 @@ const visualFixtureNames = new Set([
   "v7-collapsed",
   "v7-route-blocked",
   "zcode-healthy",
+  "zcode-trial",
   "zcode-failed",
   "zcode-carousel",
 ]);
@@ -119,6 +138,9 @@ function createZcodeFixtureLoader(fixtureName: string | null) {
     return async (): Promise<ZCodeQuotaSnapshot> => {
       throw { code: "CRV-502", message: "无法读取 ZCode 配额", detail: null };
     };
+  }
+  if (fixtureName === "zcode-trial") {
+    return async () => visualZcodeTrialFixture;
   }
   return async () => visualZcodeFixture;
 }

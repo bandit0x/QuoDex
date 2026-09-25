@@ -303,7 +303,7 @@ function QuotaCell({
   motionSeed,
   reducedMotion,
 }: {
-  label: "5 HOUR" | "WEEK";
+  label: "5 HOUR" | "WEEK" | "TRIAL";
   window: QuotaWindow | null;
   accent: FluidAccent;
   credits?: string;
@@ -473,10 +473,11 @@ function freshnessText(
   stale: boolean,
   diagnostic?: Diagnostic,
   weeklyOnly = false,
+  poolOnly = false,
 ): string {
   const unavailable = [
     weeklyOnly || snapshot.fiveHour ? null : "5-hour unavailable",
-    snapshot.weekly ? null : "Week unavailable",
+    poolOnly || snapshot.weekly ? null : "Week unavailable",
   ].filter(Boolean);
 
   if (stale) return `STALE · ${diagnostic?.code ?? "cached snapshot"}`;
@@ -871,6 +872,8 @@ export function App({
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
   const zcodeSnapshot = zcodeSlot.view.kind === "healthy" ? zcodeSlot.view.snapshot : zcodeSlot.lastSnapshot;
   const activeSnapshot = activeIsZcode ? zcodeSnapshot : codexSnapshot;
+  // 体验套餐（Start Plan）没有 5h/周窗口，额度聚合为单池展示
+  const zcodeIsTrial = zcodeSnapshot?.planKind === "start_plan";
   // 显式传入的 codexPresentation 仅供测试与设计验证入口覆盖；生产从不传参，
   // 展示模式由最新快照里的协议套餐字段派生（未知套餐保持双仓）。
   const effectiveCodexPresentation = codexPresentation ?? deriveCodexPresentation(codexSnapshot);
@@ -957,7 +960,7 @@ export function App({
                 {activeIsZcode && zcodeSnapshot ? (
                   <>
                     <QuotaCell
-                      label="5 HOUR"
+                      label={zcodeIsTrial ? "TRIAL" : "5 HOUR"}
                       window={zcodeSnapshot.fiveHour}
                       accent="moonlight"
                       credits={zcodeSnapshot.fiveHour ? formatCredits(zcodeSnapshot.fiveHour) : undefined}
@@ -1007,7 +1010,7 @@ export function App({
                     <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                   )}
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, false, zcodeIsTrial)}
                   </span>
                 </>
               )}
@@ -1019,7 +1022,7 @@ export function App({
                         <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                       )}
                       <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic)}
+                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, false, zcodeIsTrial)}
                       </span>
                     </>
                   ) : codexSnapshot ? (
