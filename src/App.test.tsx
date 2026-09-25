@@ -731,3 +731,53 @@ describe("dual quota sources", () => {
     await waitFor(() => expect(zcodeLoader).toHaveBeenCalled());
   });
 });
+
+describe("Pro weekly presentation", () => {
+  const proSnapshot = { ...healthySnapshot, fiveHour: null };
+  it("offers retry for a stale snapshot without a weekly window", async () => {
+    const loader = vi.fn(async (): Promise<CapacitySnapshot> => ({...proSnapshot, sourceState:"stale", weekly:null}));
+    render(<App {...inertPreferences} codexPresentation={{mode:"pro-weekly"}} loadSnapshot={loader}/>);
+    await userEvent.click(await screen.findByRole("button",{name:"重试"}));
+    await waitFor(()=>expect(loader).toHaveBeenCalledTimes(2));
+  });
+  it("shows only weekly quota without claiming the intentionally absent 5h window is unavailable", async () => {
+    render(<App {...inertPreferences} codexPresentation={{ mode: "pro-weekly" }} loadSnapshot={async () => proSnapshot}/>);
+    expect(await screen.findByRole("group", {name:"WEEK quota"})).toBeInTheDocument();
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+    expect(screen.queryByText(/5-hour unavailable/)).not.toBeInTheDocument();
+  });
+  it("does not infer Pro from an absent 5h window", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => proSnapshot}/>);
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+  });
+  it("restores the full weekly chamber from the single-indicator strip", async () => {
+    const user=userEvent.setup();
+    render(<App {...inertPreferences} initialLayout="collapsed" codexPresentation={{mode:"pro-weekly"}} loadSnapshot={async()=>proSnapshot}/>);
+    await user.click(await screen.findByRole("button",{name:"恢复标准视图"}));
+    expect(await screen.findByRole("group",{name:"WEEK quota"})).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+  it("retains weekly data on refresh failure and retries through the visible recovery action", async () => {
+    const user=userEvent.setup();
+    const loader=vi.fn().mockResolvedValueOnce(proSnapshot).mockRejectedValueOnce({code:"TEST-01",message:"连接中断",detail:null}).mockResolvedValue(proSnapshot);
+    render(<App {...inertPreferences} initialLayout="expanded" codexPresentation={{mode:"pro-weekly"}} loadSnapshot={loader}/>);
+    await screen.findByText("42%");
+    await user.click(screen.getByRole("button",{name:"刷新"}));
+    expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("连接中断 · TEST-01")).toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"重试"}));
+    await waitFor(()=>expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument());
+  });
+  it("does not apply Codex presentation to ZCode", async () => {
+    render(<App {...inertPreferences} codexPresentation={{mode:"pro-weekly"}} loadPreferences={async()=>({opacity:.92,reducedMotion:true,x:null,y:null,source:"zcode"})} loadSnapshot={async()=>proSnapshot} loadZcodeSnapshot={async()=>healthyZcodeSnapshot}/>);
+    expect(await screen.findByText("ZCODE")).toBeInTheDocument();
+    expect(await screen.findByText("76%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.getAllByRole("group", {name: /quota/})).toHaveLength(2);
+  });
+});

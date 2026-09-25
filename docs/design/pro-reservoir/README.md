@@ -1,12 +1,12 @@
 # Pro 单仓 · A 方案
 
-状态：Acceptance pending（仅设计稿，等待视觉确认；未接入应用）。
+状态：Acceptance pending（设计已获用户确认；UI 已实现并通过浏览器生产构建验证，等待用户验收。套餐识别与真实数据接入留给下一位 agent）。
 
 ## 设计与边界
 
 用户选择全宽单仓：沿用现有光学玻璃、薄荷绿周额度液体、数字字体、刻度、重置时间与底部状态栏。取消中央隔墙、内侧阴影与不对称圆角；左右边框对称。沿用实际窗口 compact 300×130、expanded 300×160、collapsed 260×48，避免来源轮播改变占位。
 
-本目录是独立设计预览，直接复用 `src/FluidReservoir.tsx`、`src/OpticalShell.tsx` 与 `src/App.css`，不修改产品代码。预览控件为外观示意，数值、时间、路由与诊断编号均为虚构样例。`DEMO-01` 不可作为产品诊断码使用。
+本目录 `index.html` 是批准的独立设计预览，控件为外观示意。`runtime.html` 挂载真实 App，通过虚构服务响应验证已实现的 UI 与操作。二者数值、时间、路由及诊断编号均为虚构样例，`DEMO-01` 不可作为产品诊断码使用。生产 `src/main.tsx`、协议类型及后端未修改，默认仍显示双仓；显式传入 `codexPresentation={{mode:"pro-weekly"}}` 才启用单仓。完整接入任务见 [HANDOFF.md](HANDOFF.md)。
 
 ## 接入约定
 
@@ -35,6 +35,22 @@ node node_modules/vite/bin/vite.js preview --outDir /tmp/quodex-pro-design-dist 
 
 ## 验证记录
 
-来源版本：`d30169f`（v0.1.9），本目录新增设计稿。环境：macOS、本机 Chrome headless、Node 24.19.0、Vite 7.3.6。构建产物：`/tmp/quodex-pro-design-dist`，可用上述命令重建。
+来源基线：`bf1f2d8`（批准设计稿）；UI 在分支 `codex/pro-reservoir-ui` 上实现。环境：macOS、本机 Chrome headless、Node 24.19.0、Vite 7.3.6。产品前端构建产物为 `dist/`；包含真实 App 的独立验证构建为 `/tmp/quodex-pro-ui-dist`。
 
-设计稿生产构建成功；现有液体物理测试通过；样式检测器未报告问题。以 Chrome 启动生产设计预览，检查 1100px 与 375px 视口的脚本错误、横向溢出并截图。实际应用套餐识别、业务交互、Tauri 原生窗口及真实账户数据未验证，不能据此声称 Pro 功能可交付。
+执行结果：TypeScript 产品及验证入口检查通过；Vite 产品与验证入口生产构建通过；Vitest 4 个文件、52 项测试通过。真实 App 的生产构建冒烟通过，12 张截图及机器结果位于 `docs/verification/pro-ui/`。服务、窗口位置和账户数据为注入的测试替身，原生 Tauri 窗口、真实协议及账户数据未验证。
+
+与批准设计对照：正常单仓的宽度、玻璃边缘、mint 液体、中央 WEEK 与百分比、右侧刻度、重置时间、PRO 徽章均保留；低额度、过期、未知液位及窄条匹配。展开使用原产品的重置有效期、穿透、刷新、设置操作；失败态显示真实错误原因及重试，优先于占位稿的重置时间行。正常界面截图见 `docs/verification/pro-ui/normal.png`。
+
+验证期间用 `diagnosing-bugs` 的最小浏览器复现定位原窄条点击失效：`pointerdown BUTTON → pointerup MAIN → click MAIN`，父层指针捕获导致按钮收不到 click。修正为窄条按钮自身捕获，移动事件仍冒泡；生产浏览器回归验证 Pro/双仓均可点击恢复、拖动不恢复。其余拖动机制未重写。
+
+复现真实 App 的验证构建（项目根）：
+
+```sh
+node --input-type=module <<'JS'
+import { build } from 'vite';
+await build({root:process.cwd()+'/docs/design/pro-reservoir',build:{outDir:'/tmp/quodex-pro-ui-dist',rollupOptions:{input:{design:process.cwd()+'/docs/design/pro-reservoir/index.html',runtime:process.cwd()+'/docs/design/pro-reservoir/runtime.html'}}}});
+JS
+node node_modules/vite/bin/vite.js preview --outDir /tmp/quodex-pro-ui-dist --host 127.0.0.1 --port 4175
+```
+
+打开 `/runtime.html?state=normal`；可用 state 为 normal、low、stale、failed、loading、expanded、collapsed、empty、full、unavailable、blocked、refreshing。`mode=dual` 验证双仓。浏览器回归命令：`node scripts/verify-pro-ui.mjs`，需要本机 Playwright；可用 `PLAYWRIGHT_MODULE` 指定其模块路径，`CHROME_PATH` 指定浏览器执行文件，`PRO_UI_URL` 指定预览地址。该脚本在独立浏览器上下文使用虚构数据，不读取真实账户。

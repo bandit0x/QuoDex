@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { FluidReservoir } from "./FluidReservoir";
+import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
 import {
   enableTemporaryClickThrough,
@@ -46,6 +47,7 @@ export type ZcodeSnapshotLoader = () => Promise<ZCodeQuotaSnapshot>;
 export type TomatoConnectionLoader = () => Promise<TomatoConnectionSnapshot>;
 
 interface AppProps {
+  codexPresentation?: CodexPresentation;
   initialLayout?: OverlayLayout;
   loadSnapshot?: CapacityLoader;
   loadZcodeSnapshot?: ZcodeSnapshotLoader;
@@ -386,11 +388,12 @@ function RouteStatus({ route, alert }: { route: TomatoConnectionSnapshot | null;
   );
 }
 
-function SourceBadge({ source }: { source: MeterSource }) {
+function SourceBadge({ source, pro = false }: { source: MeterSource; pro?: boolean }) {
   return (
     <span className={`source-badge source-badge--${source}`}>
       <i aria-hidden="true" />
       {source === "codex" ? "CODEX" : "ZCODE"}
+      {pro && <span className="source-badge__pro">PRO</span>}
     </span>
   );
 }
@@ -400,12 +403,19 @@ function CollapsedSurface({
   fiveHourPercent,
   weeklyPercent,
   onRestore,
+  pro = false,
 }: {
+  pro?: boolean;
   source: MeterSource;
   fiveHourPercent: number | null;
   weeklyPercent: number | null;
   onRestore: () => void;
 }) {
+  if (pro) return <button className="collapsed-surface collapsed-surface--pro" type="button" data-window-drag-surface onClick={onRestore} aria-label="恢复标准视图">
+    <span className="collapsed-pro-source">CODEX · PRO</span>
+    <span>WEEK <strong>{weeklyPercent === null ? "—" : `${formatPercent(weeklyPercent)}%`}</strong></span>
+    <i className="collapsed-dot collapsed-dot--pro" aria-hidden="true"/><Icon name="chevron"/>
+  </button>;
   return (
     <button
       className="collapsed-surface"
@@ -430,9 +440,10 @@ function freshnessText(
   snapshot: Pick<CapacitySnapshot, "fiveHour" | "weekly" | "observedAtMs">,
   stale: boolean,
   diagnostic?: Diagnostic,
+  weeklyOnly = false,
 ): string {
   const unavailable = [
-    snapshot.fiveHour ? null : "5-hour unavailable",
+    weeklyOnly || snapshot.fiveHour ? null : "5-hour unavailable",
     snapshot.weekly ? null : "Week unavailable",
   ].filter(Boolean);
 
@@ -442,6 +453,7 @@ function freshnessText(
 }
 
 export function App({
+  codexPresentation = { mode: "dual" },
   initialLayout = "compact",
   loadSnapshot = readCapacitySnapshot,
   loadZcodeSnapshot = readZcodeQuotaSnapshot,
@@ -623,7 +635,9 @@ export function App({
     void getOverlayWorkArea().then((area) => {
       dragWorkAreaRef.current = area;
     });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Keep clicks on the collapsed button while pointer moves still bubble to the drag handler.
+    const captureTarget = target.closest<HTMLElement>("[data-window-drag-surface]") ?? event.currentTarget;
+    captureTarget.setPointerCapture?.(event.pointerId);
     const drag = dragRef.current;
     drag.pointerId = event.pointerId;
     drag.ready = false;
@@ -822,6 +836,7 @@ export function App({
   const activeSource: MeterSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
   const activeSlot = activeSource === "codex" ? codexSlot : zcodeSlot;
   const activeIsZcode = activeSource === "zcode";
+  const activeIsPro = !activeIsZcode && codexPresentation.mode === "pro-weekly";
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
   const zcodeSnapshot = zcodeSlot.view.kind === "healthy" ? zcodeSlot.view.snapshot : zcodeSlot.lastSnapshot;
   const activeSnapshot = activeIsZcode ? zcodeSnapshot : codexSnapshot;
@@ -872,22 +887,34 @@ export function App({
         {/* TomatoCloud 只承载 Codex 路由，ZCode 直连 bigmodel 不受路由阻断影响 */}
         {routeBlocked && !activeIsZcode && <span className="route-alert-halo" aria-hidden="true" />}
         <div className="drag-rail" aria-hidden="true" />
-        {!collapsed && <SourceBadge source={activeSource} />}
+        {!collapsed && <SourceBadge source={activeSource} pro={activeIsPro} />}
 
         {collapsed && activeSnapshot ? (
           <CollapsedSurface
             source={activeSource}
+            pro={activeIsPro}
             fiveHourPercent={activeSnapshot.fiveHour?.remainingPercent ?? null}
             weeklyPercent={activeSnapshot.weekly?.remainingPercent ?? null}
             onRestore={restoreCollapsedLayout}
           />
         ) : (
           <>
-            {activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
-            {activeSlot.view.kind === "failed" && !activeSnapshot && (
+            {!activeIsPro && activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
+            {!activeIsPro && activeSlot.view.kind === "failed" && !activeSnapshot && (
               <FailedSurface diagnostic={activeSlot.view.diagnostic} source={activeSource} onRetry={() => void refreshAll()} />
             )}
-            {activeSnapshot && (
+            {activeIsPro && <ProQuotaSurface
+              window={codexSnapshot?.weekly ?? null}
+              motion={fluidMotion}
+              motionSeed={fluidChamberSeeds.codexWeekly}
+              reducedMotion={preferences.reducedMotion}
+              resetLabel={codexSnapshot?.weekly?.resetsAt == null ? "Resets —" : `Resets ${formatReset(codexSnapshot.weekly.resetsAt, true)}`}
+              status={stale ? "stale" : activeSlot.view.kind === "loading" ? "loading" : activeSlot.view.kind === "failed" ? "failed" : "ready"}
+              low={codexPresentation.weeklyLow}
+              diagnostic={failureDiagnostic}
+              onRetry={() => void refreshAll()}
+            />}
+            {!activeIsPro && activeSnapshot && (
               <div
                 key={activeSource}
                 className={`quota-grid source-stage${activeIsZcode && !zcodeSnapshot?.weekly ? " quota-grid--single" : ""}`}
@@ -935,7 +962,7 @@ export function App({
                   <span>FULL RESETS <b>{codexSnapshot.fullResetCredits?.availableCount ?? "—"}</b></span>
                   <RouteStatus route={routeConnection} alert={routeBlocked} />
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic, activeIsPro)}
                   </span>
                 </>
               )}
