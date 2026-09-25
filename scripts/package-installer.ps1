@@ -1,9 +1,15 @@
 param(
-    [string]$Version = "0.1.8",
+    [string]$Version = "",
     [string]$WebView2RuntimePath = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    # 单一版本源：package.json；硬编码默认值曾随版本升级失同步（v0.1.8 包名残留到 v0.2.0）
+    $Version = (Get-Content (Join-Path $PSScriptRoot "../package.json") -Raw | ConvertFrom-Json).version
+}
+
 
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot "release"))
