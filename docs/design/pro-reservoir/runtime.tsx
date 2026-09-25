@@ -19,6 +19,8 @@ document.body.style.background = "#0c1822";
 const percent = state === "low" ? 8 : state === "empty" ? 0 : state === "full" ? 100 : 68;
 const snapshot: CapacitySnapshot = {
   sourceState: state === "stale" ? "stale" : "healthy",
+  planType: null,
+  accountId: null,
   fiveHour: null,
   weekly: state === "unavailable" ? null : {remainingPercent:percent,usedPercent:100-percent,windowDurationMins:10080,resetsAt:1800172800},
   fullResetCredits: {availableCount:2,nearestExpiryAt:1800432000},

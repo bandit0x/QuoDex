@@ -13,6 +13,10 @@ export interface FullResetCredits {
 
 export interface CapacitySnapshot {
   sourceState: "healthy" | "stale";
+  /** app-server `account/rateLimits/read` 披露的套餐类型；null 表示协议未披露。 */
+  planType: string | null;
+  /** 读取时 auth.json 的账户标识；null 表示未登录或身份不可读。与额度数据同批产生。 */
+  accountId: string | null;
   fiveHour: QuotaWindow | null;
   weekly: QuotaWindow | null;
   fullResetCredits: FullResetCredits | null;
@@ -52,6 +56,8 @@ export interface Diagnostic {
   code: string;
   message: string;
   detail: string | null;
+  /** 失败发生时已登录的账户标识（仅 Codex 来源携带），用于判定缓存数据归属。 */
+  accountId?: string | null;
 }
 
 export interface TomatoConnectionSnapshot {

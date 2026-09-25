@@ -1,12 +1,12 @@
 # Pro 单仓 · A 方案
 
-状态：Acceptance pending（设计已获用户确认；UI 已实现并通过浏览器生产构建验证，等待用户验收。套餐识别与真实数据接入留给下一位 agent）。
+状态：Acceptance pending（设计已获用户确认；UI 与套餐识别、真实数据接入均已实现——UI 经浏览器生产构建验证，逻辑经真实 app-server 协议与原生窗口验证，等待用户验收）。
 
 ## 设计与边界
 
 用户选择全宽单仓：沿用现有光学玻璃、薄荷绿周额度液体、数字字体、刻度、重置时间与底部状态栏。取消中央隔墙、内侧阴影与不对称圆角；左右边框对称。沿用实际窗口 compact 300×130、expanded 300×160、collapsed 260×48，避免来源轮播改变占位。
 
-本目录 `index.html` 是批准的独立设计预览，控件为外观示意。`runtime.html` 挂载真实 App，通过虚构服务响应验证已实现的 UI 与操作。二者数值、时间、路由及诊断编号均为虚构样例，`DEMO-01` 不可作为产品诊断码使用。生产 `src/main.tsx`、协议类型及后端未修改，默认仍显示双仓；显式传入 `codexPresentation={{mode:"pro-weekly"}}` 才启用单仓。完整接入任务见 [HANDOFF.md](HANDOFF.md)。
+本目录 `index.html` 是批准的独立设计预览，控件为外观示意。`runtime.html` 挂载真实 App，通过虚构服务响应验证已实现的 UI 与操作。二者数值、时间、路由及诊断编号均为虚构样例，`DEMO-01` 不可作为产品诊断码使用。生产入口不传 `codexPresentation`，展示模式由 app-server 协议披露的套餐字段派生（见下方验证记录）；显式传参仅供测试与验证入口覆盖。
 
 ## 接入约定
 
@@ -54,3 +54,25 @@ node node_modules/vite/bin/vite.js preview --outDir /tmp/quodex-pro-ui-dist --ho
 ```
 
 打开 `/runtime.html?state=normal`；可用 state 为 normal、low、stale、failed、loading、expanded、collapsed、empty、full、unavailable、blocked、refreshing。`mode=dual` 验证双仓。浏览器回归命令：`node scripts/verify-pro-ui.mjs`，需要本机 Playwright；可用 `PLAYWRIGHT_MODULE` 指定其模块路径，`CHROME_PATH` 指定浏览器执行文件，`PRO_UI_URL` 指定预览地址。该脚本在独立浏览器上下文使用虚构数据，不读取真实账户。
+
+## 逻辑接入验证记录（2026-09-25，真实协议与原生窗口）
+
+协议证据（codex-cli 0.147.0，本机已登录的真实 prolite 账号，只读探测）：
+
+- `account/rateLimits/read` 响应在 `rateLimits` 对象内直接披露 `planType: "prolite"`，并携带唯一窗口 `primary: {usedPercent: 89, windowDurationMins: 10080}`、`secondary: null`——该 Pro 档账号只有 10080 分钟（周）窗口，没有 5h 窗口，「Pro 无 5h 额度」在协议层成立。
+- `account/read`（`params: {}`）返回 `{account: {type: "chatgpt", email, planType}}`，与 rateLimits 的 planType 一致；账号稳定标识取自 `~/.codex/auth.json` 的 `tokens.account_id`（协议响应不含账户 ID，email 不入库不显示）。
+
+实现（套餐与额度同源同批，杜绝身份与数据错配）：
+
+- Rust：`CapacitySnapshot` 新增 `planType`（rateLimits 响应）与 `accountId`（读取时 auth.json）；失败诊断附带 `accountId` 表示失败发生时的登录身份；稀疏更新合并 `planType`。
+- TS：`deriveCodexPresentation` 仅在协议披露 `pro` 前缀套餐（pro/prolite）时进入单仓；套餐未知（null，包括 fiveHour 缺失）一律双仓，不从窗口形状反推套餐。`useSourceSlot` 按 accountId 判定缓存归属：失败时身份与缓存不同（切换账户/退出登录）即丢弃旧账户数据，同账户失败保留「上次有效数据」。
+- `weeklyLow` 暂不提供：低额度阈值是未定的业务规则，不擅自发明。
+
+验证：`cargo test`（capacity 19 项）与 `vitest`（4 文件 59 项，含 7 项新增：pro 派生、prolite 派生、非 Pro 双仓、跨账户失败丢弃、退出登录丢弃、同账户保留、新账户快照替换）全部通过；`tsc && vite build` 通过；`node scripts/verify-pro-ui.mjs` 浏览器回归通过（12 张截图、无页面错误、Pro/双仓窄条点击恢复与拖动不误恢复）。本机环境无独立 node，npm/vite/vitest/夹具进程均以 `ELECTRON_RUN_AS_NODE=1` + ZCode 主二进制代跑。
+
+原生 Tauri 窗口冒烟（macOS，debug 二进制 + vite dev 1420）：
+
+- 夹具模式（planType "plus"）：双仓 76%/42%，无 PRO 徽章——`docs/verification/pro-ui/native-fixture-dual.png`。
+- `CODEX_CREDITS_USE_LIVE=1`（真实 prolite 账号）：单只全宽 WEEK 舱 11% LEFT、CODEX|PRO 徽章、Resets Sat 21:28、FULL RESETS 3——`docs/verification/pro-ui/native-live-pro.png`，与协议探测值一致。
+
+已知限制：原生窗口仅验证紧凑态（无辅助功能权限，无法脚本点击切换展开/窄条，展开/窄条/失败等状态由浏览器验证入口覆盖）；Pro 档仅有 prolite 一个真实账号可验证，`pro` 档行为按同一协议字段与产品规则处理；正式版 QuoDex.app（0.1.9，验证时用户正在运行）不含本功能，需随下个版本发布。

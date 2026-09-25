@@ -11,6 +11,8 @@ import { overlayLayoutSizes, type OverlayLayout } from "./windowClient";
 
 const visualFixture: CapacitySnapshot = {
   sourceState: "healthy",
+  planType: null,
+  accountId: null,
   fiveHour: {
     usedPercent: 82,
     remainingPercent: 18,

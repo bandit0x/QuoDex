@@ -147,6 +147,7 @@ function normalizeDiagnostic(error: unknown, sourceLabel: string): Diagnostic {
         code: candidate.code,
         message: candidate.message,
         detail: candidate.detail ?? null,
+        accountId: candidate.accountId ?? null,
       };
     }
   }
@@ -155,7 +156,23 @@ function normalizeDiagnostic(error: unknown, sourceLabel: string): Diagnostic {
     code: "CRV-100",
     message: `无法读取 ${sourceLabel} 配额`,
     detail: error instanceof Error ? error.message : String(error),
+    accountId: null,
   };
+}
+
+/**
+ * 套餐 → 展示模式映射。只有协议明确披露的 pro 档套餐（pro/prolite 等）才进入
+ * Pro 单仓；套餐未知（planType 为 null，包括 fiveHour 缺失的情况）一律保持双仓，
+ * 不从额度窗口形状反推套餐。
+ */
+export function deriveCodexPresentation(snapshot: CapacitySnapshot | null): CodexPresentation {
+  const planType = snapshot?.planType?.trim().toLowerCase();
+  return planType && planType.startsWith("pro") ? { mode: "pro-weekly" } : { mode: "dual" };
+}
+
+/** Codex 缓存数据的归属标识：同一次读取中与额度同批产生的账户 ID。 */
+function codexSnapshotIdentity(snapshot: CapacitySnapshot): string | null {
+  return snapshot.accountId ?? null;
 }
 
 function normalizeRouteFailure(error: unknown): TomatoConnectionSnapshot {
@@ -202,7 +219,11 @@ export function applyRouteGate(
   return { visible: next, consecutiveFailures };
 }
 
-function useSourceSlot<S>(loader: () => Promise<S>, sourceLabel: string): SourceSlot<S> {
+function useSourceSlot<S>(
+  loader: () => Promise<S>,
+  sourceLabel: string,
+  identityOf?: (snapshot: S) => string | null,
+): SourceSlot<S> {
   const [view, setView] = useState<ViewState<S>>({ kind: "loading" });
   const [lastSnapshot, setLastSnapshot] = useState<S | null>(null);
   const lastSnapshotRef = useRef<S | null>(null);
@@ -222,11 +243,22 @@ function useSourceSlot<S>(loader: () => Promise<S>, sourceLabel: string): Source
       setView({ kind: "healthy", snapshot });
     } catch (error) {
       if (generation !== generationRef.current) return;
-      setView({ kind: "failed", diagnostic: normalizeDiagnostic(error, sourceLabel) });
+      const diagnostic = normalizeDiagnostic(error, sourceLabel);
+      const cached = lastSnapshotRef.current;
+      if (cached && identityOf) {
+        const cachedIdentity = identityOf(cached);
+        if ((diagnostic.accountId ?? null) !== cachedIdentity) {
+          // 失败时的登录身份与缓存数据的归属账户不同（切换账户或退出登录）：
+          // 丢弃旧账户的额度与套餐标识，不把它展示给当前登录状态。
+          lastSnapshotRef.current = null;
+          setLastSnapshot(null);
+        }
+      }
+      setView({ kind: "failed", diagnostic });
     } finally {
       if (generation === generationRef.current) setIsRefreshing(false);
     }
-  }, [loader, sourceLabel]);
+  }, [loader, sourceLabel, identityOf]);
 
   useEffect(() => {
     void load();
@@ -453,7 +485,7 @@ function freshnessText(
 }
 
 export function App({
-  codexPresentation = { mode: "dual" },
+  codexPresentation,
   initialLayout = "compact",
   loadSnapshot = readCapacitySnapshot,
   loadZcodeSnapshot = readZcodeQuotaSnapshot,
@@ -469,7 +501,7 @@ export function App({
   quitApp = quitApplication,
   motionSessionSeed,
 }: AppProps) {
-  const codexSlot = useSourceSlot(loadSnapshot, "Codex");
+  const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
   const zcodeSlot = useSourceSlot(loadZcodeSnapshot, "ZCode");
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
@@ -836,10 +868,13 @@ export function App({
   const activeSource: MeterSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
   const activeSlot = activeSource === "codex" ? codexSlot : zcodeSlot;
   const activeIsZcode = activeSource === "zcode";
-  const activeIsPro = !activeIsZcode && codexPresentation.mode === "pro-weekly";
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
   const zcodeSnapshot = zcodeSlot.view.kind === "healthy" ? zcodeSlot.view.snapshot : zcodeSlot.lastSnapshot;
   const activeSnapshot = activeIsZcode ? zcodeSnapshot : codexSnapshot;
+  // 显式传入的 codexPresentation 仅供测试与设计验证入口覆盖；生产从不传参，
+  // 展示模式由最新快照里的协议套餐字段派生（未知套餐保持双仓）。
+  const effectiveCodexPresentation = codexPresentation ?? deriveCodexPresentation(codexSnapshot);
+  const activeIsPro = !activeIsZcode && effectiveCodexPresentation.mode === "pro-weekly";
   const staleFromFailure = activeSlot.view.kind === "failed" && activeSnapshot !== null;
   const stale = staleFromFailure || activeSnapshot?.sourceState === "stale";
   const failureDiagnostic = activeSlot.view.kind === "failed" ? activeSlot.view.diagnostic : undefined;
@@ -910,7 +945,7 @@ export function App({
               reducedMotion={preferences.reducedMotion}
               resetLabel={codexSnapshot?.weekly?.resetsAt == null ? "Resets —" : `Resets ${formatReset(codexSnapshot.weekly.resetsAt, true)}`}
               status={stale ? "stale" : activeSlot.view.kind === "loading" ? "loading" : activeSlot.view.kind === "failed" ? "failed" : "ready"}
-              low={codexPresentation.weeklyLow}
+              low={effectiveCodexPresentation.weeklyLow}
               diagnostic={failureDiagnostic}
               onRetry={() => void refreshAll()}
             />}

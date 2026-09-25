@@ -33,6 +33,8 @@ const inertPreferences = {
 
 const healthySnapshot: CapacitySnapshot = {
   sourceState: "healthy",
+  planType: null,
+  accountId: null,
   fiveHour: {
     usedPercent: 24,
     remainingPercent: 76,
@@ -779,5 +781,98 @@ describe("Pro weekly presentation", () => {
     expect(await screen.findByText("76%")).toBeInTheDocument();
     expect(screen.getByText("5 HOUR")).toBeInTheDocument();
     expect(screen.getAllByRole("group", {name: /quota/})).toHaveLength(2);
+  });
+});
+
+describe("Codex plan derivation and cache ownership", () => {
+  const proSnapshot = {
+    ...healthySnapshot,
+    fiveHour: null,
+    planType: "pro",
+    accountId: "acct-pro",
+  };
+
+  it("derives the Pro single chamber from the protocol plan type without an explicit prop", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => proSnapshot} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+
+  it("derives the Pro single chamber for the prolite tier reported by the real protocol", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => ({ ...proSnapshot, planType: "prolite" })} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dual chamber for a non-Pro plan even when the 5h window is absent", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        loadSnapshot={async () => ({ ...proSnapshot, planType: "plus" })}
+      />,
+    );
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+  });
+
+  it("drops cached Pro data when a failure reports a different signed-in account", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "CRV-108", message: "app-server 拒绝了配额请求", detail: null, accountId: "acct-next" });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+    expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("42%")).not.toBeInTheDocument();
+  });
+
+  it("drops cached Pro data when the account is signed out before a failing refresh", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "CRV-202", message: "Codex 尚未登录", detail: null, accountId: null });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
+    expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("42%")).not.toBeInTheDocument();
+  });
+
+  it("keeps cached data visibly stale when a same-account refresh fails", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "TEST-01", message: "连接中断", detail: null, accountId: "acct-pro" });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+  });
+
+  it("replaces the presentation as soon as a new account delivers its own snapshot", async () => {
+    const user = userEvent.setup();
+    const dualSnapshotForNextAccount = {
+      ...healthySnapshot,
+      planType: "plus",
+      accountId: "acct-next",
+    };
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockResolvedValue(dualSnapshotForNextAccount);
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByText("PRO")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("76%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
   });
 });
