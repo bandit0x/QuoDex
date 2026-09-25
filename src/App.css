@@ -1064,6 +1064,28 @@ input:focus-visible {
   background: color-mix(in srgb, var(--emerald) 28%, rgba(7, 19, 30, 0.92));
 }
 
+/* ZCode 套餐子选项：仅在来源选中 Zcode 时出现，紧凑一档、翡翠绿选中态 */
+.settings-popover .source-row--nested {
+  min-height: 38px;
+  padding-left: 10px;
+}
+
+.settings-popover .source-row--nested > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.settings-popover .source-segments--nested button {
+  min-height: 30px;
+  padding: 0 11px;
+  font-size: 11px;
+}
+
+.settings-popover .source-segments--nested button[aria-pressed="true"] {
+  color: #d8ffec;
+  background: color-mix(in srgb, var(--emerald) 26%, rgba(7, 19, 30, 0.92));
+}
+
 .control-message {
   position: absolute;
   z-index: 24;

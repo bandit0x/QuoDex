@@ -20,6 +20,7 @@ import type {
   QuotaWindow,
   SourceSelection,
   TomatoConnectionSnapshot,
+  ZCodePlanPreference,
   ZCodeQuotaSnapshot,
 } from "./capacityTypes";
 import {
@@ -43,7 +44,7 @@ import {
 } from "./windowClient";
 
 export type CapacityLoader = () => Promise<CapacitySnapshot>;
-export type ZcodeSnapshotLoader = () => Promise<ZCodeQuotaSnapshot>;
+export type ZcodeSnapshotLoader = (preferredPlan: ZCodePlanPreference) => Promise<ZCodeQuotaSnapshot>;
 export type TomatoConnectionLoader = () => Promise<TomatoConnectionSnapshot>;
 
 interface AppProps {
@@ -510,11 +511,16 @@ export function App({
   motionSessionSeed,
 }: AppProps) {
   const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
-  const zcodeSlot = useSourceSlot(loadZcodeSnapshot, "ZCode");
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
   const [settingsPresentation, setSettingsPresentation] = useState<SettingsWindowPresentation | null>(null);
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const zcodePlanPreference = preferences.zcodePlan ?? "start";
+  const loadZcodeSnapshotWithPlan = useCallback(
+    () => loadZcodeSnapshot(zcodePlanPreference),
+    [loadZcodeSnapshot, zcodePlanPreference],
+  );
+  const zcodeSlot = useSourceSlot(loadZcodeSnapshotWithPlan, "ZCode");
   const [carouselSource, setCarouselSource] = useState<MeterSource>("codex");
   const [clickThroughSeconds, setClickThroughSeconds] = useState(0);
   const [routeConnection, setRouteConnection] = useState<TomatoConnectionSnapshot | null>(null);
@@ -1119,6 +1125,33 @@ export function App({
                 </button>
               </div>
             </div>
+            {sourceSelection === "zcode" && (
+              <div className="source-row source-row--nested">
+                <span>ZCode 套餐</span>
+                <div
+                  className="source-segments source-segments--nested"
+                  role="group"
+                  aria-label="ZCode 套餐"
+                >
+                  <button
+                    className="source-segment source-segment--zcode-plan"
+                    type="button"
+                    aria-pressed={zcodePlanPreference === "start"}
+                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "start" satisfies ZCodePlanPreference })}
+                  >
+                    体验套餐
+                  </button>
+                  <button
+                    className="source-segment source-segment--zcode-plan"
+                    type="button"
+                    aria-pressed={zcodePlanPreference === "coding"}
+                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "coding" satisfies ZCodePlanPreference })}
+                  >
+                    个人套餐
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="quit-row">
               <button type="button" className="quit-button" onClick={quitMeter}>
                 退出应用

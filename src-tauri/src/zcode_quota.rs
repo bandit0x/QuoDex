@@ -249,7 +249,10 @@ impl ZCodeQuotaService {
         }
     }
 
-    pub async fn read_snapshot(&self) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
+    pub async fn read_snapshot(
+        &self,
+        prefer_start: bool,
+    ) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
         if let Some(path) = &self.fixture_path {
             let raw = fs::read_to_string(path).map_err(|error| {
                 Diagnostic::new("CRV-506", "ZCode 配额 fixture 无法读取")
@@ -259,15 +262,23 @@ impl ZCodeQuotaService {
             return parse_quota_payload(&raw);
         }
 
-        read_live(env_lookup, |request| fetch_quota_body(request)).await
+        read_live(env_lookup, prefer_start, |request| {
+            fetch_quota_body(request)
+        })
+        .await
     }
 }
 
 /// 实时探测编排：体验套餐（start-plan）优先——凭证与设备指纹齐备即请求网关
 /// billing/balance，由网关响应判定授权状态（config/cache 的授权标记已被实测
 /// 证明滞后）；任何失败（业务码非 0、网络失败、解析失败）都回落个人套餐。
-/// 显式 env 覆盖视为个人套餐调试语义，跳过体验套餐探测。
-async fn read_live<F, Fut, L>(lookup: L, fetch: F) -> Result<ZCodeQuotaSnapshot, Diagnostic>
+/// prefer_start=false 表示用户在设置中显式选择仅个人套餐；显式 env 覆盖视为
+/// 个人套餐调试语义，同样跳过体验套餐探测。
+async fn read_live<F, Fut, L>(
+    lookup: L,
+    prefer_start: bool,
+    fetch: F,
+) -> Result<ZCodeQuotaSnapshot, Diagnostic>
 where
     L: Fn(&str) -> Option<String>,
     F: Fn(QuotaRequest) -> Fut,
@@ -277,7 +288,7 @@ where
         || lookup("BIGMODEL_USAGE_API_KEY").is_some()
         || lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL").is_some()
         || lookup("BIGMODEL_USAGE_QUOTA_URL").is_some();
-    if !env_override {
+    if prefer_start && !env_override {
         if let Some(request) = resolve_start_plan_request(&lookup) {
             if let Ok(body) = fetch(request).await {
                 if let Ok(snapshot) = parse_balance_payload(&body) {
@@ -1308,7 +1319,7 @@ mod tests {
         let results = std::rc::Rc::new(std::cell::RefCell::new(
             [Ok(start_plan_payload())].into_iter().collect(),
         ));
-        let snapshot = read_live(config_dir_lookup(&dir), fetch_from_queue(seen.clone(), results))
+        let snapshot = read_live(config_dir_lookup(&dir), true, fetch_from_queue(seen.clone(), results))
             .await
             .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("start_plan"));
@@ -1329,7 +1340,7 @@ mod tests {
             .into_iter()
             .collect(),
         ));
-        let snapshot = read_live(config_dir_lookup(&dir), fetch_from_queue(seen.clone(), results))
+        let snapshot = read_live(config_dir_lookup(&dir), true, fetch_from_queue(seen.clone(), results))
             .await
             .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
@@ -1351,6 +1362,7 @@ mod tests {
         ));
         let error = read_live(
             config_dir_lookup(&dir),
+            true,
             fetch_from_queue(std::rc::Rc::new(std::cell::RefCell::new(Vec::new())), results),
         )
         .await
@@ -1377,11 +1389,28 @@ mod tests {
         let results = std::rc::Rc::new(std::cell::RefCell::new(
             [Ok(coding_payload())].into_iter().collect(),
         ));
-        let snapshot = read_live(&lookup, fetch_from_queue(seen.clone(), results))
+        let snapshot = read_live(&lookup, true, fetch_from_queue(seen.clone(), results))
             .await
             .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
         // 显式 env 覆盖是个人套餐调试语义，不应产生体验套餐网关探测
+        assert_eq!(*seen.borrow(), vec![PlanKind::Coding]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn live_read_skips_start_probe_when_user_prefers_coding_plan() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let results = std::rc::Rc::new(std::cell::RefCell::new(
+            [Ok(coding_payload())].into_iter().collect(),
+        ));
+        // 用户显式选择仅个人套餐：即使体验套餐凭证齐备也不探测，队列里只有个人套餐响应
+        let snapshot = read_live(config_dir_lookup(&dir), false, fetch_from_queue(seen.clone(), results))
+            .await
+            .expect("snapshot");
+        assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
         assert_eq!(*seen.borrow(), vec![PlanKind::Coding]);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1513,7 +1542,7 @@ mod tests {
     #[tokio::test]
     async fn fixture_file_completes_the_read_snapshot_journey() {
         let service = ZCodeQuotaService::from_fixture_path(repo_fixture_path());
-        let snapshot = service.read_snapshot().await.expect("fixture snapshot");
+        let snapshot = service.read_snapshot(true).await.expect("fixture snapshot");
         assert!(snapshot.five_hour.is_some());
         assert!(snapshot.weekly.is_some());
         assert_eq!(snapshot.plan_level.as_deref(), Some("pro"));
@@ -1526,7 +1555,7 @@ mod tests {
     #[ignore]
     async fn real_gateway_start_plan_probe_is_prioritized() {
         let snapshot = ZCodeQuotaService::from_environment()
-            .read_snapshot()
+            .read_snapshot(true)
             .await
             .expect("live snapshot");
         println!("plan_kind: {:?}", snapshot.plan_kind);

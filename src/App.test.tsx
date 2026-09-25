@@ -6,6 +6,7 @@ import type {
   CapacitySnapshot,
   DisplayPreferences,
   TomatoConnectionSnapshot,
+  ZCodePlanPreference,
   ZCodeQuotaSnapshot,
 } from "./capacityTypes";
 
@@ -662,6 +663,62 @@ describe("dual quota sources", () => {
     expect(collapsed).toHaveClass("collapsed-surface--zcode-trial");
     expect(within(collapsed).getByText("ZCODE · START")).toBeInTheDocument();
     expect(within(collapsed).getByText(/TRIAL/)).toBeInTheDocument();
+  });
+
+  it("defaults the zcode plan probe to start when preferences omit it", async () => {
+    const zcodeCalls: ZCodePlanPreference[] = [];
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async (preferredPlan) => {
+          zcodeCalls.push(preferredPlan);
+          return healthyZcodeSnapshot;
+        }}
+      />,
+    );
+
+    await screen.findByRole("group", { name: "5 HOUR quota" });
+    expect(zcodeCalls).toEqual(["start"]);
+  });
+
+  it("switches the zcode plan from settings and reloads with the new preference", async () => {
+    const user = userEvent.setup();
+    const zcodeCalls: ZCodePlanPreference[] = [];
+    const saved: DisplayPreferences[] = [];
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({
+          ...basePreferences,
+          source: "zcode",
+          zcodePlan: "start",
+        })}
+        savePreferences={async (next) => {
+          saved.push(next);
+        }}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async (preferredPlan) => {
+          zcodeCalls.push(preferredPlan);
+          return healthyZcodeSnapshot;
+        }}
+      />,
+    );
+
+    await screen.findByRole("group", { name: "5 HOUR quota" });
+    expect(zcodeCalls).toEqual(["start"]);
+
+    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    const planGroup = screen.getByRole("group", { name: "ZCode 套餐" });
+    expect(within(planGroup).getByText("体验套餐")).toHaveAttribute("aria-pressed", "true");
+
+    // 万一用户不想盯体验套餐的消耗：切到个人套餐后立即按新偏好重探
+    await user.click(within(planGroup).getByText("个人套餐"));
+    expect(within(planGroup).getByText("个人套餐")).toHaveAttribute("aria-pressed", "true");
+    expect(saved[saved.length - 1].zcodePlan).toBe("coding");
+    await waitFor(() => expect(zcodeCalls).toEqual(["start", "coding"]));
   });
 
   it("alternates the active source every ten seconds in carousel mode", async () => {

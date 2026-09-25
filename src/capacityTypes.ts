@@ -45,6 +45,8 @@ export interface ZCodeQuotaSnapshot {
 
 export type MeterSource = "codex" | "zcode";
 export type SourceSelection = MeterSource | "carousel";
+/** ZCode 来源下展示哪个套餐：start = 体验套餐优先（不可用回落个人），coding = 仅个人套餐。 */
+export type ZCodePlanPreference = "start" | "coding";
 
 export interface DisplayPreferences {
   opacity: number;
@@ -52,6 +54,7 @@ export interface DisplayPreferences {
   x: number | null;
   y: number | null;
   source?: SourceSelection;
+  zcodePlan?: ZCodePlanPreference;
 }
 
 export interface Diagnostic {
