@@ -15,6 +15,8 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(15);
 const QUOTA_PATH: &str = "/api/monitor/usage/quota/limit";
 /// 体验套餐余额路径，拼接在 zcode-plan 网关根（baseURL 去掉 `/anthropic`）之后
 const BALANCE_PATH: &str = "/billing/balance";
+/// config.json 没有 start-plan 条目时的默认网关根（生产环境实测值）
+const DEFAULT_ZCODE_PLAN_GATEWAY: &str = "https://zcode.z.ai/api/v1/zcode-plan";
 
 /// config.json 中参与额度探测的套餐形态：coding-plan 为个人套餐，start-plan 为
 /// ZCode 发放的体验套餐（Start Plan）。体验套餐可用时优先于个人套餐显示。
@@ -30,24 +32,6 @@ impl PlanKind {
             PlanKind::Coding => "coding_plan",
             PlanKind::Start => "start_plan",
         }
-    }
-
-    /// 候选排序：体验套餐优先，其余保持 id 字典序（BTreeMap 迭代序）。
-    fn priority(self) -> u8 {
-        match self {
-            PlanKind::Start => 0,
-            PlanKind::Coding => 1,
-        }
-    }
-}
-
-fn plan_kind_from_id(id: &str) -> Option<PlanKind> {
-    if id.ends_with("-start-plan") {
-        Some(PlanKind::Start)
-    } else if id.ends_with("-coding-plan") {
-        Some(PlanKind::Coding)
-    } else {
-        None
     }
 }
 
@@ -80,6 +64,8 @@ struct QuotaRequest {
     kind: PlanKind,
     url: String,
     api_key: String,
+    /// billing/balance 网关必需的设备指纹（telemetry-state.json 的 deviceMid）
+    device_mid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -225,41 +211,22 @@ impl BalanceNumber {
     }
 }
 
-/// `~/.zcode` 下 coding-plan-cache.json 的可用性缓存，由 ZCode CLI 维护，
-/// 是体验套餐授权状态的第二信号（config.json 的 enabled 写入时机不可靠）。
+/// `~/.zcode` 下 telemetry-state.json 的设备指纹，billing/balance 网关的
+/// 必需头 `X-Device-Mid` 取自这里（实测缺失时网关返回业务码 3001）。
 #[derive(Debug, Deserialize)]
-struct PlanCacheFile {
-    #[serde(default, rename = "entryStatus")]
-    entry_status: Option<PlanCacheEntryStatus>,
+struct TelemetryState {
+    #[serde(rename = "deviceMid", default)]
+    device_mid: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct PlanCacheEntryStatus {
-    #[serde(default, rename = "items")]
-    items: BTreeMap<String, PlanCacheItem>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PlanCacheItem {
-    #[serde(default)]
-    status: Option<String>,
-}
-
-impl PlanCacheFile {
-    fn available_ids(&self) -> Vec<&str> {
-        self.entry_status
-            .as_ref()
-            .map(|status| {
-                status
-                    .items
-                    .iter()
-                    .filter(|(_, item)| {
-                        item.status.as_deref().map(str::trim) == Some("available")
-                    })
-                    .map(|(id, _)| id.as_str())
-                    .collect()
-            })
-            .unwrap_or_default()
+impl TelemetryState {
+    /// curl --config 传头时引号/换行是注入风险，直接视为缺失走回落
+    fn sanitized_device_mid(&self) -> Option<String> {
+        self.device_mid
+            .as_deref()
+            .map(str::trim)
+            .filter(|mid| !mid.is_empty() && !mid.contains('"') && !mid.contains('\n'))
+            .map(str::to_owned)
     }
 }
 
@@ -292,13 +259,37 @@ impl ZCodeQuotaService {
             return parse_quota_payload(&raw);
         }
 
-        let request = resolve_quota_request(&env_lookup)?;
-        let body = fetch_quota_body(&request).await?;
-        match request.kind {
-            PlanKind::Coding => parse_quota_payload(&body),
-            PlanKind::Start => parse_balance_payload(&body),
+        read_live(env_lookup, |request| fetch_quota_body(request)).await
+    }
+}
+
+/// 实时探测编排：体验套餐（start-plan）优先——凭证与设备指纹齐备即请求网关
+/// billing/balance，由网关响应判定授权状态（config/cache 的授权标记已被实测
+/// 证明滞后）；任何失败（业务码非 0、网络失败、解析失败）都回落个人套餐。
+/// 显式 env 覆盖视为个人套餐调试语义，跳过体验套餐探测。
+async fn read_live<F, Fut, L>(lookup: L, fetch: F) -> Result<ZCodeQuotaSnapshot, Diagnostic>
+where
+    L: Fn(&str) -> Option<String>,
+    F: Fn(QuotaRequest) -> Fut,
+    Fut: std::future::Future<Output = Result<String, Diagnostic>> + Send,
+{
+    let env_override = lookup("ZCODE_BIGMODEL_USAGE_API_KEY").is_some()
+        || lookup("BIGMODEL_USAGE_API_KEY").is_some()
+        || lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL").is_some()
+        || lookup("BIGMODEL_USAGE_QUOTA_URL").is_some();
+    if !env_override {
+        if let Some(request) = resolve_start_plan_request(&lookup) {
+            if let Ok(body) = fetch(request).await {
+                if let Ok(snapshot) = parse_balance_payload(&body) {
+                    return Ok(snapshot);
+                }
+            }
         }
     }
+
+    let request = resolve_quota_request(&lookup)?;
+    let body = fetch(request).await?;
+    parse_quota_payload(&body)
 }
 
 fn env_lookup(name: &str) -> Option<String> {
@@ -312,22 +303,24 @@ fn resolve_quota_request(
     lookup: &dyn Fn(&str) -> Option<String>,
 ) -> Result<QuotaRequest, Diagnostic> {
     let config = read_config_request(lookup);
-    let env_key = lookup("ZCODE_BIGMODEL_USAGE_API_KEY").or_else(|| lookup("BIGMODEL_USAGE_API_KEY"));
-    let env_url = lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL").or_else(|| lookup("BIGMODEL_USAGE_QUOTA_URL"));
-    let api_key = env_key.clone().or_else(|| {
-        config
-            .as_ref()
-            .ok()
-            .map(|request| request.api_key.clone())
-            .filter(|key| !key.is_empty())
-    });
-    let url = env_url.clone().or_else(|| {
-        config
-            .as_ref()
-            .ok()
-            .map(|request| request.url.clone())
-            .filter(|url| !url.is_empty())
-    });
+    let api_key = lookup("ZCODE_BIGMODEL_USAGE_API_KEY")
+        .or_else(|| lookup("BIGMODEL_USAGE_API_KEY"))
+        .or_else(|| {
+            config
+                .as_ref()
+                .ok()
+                .map(|request| request.api_key.clone())
+                .filter(|key| !key.is_empty())
+        });
+    let url = lookup("ZCODE_BIGMODEL_USAGE_QUOTA_URL")
+        .or_else(|| lookup("BIGMODEL_USAGE_QUOTA_URL"))
+        .or_else(|| {
+            config
+                .as_ref()
+                .ok()
+                .map(|request| request.url.clone())
+                .filter(|url| !url.is_empty())
+        });
 
     if let (Some(api_key), Some(url)) = (&api_key, &url) {
         if api_key.contains('"') || api_key.contains('\n') {
@@ -336,19 +329,11 @@ fn resolve_quota_request(
                 "ZCode API Key 含有无法安全传递的字符",
             ));
         }
-        // env 覆盖固定为个人套餐（监控端点）语义；无覆盖时透传 config 的套餐选择
-        let kind = if env_key.is_some() || env_url.is_some() {
-            PlanKind::Coding
-        } else {
-            config
-                .as_ref()
-                .map(|request| request.kind)
-                .unwrap_or(PlanKind::Coding)
-        };
         return Ok(QuotaRequest {
-            kind,
+            kind: PlanKind::Coding,
             url: url.clone(),
             api_key: api_key.clone(),
+            device_mid: None,
         });
     }
 
@@ -373,13 +358,14 @@ fn zcode_config_candidates(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<PathB
     vec![home.join(".zcode").join("v2"), home.join(".zcode")]
 }
 
-fn read_config_request(
+fn read_zcode_config(
     lookup: &dyn Fn(&str) -> Option<String>,
-) -> Result<QuotaRequest, Diagnostic> {
+    file_name: &str,
+) -> Result<ZCodeConfigFile, Diagnostic> {
     let mut tried = Vec::new();
     let mut raw = None;
     for dir in zcode_config_candidates(lookup) {
-        let path = dir.join("config.json");
+        let path = dir.join(file_name);
         match fs::read_to_string(&path) {
             Ok(content) => {
                 raw = Some(content);
@@ -396,103 +382,97 @@ fn read_config_request(
         };
         return Err(Diagnostic::new("CRV-501", "未检测到 ZCode 配置").with_detail(detail));
     };
-    let config: ZCodeConfigFile = serde_json::from_str(&raw).map_err(|error| {
+    serde_json::from_str(&raw).map_err(|error| {
         Diagnostic::new("CRV-501", "ZCode 配置无法解析").with_detail(error.to_string())
-    })?;
+    })
+}
 
-    let cache = read_plan_cache_availability(lookup);
-    // BTreeMap 迭代即 id 字典序；稳定排序后体验套餐整体优先
-    let mut candidates = config
+fn read_config_request(
+    lookup: &dyn Fn(&str) -> Option<String>,
+) -> Result<QuotaRequest, Diagnostic> {
+    let config = read_zcode_config(lookup, "config.json")?;
+    let coding_plans = config
         .provider
         .iter()
-        .filter_map(|(id, entry)| {
-            plan_kind_from_id(id).map(|kind| (kind, id.as_str(), entry))
-        })
-        .filter(|(kind, id, entry)| {
-            entry.system_disabled_reason.is_none()
-                && match kind {
-                    PlanKind::Coding => entry.enabled,
-                    // 体验套餐由系统发放，config 的 enabled 写入时机不可靠，
-                    // 授权状态以 coding-plan-cache.json 作为第二信号
-                    PlanKind::Start => entry.enabled || cache.iter().any(|available| available.as_str() == *id),
-                }
+        .filter(|(id, entry)| {
+            id.ends_with("-coding-plan") && entry.enabled && entry.system_disabled_reason.is_none()
         })
         .collect::<Vec<_>>();
-    candidates.sort_by_key(|(kind, _, _)| kind.priority());
-
-    if candidates.is_empty() {
+    if coding_plans.is_empty() {
         return Err(
             Diagnostic::new("CRV-502", "ZCode 编程包未启用").with_detail(
-                "config.json 中没有可用的 coding-plan/start-plan provider，请在 ZCode 内订阅并启用编程包",
+                "config.json 中没有启用的 coding-plan provider，请在 ZCode 内订阅并启用编程包",
             ),
         );
     }
 
-    let mut missing_keys = 0usize;
-    let mut url_failures = Vec::new();
-    for (kind, id, entry) in candidates {
-        let api_key = entry.options.api_key.trim();
+    for (id, entry) in coding_plans {
+        let api_key = entry.options.api_key.trim().to_owned();
         if api_key.is_empty() {
-            missing_keys += 1;
             continue;
         }
-        match plan_request_url(kind, id, &entry.options) {
-            Ok(url) => {
-                return Ok(QuotaRequest {
-                    kind,
-                    url,
-                    api_key: api_key.to_owned(),
-                });
-            }
-            Err(diagnostic) => url_failures.push(diagnostic),
-        }
+        let explicit_quota_url = entry.options.quota_url.trim();
+        let url = if explicit_quota_url.is_empty() {
+            let Some(url) = quota_url_from_base_url(&entry.options.base_url) else {
+                return Err(
+                    Diagnostic::new("CRV-503", "ZCode 编程包配置不完整").with_detail(format!(
+                        "provider {id} 的 baseURL 无法解析: {}",
+                        entry.options.base_url
+                    )),
+                );
+            };
+            url
+        } else {
+            explicit_quota_url.to_owned()
+        };
+        return Ok(QuotaRequest {
+            kind: PlanKind::Coding,
+            url,
+            api_key,
+            device_mid: None,
+        });
     }
 
-    if !url_failures.is_empty() {
-        let detail = url_failures
-            .iter()
-            .map(|diagnostic| diagnostic.detail.clone().unwrap_or_default())
-            .collect::<Vec<_>>()
-            .join("; ");
-        return Err(Diagnostic::new("CRV-503", "ZCode 编程包配置不完整").with_detail(detail));
-    }
     Err(Diagnostic::new("CRV-503", "ZCode 编程包未配置 API Key")
-        .with_detail(format!("{missing_keys} 个启用的套餐 provider 均未携带 apiKey")))
+        .with_detail("启用的 coding-plan provider 均未携带 apiKey"))
 }
 
-fn plan_request_url(
-    kind: PlanKind,
-    id: &str,
-    options: &ZCodeProviderOptions,
-) -> Result<String, Diagnostic> {
-    let explicit_quota_url = options.quota_url.trim();
-    if !explicit_quota_url.is_empty() {
-        return Ok(explicit_quota_url.to_owned());
+/// 体验套餐（start-plan）探测请求。config 的 enabled/systemDisabledReason 与
+/// coding-plan-cache 都被实测证明会滞后于真实授权状态（2026-09-25，start-plan
+/// 在网关 active 而本地仍标记 coding_plan_not_entitled），因此只要条目携带
+/// apiKey 且设备指纹可读就发起探测，授权与否交由网关响应判定。
+fn resolve_start_plan_request(lookup: &dyn Fn(&str) -> Option<String>) -> Option<QuotaRequest> {
+    let device_mid = read_device_mid(lookup)?;
+    let config = read_zcode_config(lookup, "config.json").ok()?;
+    let (_, entry) = config.provider.iter().find(|(id, entry)| {
+        id.ends_with("-start-plan") && !entry.options.api_key.trim().is_empty()
+    })?;
+    let api_key = entry.options.api_key.trim();
+    if api_key.contains('"') || api_key.contains('\n') {
+        return None;
     }
-    let invalid = || {
-        Diagnostic::new("CRV-503", "ZCode 编程包配置不完整").with_detail(format!(
-            "provider {id} 的 baseURL 无法解析: {}",
-            options.base_url
-        ))
+    let explicit_quota_url = entry.options.quota_url.trim();
+    let url = if explicit_quota_url.is_empty() {
+        start_plan_balance_url(&entry.options.base_url).unwrap_or_else(|| {
+            format!("{DEFAULT_ZCODE_PLAN_GATEWAY}{BALANCE_PATH}?app_version={}", env!("CARGO_PKG_VERSION"))
+        })
+    } else {
+        explicit_quota_url.to_owned()
     };
-    match kind {
-        PlanKind::Coding => quota_url_from_base_url(&options.base_url).ok_or_else(invalid),
-        PlanKind::Start => start_plan_balance_url(&options.base_url).ok_or_else(invalid),
-    }
+    Some(QuotaRequest {
+        kind: PlanKind::Start,
+        url,
+        api_key: api_key.to_owned(),
+        device_mid: Some(device_mid),
+    })
 }
 
-/// coding-plan-cache.json 与 config.json 同目录（~/.zcode/v2 优先，~/.zcode 兜底）；
-/// 文件缺失或无法解析时返回空集，不阻塞探测。
-fn read_plan_cache_availability(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<String> {
-    for dir in zcode_config_candidates(lookup) {
-        let path = dir.join("coding-plan-cache.json");
-        if let Ok(raw) = fs::read_to_string(&path) {
-            if let Ok(cache) = serde_json::from_str::<PlanCacheFile>(&raw) {
-                return cache.available_ids().into_iter().map(str::to_owned).collect();
-            }
-        }
-    }
-    Vec::new()
+fn read_device_mid(lookup: &dyn Fn(&str) -> Option<String>) -> Option<String> {
+    let raw = zcode_config_candidates(lookup).iter().find_map(|dir| {
+        fs::read_to_string(dir.join("telemetry-state.json")).ok()
+    })?;
+    let state: TelemetryState = serde_json::from_str(&raw).ok()?;
+    state.sanitized_device_mid()
 }
 
 /// 体验套餐余额端点：zcode-plan 网关的 anthropic API base 去掉 `/anthropic`
@@ -534,7 +514,7 @@ fn zcode_network_failure(detail: impl Into<String>) -> Diagnostic {
     Diagnostic::new("CRV-504", "ZCode 配额服务不可达").with_detail(detail)
 }
 
-async fn fetch_quota_body(request: &QuotaRequest) -> Result<String, Diagnostic> {
+async fn fetch_quota_body(request: QuotaRequest) -> Result<String, Diagnostic> {
     let mut command = Command::new(crate::platform::curl_executable());
     command.args([
         "--silent",
@@ -564,8 +544,11 @@ async fn fetch_quota_body(request: &QuotaRequest) -> Result<String, Diagnostic> 
     let mut child = command
         .spawn()
         .map_err(|error| zcode_network_failure(error.to_string()))?;
-    // Authorization 头经 stdin 配置传入，key 不进入进程命令行
-    let stdin_config = format!("header = \"Authorization: {}\"\n", request.api_key);
+    // Authorization / X-Device-Mid 头经 stdin 配置传入，key 不进入进程命令行
+    let mut stdin_config = format!("header = \"Authorization: {}\"\n", request.api_key);
+    if let Some(device_mid) = &request.device_mid {
+        stdin_config.push_str(&format!("header = \"X-Device-Mid: {device_mid}\"\n"));
+    }
     if let Some(mut stdin) = child.stdin.take() {
         let _ = stdin.write_all(stdin_config.as_bytes()).await;
         drop(stdin);
@@ -1179,22 +1162,10 @@ mod tests {
         move |name: &str| (name == "CODEX_CREDITS_ZCODE_CONFIG_DIR").then(|| path.clone())
     }
 
-    /// coding-plan 与 start-plan（体验套餐）同时存在的配置；start 条目形态
-    /// 镜像本机 config.json 的系统写入结果。
-    fn multi_plan_config(start_enabled: bool, start_reason: Option<&str>) -> serde_json::Value {
-        let mut start = serde_json::json!({
-            "name": "BigModel- Coding Plan",
-            "kind": "anthropic",
-            "source": "custom",
-            "options": {
-                "apiKey": "start-jwt",
-                "baseURL": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
-            },
-            "enabled": start_enabled
-        });
-        if let Some(reason) = start_reason {
-            start["systemDisabledReason"] = serde_json::json!(reason);
-        }
+    /// coding-plan 与 start-plan（体验套餐）并存的配置；start 条目形态镜像
+    /// 本机 config.json 的系统写入结果——enabled/systemDisabledReason 与真实
+    /// 授权状态脱节（网关 active 而本地标记 not_entitled），解析时被有意忽略。
+    fn multi_plan_config() -> serde_json::Value {
         serde_json::json!({
             "provider": {
                 "builtin:bigmodel-coding-plan": {
@@ -1206,33 +1177,38 @@ mod tests {
                     },
                     "enabled": true
                 },
-                "builtin:bigmodel-start-plan": start
+                "builtin:bigmodel-start-plan": {
+                    "name": "BigModel- Coding Plan",
+                    "kind": "anthropic",
+                    "source": "custom",
+                    "options": {
+                        "apiKey": "start-jwt",
+                        "baseURL": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
+                    },
+                    "enabled": false,
+                    "systemDisabledReason": "coding_plan_not_entitled"
+                }
             }
         })
     }
 
-    fn write_cache(dir: &PathBuf, available_ids: &[&str]) {
-        let items = available_ids
-            .iter()
-            .map(|id| (id.to_string(), serde_json::json!({"status": "available"})))
-            .collect::<serde_json::Map<String, serde_json::Value>>();
-        let cache = serde_json::json!({
-            "version": 1,
-            "entryStatus": {"updatedAt": 1_789_565_582_189u64, "items": items}
-        });
+    fn write_telemetry(dir: &PathBuf, device_mid: &str) {
         fs::write(
-            dir.join("coding-plan-cache.json"),
-            serde_json::to_string(&cache).expect("cache json"),
+            dir.join("telemetry-state.json"),
+            format!(r#"{{"deviceMid":"{device_mid}"}}"#),
         )
-        .expect("write cache");
+        .expect("write telemetry");
     }
 
     #[test]
-    fn usable_start_plan_is_selected_over_coding_plan() {
-        let dir = write_temp_config(&multi_plan_config(true, None));
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
+    fn start_plan_request_resolved_from_config_credential_and_device_mid() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let request =
+            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
         assert_eq!(request.kind, PlanKind::Start);
         assert_eq!(request.api_key, "start-jwt");
+        assert_eq!(request.device_mid.as_deref(), Some("device-uuid-1"));
         assert_eq!(
             request.url,
             format!(
@@ -1244,60 +1220,169 @@ mod tests {
     }
 
     #[test]
-    fn start_plan_cache_available_enables_selection_without_enabled_flag() {
-        let dir = write_temp_config(&multi_plan_config(false, None));
-        write_cache(&dir, &["builtin:bigmodel-start-plan"]);
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
-        assert_eq!(request.kind, PlanKind::Start);
+    fn start_plan_request_skipped_without_device_mid() {
+        let dir = write_temp_config(&multi_plan_config());
+        assert!(resolve_start_plan_request(&config_dir_lookup(&dir)).is_none());
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn start_plan_cache_unavailable_does_not_enable_selection() {
-        let dir = write_temp_config(&multi_plan_config(false, None));
-        write_cache(&dir, &["builtin:bigmodel-coding-plan"]);
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
-        assert_eq!(request.kind, PlanKind::Coding);
-        assert_eq!(
-            request.url,
-            "https://open.bigmodel.cn/api/monitor/usage/quota/limit"
-        );
+    fn start_plan_request_skipped_without_credential() {
+        let mut config = multi_plan_config();
+        config["provider"]["builtin:bigmodel-start-plan"]["options"]["apiKey"] =
+            serde_json::json!("");
+        let dir = write_temp_config(&config);
+        write_telemetry(&dir, "device-uuid-1");
+        assert!(resolve_start_plan_request(&config_dir_lookup(&dir)).is_none());
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn start_plan_without_entitlement_falls_back_to_coding_plan() {
-        let dir = write_temp_config(&multi_plan_config(false, Some("coding_plan_not_entitled")));
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
-        assert_eq!(request.kind, PlanKind::Coding);
-        assert_eq!(request.api_key, "coding-key");
-        assert_eq!(
-            request.url,
-            "https://open.bigmodel.cn/api/monitor/usage/quota/limit"
-        );
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn unresolvable_start_plan_base_url_falls_back_to_coding_candidate() {
-        let mut config = multi_plan_config(true, None);
+    fn start_plan_request_defaults_gateway_when_base_url_unresolvable() {
+        let mut config = multi_plan_config();
         config["provider"]["builtin:bigmodel-start-plan"]["options"]["baseURL"] =
             serde_json::json!("not a url");
         let dir = write_temp_config(&config);
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
-        assert_eq!(request.kind, PlanKind::Coding);
+        write_telemetry(&dir, "device-uuid-1");
+        let request =
+            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
+        assert_eq!(
+            request.url,
+            format!(
+                "{DEFAULT_ZCODE_PLAN_GATEWAY}{BALANCE_PATH}?app_version={}",
+                env!("CARGO_PKG_VERSION")
+            )
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn explicit_quota_url_wins_for_start_plan() {
-        let mut config = multi_plan_config(true, None);
+        let mut config = multi_plan_config();
         config["provider"]["builtin:bigmodel-start-plan"]["options"]["quotaURL"] =
             serde_json::json!("https://quota.example.test/balance");
         let dir = write_temp_config(&config);
-        let request = resolve_quota_request(&config_dir_lookup(&dir)).expect("resolve");
-        assert_eq!(request.kind, PlanKind::Start);
+        write_telemetry(&dir, "device-uuid-1");
+        let request =
+            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
         assert_eq!(request.url, "https://quota.example.test/balance");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn start_plan_payload() -> String {
+        r#"{"code":0,"msg":"","data":{"server_time":1788400000,"plans":[{"plan_id":"p-start","user_plan_id":"up-1","status":"active","ends_at":1789000000}],"balances":[{"bucket_id":"b1","plan_id":"p-start","user_plan_id":"up-1","total_units":1000,"used_units":250,"remaining_units":750,"expires_at":1789600000}]}}"#
+            .to_owned()
+    }
+
+    fn coding_payload() -> String {
+        r#"{"code":200,"success":true,"data":{"limits":[{"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":120,"currentValue":30,"remaining":90,"percentage":25,"nextResetTime":1787810092514}],"level":"lite"}}"#
+            .to_owned()
+    }
+
+    /// 按探测顺序出队预设响应的 fetch 桩，同时记录实际探测的套餐类型
+    type FetchBody = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<String, Diagnostic>> + Send>,
+    >;
+
+    fn fetch_from_queue(
+        seen: std::rc::Rc<std::cell::RefCell<Vec<PlanKind>>>,
+        results: std::rc::Rc<
+            std::cell::RefCell<std::collections::VecDeque<Result<String, Diagnostic>>>,
+        >,
+    ) -> impl Fn(QuotaRequest) -> FetchBody {
+        move |request: QuotaRequest| -> FetchBody {
+            seen.borrow_mut().push(request.kind);
+            let result = results
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or_else(|| Err(zcode_network_failure("fetch stub exhausted")));
+            Box::pin(std::future::ready(result))
+        }
+    }
+
+    #[tokio::test]
+    async fn live_read_prefers_start_plan_payload() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let results = std::rc::Rc::new(std::cell::RefCell::new(
+            [Ok(start_plan_payload())].into_iter().collect(),
+        ));
+        let snapshot = read_live(config_dir_lookup(&dir), fetch_from_queue(seen.clone(), results))
+            .await
+            .expect("snapshot");
+        assert_eq!(snapshot.plan_kind.as_deref(), Some("start_plan"));
+        assert_eq!(*seen.borrow(), vec![PlanKind::Start]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn live_read_falls_back_to_coding_when_start_probe_fails() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let results = std::rc::Rc::new(std::cell::RefCell::new(
+            [
+                Err(Diagnostic::new("CRV-507", "体验套餐不可用")),
+                Ok(coding_payload()),
+            ]
+            .into_iter()
+            .collect(),
+        ));
+        let snapshot = read_live(config_dir_lookup(&dir), fetch_from_queue(seen.clone(), results))
+            .await
+            .expect("snapshot");
+        assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
+        assert_eq!(*seen.borrow(), vec![PlanKind::Start, PlanKind::Coding]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn live_read_surfaces_coding_error_when_both_probes_fail() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let results = std::rc::Rc::new(std::cell::RefCell::new(
+            [
+                Err(Diagnostic::new("CRV-507", "体验套餐不可用")),
+                Err(zcode_network_failure("monitor unreachable")),
+            ]
+            .into_iter()
+            .collect(),
+        ));
+        let error = read_live(
+            config_dir_lookup(&dir),
+            fetch_from_queue(std::rc::Rc::new(std::cell::RefCell::new(Vec::new())), results),
+        )
+        .await
+        .expect_err("expect failure");
+        assert_eq!(error.code, "CRV-504");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn live_read_skips_start_probe_under_env_override() {
+        let dir = write_temp_config(&multi_plan_config());
+        write_telemetry(&dir, "device-uuid-1");
+        let dir_for_lookup = dir.clone();
+        let lookup = move |name: &str| {
+            if name == "ZCODE_BIGMODEL_USAGE_API_KEY" {
+                return Some("env-key".to_owned());
+            }
+            if name == "CODEX_CREDITS_ZCODE_CONFIG_DIR" {
+                return Some(dir_for_lookup.to_string_lossy().into_owned());
+            }
+            None
+        };
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let results = std::rc::Rc::new(std::cell::RefCell::new(
+            [Ok(coding_payload())].into_iter().collect(),
+        ));
+        let snapshot = read_live(&lookup, fetch_from_queue(seen.clone(), results))
+            .await
+            .expect("snapshot");
+        assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
+        // 显式 env 覆盖是个人套餐调试语义，不应产生体验套餐网关探测
+        assert_eq!(*seen.borrow(), vec![PlanKind::Coding]);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -1433,5 +1518,23 @@ mod tests {
         assert!(snapshot.weekly.is_some());
         assert_eq!(snapshot.plan_level.as_deref(), Some("pro"));
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
+    }
+
+    /// 真实环境联调：读本机 ~/.zcode 真实配置并向 zcode-plan 网关发起真实探测。
+    /// 仅在装有 ZCode 并登录的机器上手工执行：cargo test --lib -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn real_gateway_start_plan_probe_is_prioritized() {
+        let snapshot = ZCodeQuotaService::from_environment()
+            .read_snapshot()
+            .await
+            .expect("live snapshot");
+        println!("plan_kind: {:?}", snapshot.plan_kind);
+        println!("plan_level: {:?}", snapshot.plan_level);
+        if snapshot.plan_kind.as_deref() == Some("start_plan") {
+            let pool = snapshot.five_hour.expect("trial pool");
+            println!("trial used_percent: {:.1}", pool.used_percent);
+            println!("trial resets_at: {:?}", pool.resets_at);
+        }
     }
 }
