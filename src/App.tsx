@@ -303,7 +303,7 @@ function QuotaCell({
   motionSeed,
   reducedMotion,
 }: {
-  label: "5 HOUR" | "WEEK" | "TRIAL";
+  label: "5 HOUR" | "WEEK";
   window: QuotaWindow | null;
   accent: FluidAccent;
   credits?: string;
@@ -432,12 +432,14 @@ function SourceBadge({ source, pro = false }: { source: MeterSource; pro?: boole
 
 function CollapsedSurface({
   source,
+  pro,
+  trial,
   fiveHourPercent,
   weeklyPercent,
   onRestore,
-  pro = false,
 }: {
   pro?: boolean;
+  trial?: boolean;
   source: MeterSource;
   fiveHourPercent: number | null;
   weeklyPercent: number | null;
@@ -447,6 +449,11 @@ function CollapsedSurface({
     <span className="collapsed-pro-source">CODEX · PRO</span>
     <span>WEEK <strong>{weeklyPercent === null ? "—" : `${formatPercent(weeklyPercent)}%`}</strong></span>
     <i className="collapsed-dot collapsed-dot--pro" aria-hidden="true"/><Icon name="chevron"/>
+  </button>;
+  if (trial) return <button className="collapsed-surface collapsed-surface--pro collapsed-surface--zcode-trial" type="button" data-window-drag-surface onClick={onRestore} aria-label="恢复标准视图">
+    <span className="collapsed-pro-source">ZCODE · START</span>
+    <span>TRIAL <strong>{fiveHourPercent === null ? "—" : `${formatPercent(fiveHourPercent)}%`}</strong></span>
+    <i className="collapsed-dot collapsed-dot--zcode-trial" aria-hidden="true"/><Icon name="chevron"/>
   </button>;
   return (
     <button
@@ -872,8 +879,9 @@ export function App({
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
   const zcodeSnapshot = zcodeSlot.view.kind === "healthy" ? zcodeSlot.view.snapshot : zcodeSlot.lastSnapshot;
   const activeSnapshot = activeIsZcode ? zcodeSnapshot : codexSnapshot;
-  // 体验套餐（Start Plan）没有 5h/周窗口，额度聚合为单池展示
+  // 体验套餐（Start Plan）没有 5h/周窗口，额度聚合为单池，复用 Pro 单舱形态
   const zcodeIsTrial = zcodeSnapshot?.planKind === "start_plan";
+  const zcodeTrialSurface = activeIsZcode && zcodeIsTrial;
   // 显式传入的 codexPresentation 仅供测试与设计验证入口覆盖；生产从不传参，
   // 展示模式由最新快照里的协议套餐字段派生（未知套餐保持双仓）。
   const effectiveCodexPresentation = codexPresentation ?? deriveCodexPresentation(codexSnapshot);
@@ -931,28 +939,32 @@ export function App({
           <CollapsedSurface
             source={activeSource}
             pro={activeIsPro}
+            trial={zcodeTrialSurface}
             fiveHourPercent={activeSnapshot.fiveHour?.remainingPercent ?? null}
             weeklyPercent={activeSnapshot.weekly?.remainingPercent ?? null}
             onRestore={restoreCollapsedLayout}
           />
         ) : (
           <>
-            {!activeIsPro && activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
-            {!activeIsPro && activeSlot.view.kind === "failed" && !activeSnapshot && (
+            {!activeIsPro && !zcodeTrialSurface && activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
+            {!activeIsPro && !zcodeTrialSurface && activeSlot.view.kind === "failed" && !activeSnapshot && (
               <FailedSurface diagnostic={activeSlot.view.diagnostic} source={activeSource} onRetry={() => void refreshAll()} />
             )}
-            {activeIsPro && <ProQuotaSurface
-              window={codexSnapshot?.weekly ?? null}
+            {(activeIsPro || zcodeTrialSurface) && <ProQuotaSurface
+              variant={zcodeTrialSurface ? "zcode-trial" : "codex-pro"}
+              window={zcodeTrialSurface ? zcodeSnapshot?.fiveHour ?? null : codexSnapshot?.weekly ?? null}
               motion={fluidMotion}
-              motionSeed={fluidChamberSeeds.codexWeekly}
+              motionSeed={zcodeTrialSurface ? fluidChamberSeeds.zcodeFiveHour : fluidChamberSeeds.codexWeekly}
               reducedMotion={preferences.reducedMotion}
-              resetLabel={codexSnapshot?.weekly?.resetsAt == null ? "Resets —" : `Resets ${formatReset(codexSnapshot.weekly.resetsAt, true)}`}
+              resetLabel={zcodeTrialSurface
+                ? (zcodeSnapshot?.fiveHour?.resetsAt == null ? "Expires —" : `Expires ${formatReset(zcodeSnapshot.fiveHour.resetsAt, true)}`)
+                : (codexSnapshot?.weekly?.resetsAt == null ? "Resets —" : `Resets ${formatReset(codexSnapshot.weekly.resetsAt, true)}`)}
               status={stale ? "stale" : activeSlot.view.kind === "loading" ? "loading" : activeSlot.view.kind === "failed" ? "failed" : "ready"}
-              low={effectiveCodexPresentation.weeklyLow}
+              low={zcodeTrialSurface ? false : effectiveCodexPresentation.weeklyLow}
               diagnostic={failureDiagnostic}
               onRetry={() => void refreshAll()}
             />}
-            {!activeIsPro && activeSnapshot && (
+            {!activeIsPro && !zcodeTrialSurface && activeSnapshot && (
               <div
                 key={activeSource}
                 className={`quota-grid source-stage${activeIsZcode && !zcodeSnapshot?.weekly ? " quota-grid--single" : ""}`}
@@ -960,7 +972,7 @@ export function App({
                 {activeIsZcode && zcodeSnapshot ? (
                   <>
                     <QuotaCell
-                      label={zcodeIsTrial ? "TRIAL" : "5 HOUR"}
+                      label="5 HOUR"
                       window={zcodeSnapshot.fiveHour}
                       accent="moonlight"
                       credits={zcodeSnapshot.fiveHour ? formatCredits(zcodeSnapshot.fiveHour) : undefined}

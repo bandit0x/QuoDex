@@ -235,8 +235,13 @@ input:focus-visible {
   --center-wall-depth: inset 0 0 0 transparent;
 }
 .quota-cell--mint.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
+/* ZCode 体验套餐复用 Pro 单舱形态，液体/边框换成翡翠绿以区分来源 */
+.quota-cell--emerald.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
 .quota-cell--pro .quota-cell__bezel {
   background: linear-gradient(150deg, rgba(215,250,255,.4), rgba(4,27,40,.74) 42%, rgba(81,228,198,.3) 76%, rgba(1,15,25,.78));
+}
+.quota-cell--emerald.quota-cell--pro .quota-cell__bezel {
+  background: linear-gradient(150deg, rgba(215,250,236,.4), rgba(4,27,22,.74) 42%, rgba(89,227,173,.3) 76%, rgba(1,25,18,.78));
 }
 .source-badge__pro {
   border-left: 1px solid #50d8ff66;
@@ -271,6 +276,9 @@ input:focus-visible {
 .collapsed-surface.collapsed-surface--pro strong { font-size: 25px; }
 .collapsed-surface--pro > svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
 .collapsed-dot--pro { margin-left: auto; color: var(--mint); background: var(--mint); width: 9px; height: 9px; }
+/* ZCode 体验套餐窄条：同一布局，来源文字与圆点换成翡翠绿 */
+.collapsed-surface--zcode-trial .collapsed-pro-source { color: var(--emerald); }
+.collapsed-dot--zcode-trial { margin-left: auto; color: var(--emerald); background: var(--emerald); width: 9px; height: 9px; }
 
 .quota-grid.source-stage { animation: source-fade 240ms ease-out both; }
 

@@ -605,7 +605,7 @@ describe("dual quota sources", () => {
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
   });
 
-  it("renders the Start trial plan as a single TRIAL pool", async () => {
+  it("renders the Start trial plan as a Pro-style single pool with emerald liquid", async () => {
     render(
       <App
         {...inertPreferences}
@@ -630,13 +630,38 @@ describe("dual quota sources", () => {
     );
 
     const trial = await screen.findByRole("group", { name: "TRIAL quota" });
-    expect(trial).toHaveClass("quota-cell--moonlight");
+    expect(trial).toHaveClass("quota-cell--emerald", "quota-cell--pro");
     expect(within(trial).getByText("65%", { exact: false })).toBeInTheDocument();
-    expect(within(trial).getByText("975 / 1500")).toBeInTheDocument();
+    expect(within(trial).getByText("TRIAL")).toBeInTheDocument();
+    // 体验套餐的池到期时间语义是 Expires，不是 Resets
+    expect(within(trial).getByText(/Expires /)).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "5 HOUR quota" })).not.toBeInTheDocument();
     expect(screen.getByText("START")).toBeInTheDocument();
     // 体验套餐没有周窗口概念，footer 不应提示 Week unavailable
     expect(screen.queryByText(/Week unavailable/)).not.toBeInTheDocument();
+  });
+
+  it("renders a ZCode trial collapsed surface with START branding", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        initialLayout="collapsed"
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async () => ({
+          ...healthyZcodeSnapshot,
+          weekly: null,
+          planLevel: "Start",
+          planKind: "start_plan",
+        })}
+      />,
+    );
+
+    const collapsed = await screen.findByRole("button", { name: "恢复标准视图" });
+    expect(collapsed).toHaveClass("collapsed-surface--zcode-trial");
+    expect(within(collapsed).getByText("ZCODE · START")).toBeInTheDocument();
+    expect(within(collapsed).getByText(/TRIAL/)).toBeInTheDocument();
   });
 
   it("alternates the active source every ten seconds in carousel mode", async () => {
