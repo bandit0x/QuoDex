@@ -11,6 +11,8 @@ import { overlayLayoutSizes, type OverlayLayout } from "./windowClient";
 
 const visualFixture: CapacitySnapshot = {
   sourceState: "healthy",
+  planType: null,
+  accountId: null,
   fiveHour: {
     usedPercent: 82,
     remainingPercent: 18,
@@ -48,6 +50,24 @@ const visualZcodeFixture: ZCodeQuotaSnapshot = {
     quotaRemaining: 4200,
   },
   planLevel: "pro",
+  planKind: "coding_plan",
+  observedAtMs: Date.now(),
+};
+
+const visualZcodeTrialFixture: ZCodeQuotaSnapshot = {
+  sourceState: "healthy",
+  fiveHour: {
+    usedPercent: 35,
+    remainingPercent: 65,
+    windowDurationMins: 0,
+    resetsAt: 1_789_600_000,
+    quotaTotal: 1500,
+    quotaUsed: 525,
+    quotaRemaining: 975,
+  },
+  weekly: null,
+  planLevel: "Start",
+  planKind: "start_plan",
   observedAtMs: Date.now(),
 };
 
@@ -80,6 +100,7 @@ const visualFixtureNames = new Set([
   "v7-collapsed",
   "v7-route-blocked",
   "zcode-healthy",
+  "zcode-trial",
   "zcode-failed",
   "zcode-carousel",
 ]);
@@ -118,6 +139,9 @@ function createZcodeFixtureLoader(fixtureName: string | null) {
       throw { code: "CRV-502", message: "无法读取 ZCode 配额", detail: null };
     };
   }
+  if (fixtureName === "zcode-trial") {
+    return async () => visualZcodeTrialFixture;
+  }
   return async () => visualZcodeFixture;
 }
 
@@ -144,6 +168,15 @@ const fixtureProps: React.ComponentProps<typeof App> = fixtureEnabled
       savePreferences: async () => undefined,
       enableClickThrough: async () => undefined,
       setWindowLayout: async () => undefined,
+      // 设置面板桩：浏览器里没有 tauri invoke，让 ?fixture= 页面能截图设置状态
+      openSettingsWindow: async () => ({
+        baseLayout: fixtureLayout === "collapsed" ? ("compact" as const) : fixtureLayout,
+        placement: "above" as const,
+        windowPosition: { x: 0, y: 0 },
+        windowSize: { width: overlayLayoutSizes[fixtureLayout].width, height: 360 },
+        restore: { layout: fixtureLayout, position: { x: 0, y: 0 } },
+      }),
+      closeSettingsWindow: async () => undefined,
       getWindowPosition: async () => ({ x: 0, y: 0 }),
       setWindowPosition: async () => undefined,
     }

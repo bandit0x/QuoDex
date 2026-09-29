@@ -1,0 +1,14 @@
+{
+  "environment": "Chrome headless, production App verification entry, synthetic services",
+  "screenshots": 12,
+  "errors": [],
+  "checks": [
+    "Pro and dual click restore",
+    "Pro and dual drag without restore",
+    "expand",
+    "refresh",
+    "collapse",
+    "settings open/close",
+    "retain quota during refresh"
+  ]
+}

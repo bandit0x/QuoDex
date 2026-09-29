@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { FluidReservoir } from "./FluidReservoir";
+import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
 import {
   enableTemporaryClickThrough,
@@ -19,6 +20,7 @@ import type {
   QuotaWindow,
   SourceSelection,
   TomatoConnectionSnapshot,
+  ZCodePlanPreference,
   ZCodeQuotaSnapshot,
 } from "./capacityTypes";
 import {
@@ -42,10 +44,11 @@ import {
 } from "./windowClient";
 
 export type CapacityLoader = () => Promise<CapacitySnapshot>;
-export type ZcodeSnapshotLoader = () => Promise<ZCodeQuotaSnapshot>;
+export type ZcodeSnapshotLoader = (preferredPlan: ZCodePlanPreference) => Promise<ZCodeQuotaSnapshot>;
 export type TomatoConnectionLoader = () => Promise<TomatoConnectionSnapshot>;
 
 interface AppProps {
+  codexPresentation?: CodexPresentation;
   initialLayout?: OverlayLayout;
   loadSnapshot?: CapacityLoader;
   loadZcodeSnapshot?: ZcodeSnapshotLoader;
@@ -145,6 +148,7 @@ function normalizeDiagnostic(error: unknown, sourceLabel: string): Diagnostic {
         code: candidate.code,
         message: candidate.message,
         detail: candidate.detail ?? null,
+        accountId: candidate.accountId ?? null,
       };
     }
   }
@@ -153,7 +157,23 @@ function normalizeDiagnostic(error: unknown, sourceLabel: string): Diagnostic {
     code: "CRV-100",
     message: `无法读取 ${sourceLabel} 配额`,
     detail: error instanceof Error ? error.message : String(error),
+    accountId: null,
   };
+}
+
+/**
+ * 套餐 → 展示模式映射。只有协议明确披露的 pro 档套餐（pro/prolite 等）才进入
+ * Pro 单仓；套餐未知（planType 为 null，包括 fiveHour 缺失的情况）一律保持双仓，
+ * 不从额度窗口形状反推套餐。
+ */
+export function deriveCodexPresentation(snapshot: CapacitySnapshot | null): CodexPresentation {
+  const planType = snapshot?.planType?.trim().toLowerCase();
+  return planType && planType.startsWith("pro") ? { mode: "pro-weekly" } : { mode: "dual" };
+}
+
+/** Codex 缓存数据的归属标识：同一次读取中与额度同批产生的账户 ID。 */
+function codexSnapshotIdentity(snapshot: CapacitySnapshot): string | null {
+  return snapshot.accountId ?? null;
 }
 
 function normalizeRouteFailure(error: unknown): TomatoConnectionSnapshot {
@@ -200,7 +220,11 @@ export function applyRouteGate(
   return { visible: next, consecutiveFailures };
 }
 
-function useSourceSlot<S>(loader: () => Promise<S>, sourceLabel: string): SourceSlot<S> {
+function useSourceSlot<S>(
+  loader: () => Promise<S>,
+  sourceLabel: string,
+  identityOf?: (snapshot: S) => string | null,
+): SourceSlot<S> {
   const [view, setView] = useState<ViewState<S>>({ kind: "loading" });
   const [lastSnapshot, setLastSnapshot] = useState<S | null>(null);
   const lastSnapshotRef = useRef<S | null>(null);
@@ -220,11 +244,22 @@ function useSourceSlot<S>(loader: () => Promise<S>, sourceLabel: string): Source
       setView({ kind: "healthy", snapshot });
     } catch (error) {
       if (generation !== generationRef.current) return;
-      setView({ kind: "failed", diagnostic: normalizeDiagnostic(error, sourceLabel) });
+      const diagnostic = normalizeDiagnostic(error, sourceLabel);
+      const cached = lastSnapshotRef.current;
+      if (cached && identityOf) {
+        const cachedIdentity = identityOf(cached);
+        if ((diagnostic.accountId ?? null) !== cachedIdentity) {
+          // 失败时的登录身份与缓存数据的归属账户不同（切换账户或退出登录）：
+          // 丢弃旧账户的额度与套餐标识，不把它展示给当前登录状态。
+          lastSnapshotRef.current = null;
+          setLastSnapshot(null);
+        }
+      }
+      setView({ kind: "failed", diagnostic });
     } finally {
       if (generation === generationRef.current) setIsRefreshing(false);
     }
-  }, [loader, sourceLabel]);
+  }, [loader, sourceLabel, identityOf]);
 
   useEffect(() => {
     void load();
@@ -386,26 +421,41 @@ function RouteStatus({ route, alert }: { route: TomatoConnectionSnapshot | null;
   );
 }
 
-function SourceBadge({ source }: { source: MeterSource }) {
+function SourceBadge({ source, pro = false }: { source: MeterSource; pro?: boolean }) {
   return (
     <span className={`source-badge source-badge--${source}`}>
       <i aria-hidden="true" />
       {source === "codex" ? "CODEX" : "ZCODE"}
+      {pro && <span className="source-badge__pro">PRO</span>}
     </span>
   );
 }
 
 function CollapsedSurface({
   source,
+  pro,
+  trial,
   fiveHourPercent,
   weeklyPercent,
   onRestore,
 }: {
+  pro?: boolean;
+  trial?: boolean;
   source: MeterSource;
   fiveHourPercent: number | null;
   weeklyPercent: number | null;
   onRestore: () => void;
 }) {
+  if (pro) return <button className="collapsed-surface collapsed-surface--pro" type="button" data-window-drag-surface onClick={onRestore} aria-label="恢复标准视图">
+    <span className="collapsed-pro-source">CODEX · PRO</span>
+    <span>WEEK <strong>{weeklyPercent === null ? "—" : `${formatPercent(weeklyPercent)}%`}</strong></span>
+    <i className="collapsed-dot collapsed-dot--pro" aria-hidden="true"/><Icon name="chevron"/>
+  </button>;
+  if (trial) return <button className="collapsed-surface collapsed-surface--pro collapsed-surface--zcode-trial" type="button" data-window-drag-surface onClick={onRestore} aria-label="恢复标准视图">
+    <span className="collapsed-pro-source">ZCODE · START</span>
+    <span>TRIAL <strong>{fiveHourPercent === null ? "—" : `${formatPercent(fiveHourPercent)}%`}</strong></span>
+    <i className="collapsed-dot collapsed-dot--zcode-trial" aria-hidden="true"/><Icon name="chevron"/>
+  </button>;
   return (
     <button
       className="collapsed-surface"
@@ -430,10 +480,11 @@ function freshnessText(
   snapshot: Pick<CapacitySnapshot, "fiveHour" | "weekly" | "observedAtMs">,
   stale: boolean,
   diagnostic?: Diagnostic,
+  options?: { weeklyOnly?: boolean; poolOnly?: boolean },
 ): string {
   const unavailable = [
-    snapshot.fiveHour ? null : "5-hour unavailable",
-    snapshot.weekly ? null : "Week unavailable",
+    options?.weeklyOnly || snapshot.fiveHour ? null : "5-hour unavailable",
+    options?.poolOnly || snapshot.weekly ? null : "Week unavailable",
   ].filter(Boolean);
 
   if (stale) return `STALE · ${diagnostic?.code ?? "cached snapshot"}`;
@@ -442,6 +493,7 @@ function freshnessText(
 }
 
 export function App({
+  codexPresentation,
   initialLayout = "compact",
   loadSnapshot = readCapacitySnapshot,
   loadZcodeSnapshot = readZcodeQuotaSnapshot,
@@ -457,12 +509,17 @@ export function App({
   quitApp = quitApplication,
   motionSessionSeed,
 }: AppProps) {
-  const codexSlot = useSourceSlot(loadSnapshot, "Codex");
-  const zcodeSlot = useSourceSlot(loadZcodeSnapshot, "ZCode");
+  const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
   const [settingsPresentation, setSettingsPresentation] = useState<SettingsWindowPresentation | null>(null);
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const zcodePlanPreference = preferences.zcodePlan ?? "start";
+  const loadZcodeSnapshotWithPlan = useCallback(
+    () => loadZcodeSnapshot(zcodePlanPreference),
+    [loadZcodeSnapshot, zcodePlanPreference],
+  );
+  const zcodeSlot = useSourceSlot(loadZcodeSnapshotWithPlan, "ZCode");
   const [carouselSource, setCarouselSource] = useState<MeterSource>("codex");
   const [clickThroughSeconds, setClickThroughSeconds] = useState(0);
   const [routeConnection, setRouteConnection] = useState<TomatoConnectionSnapshot | null>(null);
@@ -623,7 +680,9 @@ export function App({
     void getOverlayWorkArea().then((area) => {
       dragWorkAreaRef.current = area;
     });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Keep clicks on the collapsed button while pointer moves still bubble to the drag handler.
+    const captureTarget = target.closest<HTMLElement>("[data-window-drag-surface]") ?? event.currentTarget;
+    captureTarget.setPointerCapture?.(event.pointerId);
     const drag = dragRef.current;
     drag.pointerId = event.pointerId;
     drag.ready = false;
@@ -825,6 +884,13 @@ export function App({
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
   const zcodeSnapshot = zcodeSlot.view.kind === "healthy" ? zcodeSlot.view.snapshot : zcodeSlot.lastSnapshot;
   const activeSnapshot = activeIsZcode ? zcodeSnapshot : codexSnapshot;
+  // 体验套餐（Start Plan）没有 5h/周窗口，额度聚合为单池，复用 Pro 单舱形态
+  const zcodeIsTrial = zcodeSnapshot?.planKind === "start_plan";
+  const zcodeTrialSurface = activeIsZcode && zcodeIsTrial;
+  // 显式传入的 codexPresentation 仅供测试与设计验证入口覆盖；生产从不传参，
+  // 展示模式由最新快照里的协议套餐字段派生（未知套餐保持双仓）。
+  const effectiveCodexPresentation = codexPresentation ?? deriveCodexPresentation(codexSnapshot);
+  const activeIsPro = !activeIsZcode && effectiveCodexPresentation.mode === "pro-weekly";
   const staleFromFailure = activeSlot.view.kind === "failed" && activeSnapshot !== null;
   const stale = staleFromFailure || activeSnapshot?.sourceState === "stale";
   const failureDiagnostic = activeSlot.view.kind === "failed" ? activeSlot.view.diagnostic : undefined;
@@ -872,22 +938,38 @@ export function App({
         {/* TomatoCloud 只承载 Codex 路由，ZCode 直连 bigmodel 不受路由阻断影响 */}
         {routeBlocked && !activeIsZcode && <span className="route-alert-halo" aria-hidden="true" />}
         <div className="drag-rail" aria-hidden="true" />
-        {!collapsed && <SourceBadge source={activeSource} />}
+        {!collapsed && <SourceBadge source={activeSource} pro={activeIsPro} />}
 
         {collapsed && activeSnapshot ? (
           <CollapsedSurface
             source={activeSource}
+            pro={activeIsPro}
+            trial={zcodeTrialSurface}
             fiveHourPercent={activeSnapshot.fiveHour?.remainingPercent ?? null}
             weeklyPercent={activeSnapshot.weekly?.remainingPercent ?? null}
             onRestore={restoreCollapsedLayout}
           />
         ) : (
           <>
-            {activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
-            {activeSlot.view.kind === "failed" && !activeSnapshot && (
+            {!activeIsPro && !zcodeTrialSurface && activeSlot.view.kind === "loading" && <LoadingSurface label={sourceLabels[activeSource]} />}
+            {!activeIsPro && !zcodeTrialSurface && activeSlot.view.kind === "failed" && !activeSnapshot && (
               <FailedSurface diagnostic={activeSlot.view.diagnostic} source={activeSource} onRetry={() => void refreshAll()} />
             )}
-            {activeSnapshot && (
+            {(activeIsPro || zcodeTrialSurface) && <ProQuotaSurface
+              variant={zcodeTrialSurface ? "zcode-trial" : "codex-pro"}
+              window={zcodeTrialSurface ? zcodeSnapshot?.fiveHour ?? null : codexSnapshot?.weekly ?? null}
+              motion={fluidMotion}
+              motionSeed={zcodeTrialSurface ? fluidChamberSeeds.zcodeFiveHour : fluidChamberSeeds.codexWeekly}
+              reducedMotion={preferences.reducedMotion}
+              resetLabel={zcodeTrialSurface
+                ? (zcodeSnapshot?.fiveHour?.resetsAt == null ? "Expires —" : `Expires ${formatReset(zcodeSnapshot.fiveHour.resetsAt, true)}`)
+                : (codexSnapshot?.weekly?.resetsAt == null ? "Resets —" : `Resets ${formatReset(codexSnapshot.weekly.resetsAt, true)}`)}
+              status={stale ? "stale" : activeSlot.view.kind === "loading" ? "loading" : activeSlot.view.kind === "failed" ? "failed" : "ready"}
+              low={zcodeTrialSurface ? false : effectiveCodexPresentation.weeklyLow}
+              diagnostic={failureDiagnostic}
+              onRetry={() => void refreshAll()}
+            />}
+            {!activeIsPro && !zcodeTrialSurface && activeSnapshot && (
               <div
                 key={activeSource}
                 className={`quota-grid source-stage${activeIsZcode && !zcodeSnapshot?.weekly ? " quota-grid--single" : ""}`}
@@ -935,7 +1017,7 @@ export function App({
                   <span>FULL RESETS <b>{codexSnapshot.fullResetCredits?.availableCount ?? "—"}</b></span>
                   <RouteStatus route={routeConnection} alert={routeBlocked} />
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(codexSnapshot, stale, failureDiagnostic, { weeklyOnly: activeIsPro })}
                   </span>
                 </>
               )}
@@ -945,7 +1027,7 @@ export function App({
                     <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                   )}
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic)}
+                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
                   </span>
                 </>
               )}
@@ -957,7 +1039,7 @@ export function App({
                         <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                       )}
                       <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic)}
+                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
                       </span>
                     </>
                   ) : codexSnapshot ? (
@@ -1042,6 +1124,33 @@ export function App({
                 </button>
               </div>
             </div>
+            {sourceSelection === "zcode" && (
+              <div className="source-row source-row--nested">
+                <span>ZCode 套餐</span>
+                <div
+                  className="source-segments source-segments--nested"
+                  role="group"
+                  aria-label="ZCode 套餐"
+                >
+                  <button
+                    className="source-segment source-segment--zcode-plan"
+                    type="button"
+                    aria-pressed={zcodePlanPreference === "start"}
+                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "start" satisfies ZCodePlanPreference })}
+                  >
+                    体验套餐
+                  </button>
+                  <button
+                    className="source-segment source-segment--zcode-plan"
+                    type="button"
+                    aria-pressed={zcodePlanPreference === "coding"}
+                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "coding" satisfies ZCodePlanPreference })}
+                  >
+                    个人套餐
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="quit-row">
               <button type="button" className="quit-button" onClick={quitMeter}>
                 退出应用

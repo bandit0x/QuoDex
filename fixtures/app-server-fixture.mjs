@@ -12,6 +12,8 @@ function healthyResult() {
   const nowSeconds = Math.floor(Date.now() / 1000);
   return {
     rateLimits: {
+      limitId: "codex",
+      limitName: null,
       primary: {
         usedPercent: 24,
         windowDurationMins: 300,
@@ -22,6 +24,7 @@ function healthyResult() {
         windowDurationMins: 10080,
         resetsAt: nowSeconds + 2 * 24 * 60 * 60 + 4 * 60 * 60,
       },
+      planType: "plus",
       rateLimitReachedType: null,
     },
     rateLimitResetCredits: {
@@ -38,6 +41,31 @@ function healthyResult() {
         },
       ],
     },
+  };
+}
+
+// 按真实协议形状构造 Pro 档（prolite）响应：唯一窗口是 10080 分钟的周窗口，
+// 位于 primary 槽位，secondary 为空，planType 直接随响应披露。
+function proWeeklyResult() {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return {
+    rateLimits: {
+      limitId: "codex",
+      limitName: null,
+      primary: {
+        usedPercent: 89,
+        windowDurationMins: 10080,
+        resetsAt: nowSeconds + 4 * 24 * 60 * 60,
+      },
+      secondary: null,
+      credits: { hasCredits: false, unlimited: false, balance: "0" },
+      individualLimit: null,
+      spendControlReached: false,
+      planType: "pro",
+      rateLimitReachedType: null,
+    },
+    rateLimitsByLimitId: {},
+    rateLimitResetCredits: null,
   };
 }
 
@@ -63,6 +91,15 @@ function respondToRateLimitRead(request) {
         rateLimitResetCredits: null,
       },
     });
+    return;
+  }
+  if (scenario === "pro-weekly" || scenario === "plan-unknown") {
+    const result = proWeeklyResult();
+    if (scenario === "plan-unknown") {
+      // 协议未披露 planType 的响应：窗口照常解析，套餐保持未知。
+      delete result.rateLimits.planType;
+    }
+    write({ id: request.id, result });
     return;
   }
 

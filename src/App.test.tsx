@@ -6,6 +6,7 @@ import type {
   CapacitySnapshot,
   DisplayPreferences,
   TomatoConnectionSnapshot,
+  ZCodePlanPreference,
   ZCodeQuotaSnapshot,
 } from "./capacityTypes";
 
@@ -33,6 +34,8 @@ const inertPreferences = {
 
 const healthySnapshot: CapacitySnapshot = {
   sourceState: "healthy",
+  planType: null,
+  accountId: null,
   fiveHour: {
     usedPercent: 24,
     remainingPercent: 76,
@@ -73,6 +76,7 @@ const healthyZcodeSnapshot: ZCodeQuotaSnapshot = {
     quotaRemaining: 4200,
   },
   planLevel: "pro",
+  planKind: "coding_plan",
   observedAtMs: 1_800_000_000_000,
 };
 
@@ -602,6 +606,121 @@ describe("dual quota sources", () => {
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
   });
 
+  it("renders the Start trial plan as a Pro-style single pool with emerald liquid", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async () => ({
+          ...healthyZcodeSnapshot,
+          fiveHour: {
+            usedPercent: 35,
+            remainingPercent: 65,
+            windowDurationMins: 0,
+            resetsAt: 1_800_000_000,
+            quotaTotal: 1500,
+            quotaUsed: 525,
+            quotaRemaining: 975,
+          },
+          weekly: null,
+          planLevel: "Start",
+          planKind: "start_plan",
+        })}
+      />,
+    );
+
+    const trial = await screen.findByRole("group", { name: "TRIAL quota" });
+    expect(trial).toHaveClass("quota-cell--emerald", "quota-cell--pro");
+    expect(within(trial).getByText("65%", { exact: false })).toBeInTheDocument();
+    expect(within(trial).getByText("TRIAL")).toBeInTheDocument();
+    // 体验套餐的池到期时间语义是 Expires，不是 Resets
+    expect(within(trial).getByText(/Expires /)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "5 HOUR quota" })).not.toBeInTheDocument();
+    expect(screen.getByText("START")).toBeInTheDocument();
+    // 体验套餐没有周窗口概念，footer 不应提示 Week unavailable
+    expect(screen.queryByText(/Week unavailable/)).not.toBeInTheDocument();
+  });
+
+  it("renders a ZCode trial collapsed surface with START branding", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        initialLayout="collapsed"
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async () => ({
+          ...healthyZcodeSnapshot,
+          weekly: null,
+          planLevel: "Start",
+          planKind: "start_plan",
+        })}
+      />,
+    );
+
+    const collapsed = await screen.findByRole("button", { name: "恢复标准视图" });
+    expect(collapsed).toHaveClass("collapsed-surface--zcode-trial");
+    expect(within(collapsed).getByText("ZCODE · START")).toBeInTheDocument();
+    expect(within(collapsed).getByText(/TRIAL/)).toBeInTheDocument();
+  });
+
+  it("defaults the zcode plan probe to start when preferences omit it", async () => {
+    const zcodeCalls: ZCodePlanPreference[] = [];
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async (preferredPlan) => {
+          zcodeCalls.push(preferredPlan);
+          return healthyZcodeSnapshot;
+        }}
+      />,
+    );
+
+    await screen.findByRole("group", { name: "5 HOUR quota" });
+    expect(zcodeCalls).toEqual(["start"]);
+  });
+
+  it("switches the zcode plan from settings and reloads with the new preference", async () => {
+    const user = userEvent.setup();
+    const zcodeCalls: ZCodePlanPreference[] = [];
+    const saved: DisplayPreferences[] = [];
+    render(
+      <App
+        {...inertPreferences}
+        loadPreferences={async () => ({
+          ...basePreferences,
+          source: "zcode",
+          zcodePlan: "start",
+        })}
+        savePreferences={async (next) => {
+          saved.push(next);
+        }}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={async (preferredPlan) => {
+          zcodeCalls.push(preferredPlan);
+          return healthyZcodeSnapshot;
+        }}
+      />,
+    );
+
+    await screen.findByRole("group", { name: "5 HOUR quota" });
+    expect(zcodeCalls).toEqual(["start"]);
+
+    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
+    await user.click(screen.getByRole("button", { name: "设置" }));
+    const planGroup = screen.getByRole("group", { name: "ZCode 套餐" });
+    expect(within(planGroup).getByText("体验套餐")).toHaveAttribute("aria-pressed", "true");
+
+    // 万一用户不想盯体验套餐的消耗：切到个人套餐后立即按新偏好重探
+    await user.click(within(planGroup).getByText("个人套餐"));
+    expect(within(planGroup).getByText("个人套餐")).toHaveAttribute("aria-pressed", "true");
+    expect(saved[saved.length - 1].zcodePlan).toBe("coding");
+    await waitFor(() => expect(zcodeCalls).toEqual(["start", "coding"]));
+  });
+
   it("alternates the active source every ten seconds in carousel mode", async () => {
     vi.useFakeTimers();
     try {
@@ -729,5 +848,148 @@ describe("dual quota sources", () => {
 
     await waitFor(() => expect(codexLoader).toHaveBeenCalled());
     await waitFor(() => expect(zcodeLoader).toHaveBeenCalled());
+  });
+});
+
+describe("Pro weekly presentation", () => {
+  const proSnapshot = { ...healthySnapshot, fiveHour: null };
+  it("offers retry for a stale snapshot without a weekly window", async () => {
+    const loader = vi.fn(async (): Promise<CapacitySnapshot> => ({...proSnapshot, sourceState:"stale", weekly:null}));
+    render(<App {...inertPreferences} codexPresentation={{mode:"pro-weekly"}} loadSnapshot={loader}/>);
+    await userEvent.click(await screen.findByRole("button",{name:"重试"}));
+    await waitFor(()=>expect(loader).toHaveBeenCalledTimes(2));
+  });
+  it("shows only weekly quota without claiming the intentionally absent 5h window is unavailable", async () => {
+    render(<App {...inertPreferences} codexPresentation={{ mode: "pro-weekly" }} loadSnapshot={async () => proSnapshot}/>);
+    expect(await screen.findByRole("group", {name:"WEEK quota"})).toBeInTheDocument();
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+    expect(screen.queryByText(/5-hour unavailable/)).not.toBeInTheDocument();
+  });
+  it("does not infer Pro from an absent 5h window", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => proSnapshot}/>);
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+  });
+  it("restores the full weekly chamber from the single-indicator strip", async () => {
+    const user=userEvent.setup();
+    render(<App {...inertPreferences} initialLayout="collapsed" codexPresentation={{mode:"pro-weekly"}} loadSnapshot={async()=>proSnapshot}/>);
+    await user.click(await screen.findByRole("button",{name:"恢复标准视图"}));
+    expect(await screen.findByRole("group",{name:"WEEK quota"})).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+  it("retains weekly data on refresh failure and retries through the visible recovery action", async () => {
+    const user=userEvent.setup();
+    const loader=vi.fn().mockResolvedValueOnce(proSnapshot).mockRejectedValueOnce({code:"TEST-01",message:"连接中断",detail:null}).mockResolvedValue(proSnapshot);
+    render(<App {...inertPreferences} initialLayout="expanded" codexPresentation={{mode:"pro-weekly"}} loadSnapshot={loader}/>);
+    await screen.findByText("42%");
+    await user.click(screen.getByRole("button",{name:"刷新"}));
+    expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("连接中断 · TEST-01")).toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"重试"}));
+    await waitFor(()=>expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument());
+  });
+  it("does not apply Codex presentation to ZCode", async () => {
+    render(<App {...inertPreferences} codexPresentation={{mode:"pro-weekly"}} loadPreferences={async()=>({opacity:.92,reducedMotion:true,x:null,y:null,source:"zcode"})} loadSnapshot={async()=>proSnapshot} loadZcodeSnapshot={async()=>healthyZcodeSnapshot}/>);
+    expect(await screen.findByText("ZCODE")).toBeInTheDocument();
+    expect(await screen.findByText("76%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.getAllByRole("group", {name: /quota/})).toHaveLength(2);
+  });
+});
+
+describe("Codex plan derivation and cache ownership", () => {
+  const proSnapshot = {
+    ...healthySnapshot,
+    fiveHour: null,
+    planType: "pro",
+    accountId: "acct-pro",
+  };
+
+  it("derives the Pro single chamber from the protocol plan type without an explicit prop", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => proSnapshot} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+
+  it("derives the Pro single chamber for the prolite tier reported by the real protocol", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => ({ ...proSnapshot, planType: "prolite" })} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+    expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dual chamber for a non-Pro plan even when the 5h window is absent", async () => {
+    render(
+      <App
+        {...inertPreferences}
+        loadSnapshot={async () => ({ ...proSnapshot, planType: "plus" })}
+      />,
+    );
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+  });
+
+  it("drops cached Pro data when a failure reports a different signed-in account", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "CRV-108", message: "app-server 拒绝了配额请求", detail: null, accountId: "acct-next" });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+    expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("42%")).not.toBeInTheDocument();
+  });
+
+  it("drops cached Pro data when the account is signed out before a failing refresh", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "CRV-202", message: "Codex 尚未登录", detail: null, accountId: null });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
+    expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("42%")).not.toBeInTheDocument();
+  });
+
+  it("keeps cached data visibly stale when a same-account refresh fails", async () => {
+    const user = userEvent.setup();
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockRejectedValueOnce({ code: "TEST-01", message: "连接中断", detail: null, accountId: "acct-pro" });
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByText("42%")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("PRO")).toBeInTheDocument();
+  });
+
+  it("replaces the presentation as soon as a new account delivers its own snapshot", async () => {
+    const user = userEvent.setup();
+    const dualSnapshotForNextAccount = {
+      ...healthySnapshot,
+      planType: "plus",
+      accountId: "acct-next",
+    };
+    const loader = vi.fn()
+      .mockResolvedValueOnce(proSnapshot)
+      .mockResolvedValue(dualSnapshotForNextAccount);
+    render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
+    expect(await screen.findByText("PRO")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("76%")).toBeInTheDocument();
+    expect(screen.getByText("5 HOUR")).toBeInTheDocument();
+    expect(screen.queryByText("PRO")).not.toBeInTheDocument();
   });
 });

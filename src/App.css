@@ -226,6 +226,60 @@ input:focus-visible {
 
 .quota-grid--single { grid-template-columns: minmax(0, 1fr); }
 
+/* Pro changes presentation only; the caller supplies the account decision. */
+.quota-cell.quota-cell--pro {
+  border-radius: 25px;
+  --bezel-left: -6px;
+  --bezel-right: -6px;
+  --bezel-radius: 31px;
+  --center-wall-depth: inset 0 0 0 transparent;
+}
+.quota-cell--mint.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
+/* ZCode 体验套餐复用 Pro 单舱形态，液体/边框换成翡翠绿以区分来源 */
+.quota-cell--emerald.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
+.quota-cell--pro .quota-cell__bezel {
+  background: linear-gradient(150deg, rgba(215,250,255,.4), rgba(4,27,40,.74) 42%, rgba(81,228,198,.3) 76%, rgba(1,15,25,.78));
+}
+.quota-cell--emerald.quota-cell--pro .quota-cell__bezel {
+  background: linear-gradient(150deg, rgba(215,250,236,.4), rgba(4,27,22,.74) 42%, rgba(89,227,173,.3) 76%, rgba(1,25,18,.78));
+}
+.source-badge__pro {
+  border-left: 1px solid #50d8ff66;
+  padding-left: 7px;
+  margin-left: 1px;
+  font-size: 10px;
+  letter-spacing: .07em;
+}
+.pro-quota-warning { color: #ffca99; font-size: 12px; margin-top: 4px; }
+.pro-quota-recovery {
+  position: absolute;
+  z-index: 8;
+  left: 20px;
+  right: 40px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #ffca99;
+  background: rgba(2, 12, 21, .94);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.pro-quota-recovery span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pro-quota-recovery button { flex: 0 0 auto; color: #eaf8fc; background: transparent; border: 1px solid #afc3d266; border-radius: 5px; padding: 2px 10px; }
+.pro-quota-recovery button:hover { background: #afc3d222; }
+.collapsed-surface.collapsed-surface--pro { display: flex; align-items: center; gap: 22px; padding: 0 22px; font-size: 14px; }
+.collapsed-surface.collapsed-surface--pro > span + span { border-left: 0; }
+.collapsed-surface--pro .collapsed-pro-source { color: var(--cyan); font-size: 12px; letter-spacing: .07em; }
+.collapsed-surface.collapsed-surface--pro strong { font-size: 25px; }
+.collapsed-surface--pro > svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+.collapsed-dot--pro { margin-left: auto; color: var(--mint); background: var(--mint); width: 9px; height: 9px; }
+/* ZCode 体验套餐窄条：同一布局，来源文字与圆点换成翡翠绿 */
+.collapsed-surface--zcode-trial .collapsed-pro-source { color: var(--emerald); }
+.collapsed-dot--zcode-trial { margin-left: auto; color: var(--emerald); background: var(--emerald); width: 9px; height: 9px; }
+
 .quota-grid.source-stage { animation: source-fade 240ms ease-out both; }
 
 .quota-cell {
@@ -419,6 +473,23 @@ input:focus-visible {
   font-size: 13px;
   font-weight: 540;
   font-variant-numeric: tabular-nums;
+}
+
+/* Pro 单仓的重置时间压在全宽液面上：加大加粗并垫毛玻璃药丸，保证任意液位可读 */
+.quota-cell--pro .reset-time {
+  font-size: 16px;
+  font-weight: 650;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+  padding: 4px 16px;
+  border-radius: 999px;
+  background: rgba(3, 17, 23, 0.6);
+  border: 1px solid rgba(180, 244, 229, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 2px 8px rgba(0, 8, 12, 0.45);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 
 .quota-cell--unavailable .reset-time { color: #b8cbd5; }
@@ -991,6 +1062,28 @@ input:focus-visible {
 .settings-popover .source-segments .source-segment--zcode[aria-pressed="true"] {
   color: #d8ffec;
   background: color-mix(in srgb, var(--emerald) 28%, rgba(7, 19, 30, 0.92));
+}
+
+/* ZCode 套餐子选项：仅在来源选中 Zcode 时出现，紧凑一档、翡翠绿选中态 */
+.settings-popover .source-row--nested {
+  min-height: 38px;
+  padding-left: 10px;
+}
+
+.settings-popover .source-row--nested > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.settings-popover .source-segments--nested button {
+  min-height: 30px;
+  padding: 0 11px;
+  font-size: 11px;
+}
+
+.settings-popover .source-segments--nested button[aria-pressed="true"] {
+  color: #d8ffec;
+  background: color-mix(in srgb, var(--emerald) 26%, rgba(7, 19, 30, 0.92));
 }
 
 .control-message {

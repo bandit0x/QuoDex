@@ -124,8 +124,11 @@ async fn read_tomato_connection(
 #[tauri::command]
 async fn read_zcode_quota_snapshot(
     service: State<'_, ZCodeQuotaService>,
+    preferred_plan: Option<preferences::ZCodePlanSelection>,
 ) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
-    service.read_snapshot().await
+    // Coding = 用户在设置中选择了仅个人套餐，跳过体验套餐探测
+    let prefer_start = preferred_plan != Some(preferences::ZCodePlanSelection::Coding);
+    service.read_snapshot(prefer_start).await
 }
 
 #[tauri::command]

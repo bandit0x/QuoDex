@@ -17,6 +17,16 @@ pub enum MeterSourceSelection {
     Zcode,
 }
 
+/// ZCode 来源下展示的套餐：Start = 体验套餐优先（网关判定不可用回落个人），
+/// Coding = 仅个人套餐（用户不想盯体验套餐的消耗）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ZCodePlanSelection {
+    #[default]
+    Start,
+    Coding,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayPreferences {
@@ -24,6 +34,8 @@ pub struct DisplayPreferences {
     pub reduced_motion: bool,
     #[serde(default)]
     pub source: MeterSourceSelection,
+    #[serde(default)]
+    pub zcode_plan: ZCodePlanSelection,
     pub x: Option<i32>,
     pub y: Option<i32>,
 }
@@ -34,6 +46,7 @@ impl Default for DisplayPreferences {
             opacity: 0.92,
             reduced_motion: false,
             source: MeterSourceSelection::default(),
+            zcode_plan: ZCodePlanSelection::default(),
             x: None,
             y: None,
         }
@@ -143,6 +156,7 @@ mod tests {
             opacity: 0.9,
             reduced_motion: true,
             source: MeterSourceSelection::Carousel,
+            zcode_plan: ZCodePlanSelection::Coding,
             x: Some(120),
             y: Some(240),
         };
@@ -163,6 +177,10 @@ mod tests {
             DisplayPreferences::default().source,
             MeterSourceSelection::Carousel
         );
+        assert_eq!(
+            DisplayPreferences::default().zcode_plan,
+            ZCodePlanSelection::Start
+        );
     }
 
     #[test]
@@ -171,5 +189,6 @@ mod tests {
         let preferences: DisplayPreferences =
             serde_json::from_str(raw).expect("legacy preferences");
         assert_eq!(preferences.source, MeterSourceSelection::Carousel);
+        assert_eq!(preferences.zcode_plan, ZCodePlanSelection::Start);
     }
 }

@@ -6,35 +6,35 @@
 
 _Windows 11 与 macOS 上的轻量配额桌面浮窗，原名 Codex Meter。_
 
-当前版本：**0.1.8**
+当前版本：**0.2.0**
 
 ---
 
-**QuoDex**（**Quo**ta + Co**dex**）通过本机 Codex `app-server` 读取只读配额数据，在一个可拖动的液态玻璃浮窗中并列展示 **5 小时额度**和**一周额度**；同时支持读取 **ZCode 编程包**（bigmodel coding-plan）的配额，可手动切换或轮播显示两个来源。应用手动启动、常驻通知区域，不创建开机启动项，也不会占用普通任务栏位置。
+**QuoDex**（**Quo**ta + Co**dex**）通过本机 Codex `app-server` 读取只读配额数据，在一个可拖动的液态玻璃浮窗中并列展示 **5 小时额度**和**一周额度**；同时支持读取 **ZCode**（bigmodel coding-plan）的配额，可手动切换或轮播显示两个来源。
 
 > [!IMPORTANT]
-> QuoDex 是非官方社区项目，与 OpenAI 或 ChatGPT 无隶属、赞助或背书关系。
+> QuoDex 是非官方社区项目，与 OpenAI 或 Bigmodel 无隶属、赞助或背书关系。
 
 ![QuoDex 正常状态，TomatoCloud 健康路由 UK · 42 ms](docs/verification/screenshots/quodex-compact.png)
 
-_图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 ms）。截图使用测试数据，不包含真实账号或配额信息。_
+_图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 ms）。_
 
 ## ✨ 主要功能
 
 - 以同等视觉层级展示 5 小时和一周剩余额度
 - 液体高度随剩余百分比线性变化
-- 每 5 秒自动刷新，紧跟额度消耗节奏，也可在展开视图中手动刷新
+- 每 5 秒自动刷新，可在展开视图中手动刷新
 - 展示额度重置时间和可用完整重置次数
 - 支持紧凑、展开和窄条三种布局
 - 支持窗口拖动惯性，以及随液位与每次启动种子变化的独立液体晃动
 - 端到端监测 TomatoCloud 路由：通过本机系统代理发起真实 HTTPS Route Probe，显示连接灯、出口国家缩写和延迟
-- TomatoCloud 正常时每 5 秒探测；阻塞或断开时每 1 秒复测，连续两次失败后才让整个液态玻璃边缘红色闪烁报警
+- TomatoCloud 正常时每 5 秒探测；阻塞或断开时每 1 秒复测，连续两次失败后整个液态玻璃边缘红色闪烁报警
 - 支持 10 秒鼠标穿透、透明度调节和减少动效
-- 关闭窗口后隐藏到 Windows 通知区域，可从托盘重新显示或退出
 - 数据读取失败时保留最近一次有效数据，并显示稳定诊断码
-- 支持 ZCode 编程包额度源：自动发现 `~/.zcode` 中启用的 coding-plan，经 bigmodel 监控端点只读查询 5 小时/周双窗口、点数与套餐档位
+- 支持 ZCode 编程包额度源：自动发现 `~/.zcode` 中启用的 coding-plan
+- 支持 ZCode 体验套餐（Start Plan）：授权状态由 zcode-plan 网关实时判定，体验套餐可用时优先于个人套餐显示，复用 Codex Pro 的全宽单舱形态（无 5h 限额仓），液体为翡翠绿以区分 Codex Pro 的薄荷绿，池到期时间以 Expires 标注；体验套餐不可用时自动回落个人套餐
 - 左上角来源徽章（Codex 青 / ZCode 翡翠绿）标识当前显示的额度来源；ZCode 的 5 小时舱使用月光银、周舱使用翡翠绿，窄条模式以对应色点区分
-- 设置面板可切换「Codex / Zcode / 轮播」，轮播每 10 秒交替展示两个来源，选择持久化保存
+- 设置面板可切换「Codex / Zcode / 轮播」，轮播每 10 秒交替展示两个来源；来源选中 Zcode 时可再选「体验套餐 / 个人套餐」，不想盯体验套餐消耗的用户可固定显示个人套餐
 
 ## 🖼️ 界面状态
 
@@ -42,18 +42,17 @@ _图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 m
 | --- | --- | --- |
 | ![QuoDex 紧凑视图，TomatoCloud 健康](docs/verification/screenshots/quodex-compact.png) | ![QuoDex 展开视图，刷新与设置入口](docs/verification/screenshots/quodex-expanded.png) | ![QuoDex TomatoCloud 路由阻塞状态](docs/verification/screenshots/quodex-route-blocked.png) |
 
-其他确定性测试状态包括[加载状态](docs/verification/screenshots/quodex-loading.png)和[窄条状态](docs/verification/screenshots/quodex-collapsed.png)。这些截图均由测试夹具生成，可随时用 `?fixture=` 开发页面复现。
+其他确定性测试状态包括[加载状态](docs/verification/screenshots/quodex-loading.png)、[窄条状态](docs/verification/screenshots/quodex-collapsed.png)和[ZCode 体验套餐 TRIAL 单池](docs/verification/screenshots/quodex-zcode-trial.png)。这些截图均由测试夹具生成，可随时用 `?fixture=` 开发页面复现（体验套餐对应 `?fixture=zcode-trial`）。
 
 ## 🚀 Quick Start
 
 **运行要求**：Windows 11 x64（macOS 11+ 为实验性支持，见下文构建章节），且当前用户已登录 Codex。
 
-1. 从 [GitHub Releases](https://github.com/bandit0x/Codex-Meter/releases) 下载并运行安装包 `QuoDex-<版本>-win-x64-setup.exe`；或下载便携包并**完整解压**（保持目录结构完整，不要单独移动 `QuoDex.exe`）
+1. 从 [GitHub Releases](https://github.com/bandit0x/QuoDex/releases) 下载并运行安装包 `QuoDex-<版本>-win-x64-setup.exe`；或下载便携包并**完整解压**（保持目录结构完整，不要单独移动 `QuoDex.exe`）
 2. 双击 `QuoDex.exe`（或桌面快捷方式），浮窗即显示额度
 3. 按住浮窗非按钮区域拖动位置；点击右下角箭头展开刷新、穿透、设置等操作
 4. 关闭浮窗只是隐藏到通知区域；完全退出请右键托盘图标选择「退出」
 
-应用不会自动开机启动，重启 Windows 后需再次手动运行。
 
 ## 🛠️ 从源码运行
 
@@ -78,7 +77,7 @@ $env:CODEX_CREDITS_USE_LIVE = "1"
 npm.cmd run tauri:dev
 ```
 
-不要直接双击 `src-tauri\target\debug\codex-credits-view.exe`；它是开发版，会访问 `localhost:1420`，必须通过 `npm.cmd run tauri:dev` 启动并保持 Vite 服务运行。
+通过 `npm.cmd run tauri:dev` 启动并保持 Vite 服务运行。
 
 界面截图可由确定性测试夹具复现：启动 `npm.cmd run dev` 后访问 `http://localhost:1420/?fixture=v7-healthy`（另有 `v7-expanded`、`v7-collapsed`、`v7-loading`、`v7-route-blocked`、`zcode-healthy`、`zcode-failed`、`zcode-carousel`）。
 
@@ -122,7 +121,7 @@ npm.cmd run package:installer
 
 输出位于 `release/QuoDex-<版本>-win-x64-setup.exe`。安装器会内置 Codex 与 WebView2 运行时，并在桌面创建或替换 `QuoDex` 快捷方式。
 
-### macOS 构建（实验性）
+### macOS 构建
 
 macOS 11+（Intel 或 Apple Silicon），需要 Node.js 24、Rust 工具链和 Xcode Command Line Tools：
 
@@ -132,7 +131,25 @@ npm run tauri:dev        # 开发模式
 npm run package:app      # 构建 .app / .dmg
 ```
 
-输出位于 `release/macos/QuoDex.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
+输出位于 `release/macos/QuoDex.app`。打包脚本会把 `@openai/codex` 的平台原生二进制捆绑进 `QuoDex.app/Contents/MacOS/codex-runtime/bin/`（对齐 Windows 便携包；未安装 npm 依赖时跳过并告警）。安装后的应用按「捆绑的 codex-runtime → PATH → ChatGPT.app / Codex.app 内嵌 CLI → Homebrew 等常见安装位置」定位 Codex，与桌面版共享 `~/.codex` 登录态。注意 DMG 生成于运行时注入之前，不含捆绑运行时，请优先分发 `.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
+
+## ⚙️ 环境变量覆盖
+
+用于上游改名、端点迁移或私有部署场景，无需重新构建即可修正探测目标。注意 macOS 图形界面启动的应用读不到 shell 的 `export`，需用 `launchctl setenv <变量> <值>` 设置后重启应用；Windows 用系统环境变量。
+
+| 变量 | 作用 |
+| --- | --- |
+| `CODEX_CREDITS_USE_LIVE=1` | 开发构建连接真实 Codex（默认使用测试夹具） |
+| `CODEX_CREDITS_APP_SERVER_EXECUTABLE` | 指定 Codex 可执行文件，可配 `CODEX_CREDITS_APP_SERVER_ARGS`（JSON 数组） |
+| `CODEX_CREDITS_ZCODE_CONFIG_DIR` | 指定 ZCode 配置目录（默认探测 `~/.zcode/v2`，回退 `~/.zcode`） |
+| `ZCODE_BIGMODEL_USAGE_API_KEY` / `BIGMODEL_USAGE_API_KEY` | 覆盖 ZCode 配额 API Key |
+| `ZCODE_BIGMODEL_USAGE_QUOTA_URL` / `BIGMODEL_USAGE_QUOTA_URL` | 覆盖 ZCode 配额完整 URL |
+| `CODEX_CREDITS_COUNTRY_ENDPOINT` | 覆盖 TomatoCloud 国家探测端点（默认 `https://api.country.is/`） |
+| `CODEX_CREDITS_HEALTH_ENDPOINT` | 覆盖 TomatoCloud 连通性探测端点（默认 `https://www.gstatic.com/generate_204`） |
+| `CODEX_CREDITS_TOMATO_PROCESSES` | 覆盖 TomatoCloud 必需进程名单（逗号分隔，覆盖平台默认值） |
+| `CODEX_CREDITS_CONFIG_DIR` | 面板偏好存储目录 |
+
+另外，ZCode provider 的 `options.quotaURL`（`~/.zcode/v2/config.json`）可完整指定配额接口地址，优先级低于上面的配额 URL 环境变量。
 
 ## 🔐 数据与隐私
 
@@ -146,9 +163,8 @@ QuoDex 启动独立的本机 Codex `app-server` 进程，通过只读 JSON-RPC �
 - 修改账号状态或自动使用完整重置次数
 - 将配额、日志或配置上传到第三方服务
 
-TomatoCloud 监测同样只使用公开的本机可观测边界：检查运行所需进程、读取已启用的 Windows 本地系统代理，并通过该代理完成真实 HTTPS 请求。应用不会读取 TomatoCloud 的私有 IPC、日志、配置、内存或凭据。仅进程仍在运行并不代表连接健康；只有 Route Probe 成功时才显示绿色状态、出口国家缩写和 `XX ms` 延迟。
+TomatoCloud 监测同样只使用公开的本机可观测边界：检查运行所需进程、读取已启用的 Windows 本地系统代理，并通过该代理完成真实 HTTPS 请求。应用不会读取 TomatoCloud 的私有 IPC、日志、配置、内存或凭据。
 
-本地仅保存窗口位置、透明度和减少动效等显示偏好。
 
 ## 🧱 技术组成
 
@@ -160,14 +176,12 @@ TomatoCloud 监测同样只使用公开的本机可观测边界：检查运行�
 | 配额数据 | `@openai/codex` | 本机 `app-server` 和账号配额接口 |
 | 渲染运行时 | Microsoft Edge WebView2 | Windows WebView 渲染 |
 
-项目固定使用已经验证的 Codex 和 WebView2 运行时版本，以减少不同机器之间的协议及渲染差异。
 
 ## 📦 更新日志
 
-### 0.1.8 · 更名 QuoDex，5 秒刷新
+### 0.1.8 · 更名 QuoDex
 
 - 项目更名为 **QuoDex**（Quota + Codex，原名 Codex Meter）：窗口标题、托盘、桌面快捷方式、便携包/安装包/macOS 应用产物与 CI 流水线统一采用新名称
-- 额度自动刷新间隔由 60 秒缩短为 **5 秒**，紧跟额度消耗节奏
 - README 配图全部由当前构建的确定性测试夹具重新生成
 
 ### 0.1.7 · 设置面板退出应用与多平台 CI
