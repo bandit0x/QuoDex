@@ -1178,7 +1178,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    fn config_dir_lookup(dir: &PathBuf) -> impl Fn(&str) -> Option<String> {
+    fn config_dir_lookup(dir: &std::path::Path) -> impl Fn(&str) -> Option<String> {
         let path = dir.to_string_lossy().into_owned();
         move |name: &str| (name == "CODEX_CREDITS_ZCODE_CONFIG_DIR").then(|| path.clone())
     }
@@ -1213,7 +1213,7 @@ mod tests {
         })
     }
 
-    fn write_telemetry(dir: &PathBuf, device_mid: &str) {
+    fn write_telemetry(dir: &std::path::Path, device_mid: &str) {
         fs::write(
             dir.join("telemetry-state.json"),
             format!(r#"{{"deviceMid":"{device_mid}"}}"#),
