@@ -1,27 +1,28 @@
 <!doctype html>
 <html lang="zh-CN">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuoDex · 呼吸与水流边缘</title>
+<title>QuoDex · 水流边缘重做</title>
 <style>
 :root{font-family:"Segoe UI Variable","Segoe UI",sans-serif;color:#edfaff;background:#0a1722;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;padding:24px;max-width:620px;margin-inline:auto}h1{font-size:23px;font-weight:650;margin:0 0 10px}h2{font-size:16px;margin:20px 0 10px}p{margin:0;color:#b9d9e7;font-size:13px;line-height:1.7}a{color:#86d5e7}.toolbar{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}button{font:inherit;font-size:12px;padding:7px 12px;border:1px solid #355668;border-radius:6px;background:#173340;color:#edfaff;cursor:pointer}button:focus-visible{outline:2px solid #50d8ff;outline-offset:3px}
-.scene{width:300px;margin-inline:auto;background:#13222f}.row{height:36px;display:flex;align-items:center;justify-content:center;gap:0}.slot{width:27px;height:28px;display:grid;place-items:center;flex-shrink:0}.scene img{display:block;width:300px;height:130px}.mark{width:20.4px;height:20.4px;display:block;flex-shrink:0}.scale{text-align:center;font-size:12px;margin-top:8px}.water{position:relative;border:1.2px solid #43aac1;border-radius:50%;background:#071723;box-shadow:0 1.5px 3.5px #0006;animation:breathe 2.8s ease-in-out infinite}
+.scene{width:300px;margin-inline:auto;background:#13222f}.row{height:36px;display:flex;align-items:center;justify-content:center;gap:0}.slot{width:27px;height:28px;display:grid;place-items:center;flex-shrink:0}.scene img{display:block;width:300px;height:130px}.mark{width:20.4px;height:20.4px;display:block;flex-shrink:0}.scale{text-align:center;font-size:12px;margin-top:8px}.water{position:relative;border:1.2px solid #163e4e;border-radius:50%;background:#071723;box-shadow:0 1.5px 3.5px #0006;animation:breathe 2.8s ease-in-out infinite}
 .water:before,.water:after{content:"";position:absolute;inset:-1.2px;border-radius:50%;pointer-events:none;mask:radial-gradient(farthest-side,transparent calc(100% - 1.2px),#000 calc(100% - 1.15px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.2px),#000 calc(100% - 1.15px))}
-.water:before{background:conic-gradient(from 0deg,transparent 0deg,#4fbace22 42deg,#71d8e080 78deg,#b5f6ee 103deg,#72dceba0 126deg,#48b9d025 173deg,transparent 218deg,#78c8d930 258deg,#97e9eaa0 289deg,#62c9da40 322deg,transparent 360deg);animation:flow 5.8s linear infinite;filter:url(#water-ripple)}
-.water:after{background:conic-gradient(from 130deg,transparent 0deg,#8bdce430 64deg,#c5f8eaa0 116deg,#63cbd950 162deg,transparent 234deg,transparent 360deg);opacity:.38;animation:flow 8.7s linear infinite,surface 3.7s ease-in-out infinite}
+.water:before{background:conic-gradient(from 0deg,#246079 0deg,#309eb7 35deg,#48d4e4 66deg,#91fff4 100deg,#eafffb 120deg,#f5fffd 155deg,#b8fff8 174deg,#5ee7ec 192deg,#184758 222deg,#184758 306deg,#246079 360deg);animation:flow 2.6s linear infinite;filter:url(#water-ripple)}
+.water:after{background:conic-gradient(from 180deg,transparent 0deg,#50daeb00 50deg,#50daeb65 92deg,#dcfffcca 116deg,#68e2ea80 138deg,transparent 168deg,transparent 360deg);opacity:.8;animation:flow 3.9s linear infinite,surface 2.1s ease-in-out infinite}
+.slot:nth-child(even) .water:before{animation-delay:-.85s}.slot:nth-child(even) .water:after{animation-delay:-1.35s,-.6s}
 svg.mark{fill:none;stroke-linecap:round;stroke-linejoin:round}.success circle{fill:#071723;stroke:#65edb8;stroke-width:2.4}.success path{stroke:#65edb8;stroke-width:2.8}.success text{fill:#65edb8;font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}.magnified{display:flex;gap:36px;align-items:center;justify-content:center;padding:22px;background:#13222f;border-radius:8px}.magnified .mark{width:64px;height:64px}.magnified .water{border-width:3.76px}.magnified .water:before,.magnified .water:after{inset:-3.76px;mask:radial-gradient(farthest-side,transparent calc(100% - 3.76px),#000 calc(100% - 3.6px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.76px),#000 calc(100% - 3.6px))}.light{display:flex;gap:14px;justify-content:center;background:#d8e6ee;padding:16px;border-radius:8px}
-@keyframes breathe{0%,100%{opacity:1;box-shadow:0 1.5px 3.5px #0006,0 0 2px #50d8ff20}50%{opacity:.76;box-shadow:0 1.5px 3.5px #0006,0 0 1px #50d8ff08}}@keyframes flow{to{transform:rotate(360deg)}}@keyframes surface{0%,100%{opacity:.26}50%{opacity:.56}}@keyframes gentle{0%,100%{opacity:1}50%{opacity:.86}}
+@keyframes breathe{0%,100%{opacity:1;box-shadow:0 1.5px 3.5px #0006,0 0 2px #50d8ff30}50%{opacity:.85;box-shadow:0 1.5px 3.5px #0006,0 0 1px #50d8ff10}}@keyframes flow{to{transform:rotate(360deg)}}@keyframes surface{0%,100%{opacity:.6}50%{opacity:.95}}@keyframes gentle{0%,100%{opacity:1}50%{opacity:.86}}
 .reduced .water{animation:gentle 2.8s ease-in-out infinite}.reduced .water:before,.reduced .water:after{animation:none;filter:none}.paused .water,.paused .water:before,.paused .water:after{animation-play-state:paused!important}
 @media(prefers-reduced-motion:reduce){.water{animation:gentle 2.8s ease-in-out infinite}.water:before,.water:after{animation:none;filter:none}}
 @media(max-width:400px){body{padding:20px 0}h1,h2,p,.toolbar,.magnified,.light{margin-left:16px;margin-right:16px}.scene .row{margin-inline:0}}
 </style>
-<svg id="material" width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="water-ripple" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency=".11 .08" numOctaves="1" seed="4" result="surface"/><feDisplacementMap in="SourceGraphic" in2="surface" scale=".55" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
-<h1>呼吸灯 + 水流边缘</h1>
-<p>柔和呼吸，水光沿圈边连续流淌，亮度缓缓交融。圆心留空，贴合现有液体驾驶舱。</p>
+<svg id="material" width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="water-ripple" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency=".11 .08" numOctaves="1" seed="4" result="surface"/><feDisplacementMap in="SourceGraphic" in2="surface" scale=".18" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
+<h1>水流边缘 · 重做预览</h1>
+<p>明亮波峰带着青色长尾沿边缘流淌，叠加一道追随的水纹，柔和呼吸。</p>
 <div class="toolbar"><button id="motion">暂停动效</button><button id="reduce" aria-pressed="false">查看减少动效</button></div>
 <h2>实际尺寸 · 两个运行，一个完成</h2>
 <div class="scene"><div class="row" id="daily"></div><img src="/cockpit.png" alt="现有 QuoDex 驾驶舱截图"></div>
-<p class="scale">直径 24 → 20.4px · 边框 1 → 1.2px</p>
+<p class="scale">直径 20.4px · 边框 1.2px · 主水流 2.6 秒一周</p>
 <h2>放大看水光与时间留白</h2><div class="magnified" id="detail"></div>
 <p style="margin-top:10px">勾与分钟向圆心收拢，使用 29m 检查较宽数字；以上大圈仅为细节放大。</p>
 <h2>一行十个状态</h2><div class="scene"><div class="row" id="ten"></div></div>
