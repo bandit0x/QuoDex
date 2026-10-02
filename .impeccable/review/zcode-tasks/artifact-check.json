@@ -1,0 +1,11 @@
+{
+  "status": "Verified",
+  "sourceCommit": "a7ede53",
+  "version": "0.2.1",
+  "webview2": "151.0.4129.78",
+  "checkedFiles": 260,
+  "hashMismatches": 0,
+  "executableSha256": "06afc8e76feeb082b7c5f9c6294771eceb4cf15192501a66e1164a4a4833fcfa",
+  "protocolHandlerRestored": true,
+  "originalShortcutRestored": true
+}

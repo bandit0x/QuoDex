@@ -1,0 +1,8 @@
+{
+  "samples": 61,
+  "elapsedSpanMs": 7645,
+  "brightTravelPx": 13.974448879951373,
+  "greenMeanRange": 27.891304347826093,
+  "reducedMotionBrightTravelPx": 0.27655168055034973,
+  "scope": "native pixels in the approved running edge; unchanged V6 renderer"
+}

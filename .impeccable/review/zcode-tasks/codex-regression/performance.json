@@ -1,0 +1,16 @@
+{
+  "tenRunning": {
+    "cpuSeconds": 2.03125,
+    "wallSeconds": 6.901,
+    "processesBefore": 8,
+    "processesAfter": 8,
+    "scope": "owned app and descendants, including quota animation and backend; not isolated renderer cost"
+  },
+  "tenCompleted": {
+    "cpuSeconds": 1.296875,
+    "wallSeconds": 6.917,
+    "processesBefore": 10,
+    "processesAfter": 10,
+    "scope": "owned app and descendants, including quota animation and backend; not isolated renderer cost"
+  }
+}

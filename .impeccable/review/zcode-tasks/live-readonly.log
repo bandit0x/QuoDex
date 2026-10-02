@@ -1,0 +1,21 @@
+warning: linker stdout: 正在创建库 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\debug\deps\codex_credits_view_lib.dll.lib 和对象 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\debug\deps\codex_credits_view_lib.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `codex-credits-view` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running unittests src\lib.rs (target\debug\deps\codex_credits_view_lib-88b1f94d97996de1.exe)
+
+running 2 tests
+LIVE_ZCODE_READ_ONLY: {"diagnostic":null,"failed":1,"running":0,"tasks":1,"waiting":0}
+test zcode_tasks::tests::live_zcode_read_only_smoke ... ok
+LIVE_DESKTOP_READ_ONLY: {"diagnostic":null,"observedTasks":4,"running":2,"waiting":0}
+test task_status::tests::live_desktop_read_only_smoke ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 85 filtered out; finished in 18.87s
+
+     Running unittests src\main.rs (target\debug\deps\codex_credits_view-ba64397525435860.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -1,12 +1,12 @@
 # v0.2.1 任务状态设计
 
-Status: Implemented
+Status: Acceptance pending
 
 分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
 
 ## 当前 ZCode 接入（2026-10-02）
 
-状态：Implemented。用户已批准接入并测试，接受 ZCode 圆圈打开所属项目；Codex 圆圈继续打开聊天。ZCode 与 Codex 在现有任务栏混排，不按来源分组，额度来源切换独立于任务来源。保留 V6 圈尺寸、间隙、粗水流与一分钟计时。
+状态：Acceptance pending。用户已批准接入并测试，接受 ZCode 圆圈打开所属项目；Codex 圆圈继续打开聊天。ZCode 与 Codex 在现有任务栏混排，不按来源分组，额度来源切换独立于任务来源。保留 V6 圈尺寸、间隙、粗水流与完成分钟数。
 
 适配读取本机 ZCode 3.14.4 的 `v2/tasks-index.sqlite` 和 `cli/db/db.sqlite` 执行元数据，连接均为只读；不用任务索引中混合成功/中断的投影状态代替轮次结果。旧任务无 `turn_usage` 时仅选择末条消息的角色、结束时间、结束原因与错误类型，不读取正文。最新轮次取消移除；成功按实际结束时间保留 30 分钟；报错复用持久提醒。Windows 同一用户会话中的 ZCode 进程创建时间用于拦截退出/重启后的残留运行记录，两来源故障隔离。
 
@@ -14,7 +14,34 @@ Status: Implemented
 
 调研：选择复用 QuoDex 状态模型和界面，按 [ZCode 官方源码](https://github.com/zai-org/ZCode)适配本机版本（Apache-2.0，GitHub pushed 2026-09-29）；参考 [OpenCode](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/session/status.ts) 的每会话活动状态（MIT，pushed 2026-10-02），不套用其接口；[Claude Code](https://github.com/anthropics/claude-code) hooks 下载未完成且授权未核对，不作为依赖。源代码调研记录在忽略的 `.scratch/zcode-tasks/`。
 
-当前自动检查：前端 75 项通过，Rust 84 项通过 / 3 项默认忽略。生产构建、原生旅程及真实来源复测进行中；本节将在本轮验证后记录具体证据。
+### 本轮交付与验证
+
+产品来源：`a7ede53`；最终原生验证脚本：`4a40f4f`。便携包 [QuoDex.exe](../../../release/QuoDex-0.2.1-win-x64/QuoDex.exe) / [manifest.json](../../../release/QuoDex-0.2.1-win-x64/manifest.json)，版本 0.2.1，须保留相邻 runtime。exe SHA256：`06afc8e76feeb082b7c5f9c6294771eceb4cf15192501a66e1164a4a4833fcfa`。
+
+环境：Windows 11 x64 / NT 10.0.26200，PowerShell 7.6.5，Node 24.18.0 / npm 11.16.0，cargo 1.97.1，固定 WebView2 151.0.4129.78。原生脚本每次新建配置、SQLite 与 WebView 数据；实际鼠标 / UI Automation 操作发布 exe，聊天数据为虚构夹具，未注入前端状态。
+
+| 执行步骤 | 实际结果 / 证据 |
+| --- | --- |
+| `npm.cmd test` | 7 文件 / 75 项通过，[前端日志](../../../.impeccable/review/zcode-tasks/frontend-tests.log)，含 ZCode 额度下同时显示两来源与项目点击 |
+| `cargo test`（src-tauri） | 84 项通过 / 3 项默认忽略，[Rust 日志](../../../.impeccable/review/zcode-tasks/rust-tests.log)，含最新轮次、取消、结束时间、子任务排除、等待、旧记录与故障恢复 |
+| `cargo test live_ -- --ignored --nocapture` | 上面两个现场读取测试显式运行通过，[只读日志](../../../.impeccable/review/zcode-tasks/live-readonly.log)：Codex 4 个可见记录 / 2 个运行；ZCode 1 个保留报错，无活动轮次。另一个已有 ZCode 额度现场探测测试不在本轮任务状态范围，未运行 |
+| PowerShell 7 执行 `scripts/package-portable.ps1 -WebView2RuntimePath release/QuoDex-0.2.0-win-x64/webview2-runtime` | `tsc` / Vite / Rust release 构建通过，261 文件便携目录，[构建日志](../../../.impeccable/review/zcode-tasks/build.log) |
+| 设置 `QUODEX_EXECUTABLE` 为交付 exe、`QUODEX_PWSH` 为 PowerShell 7、`QUODEX_TASK_REVIEW_DIR` 为本轮 review 目录，执行 `node scripts/verify-task-status.mjs --mixed-only` | 8 项混合原生检查通过，[result.json](../../../.impeccable/review/zcode-tasks/result.json) / [日志](../../../.impeccable/review/zcode-tasks/native-mixed.log)：两种额度下混排、取消移除、等待与未知、项目 URI、报错持久化、13 个任务溢出、两来源故障隔离、恢复、退出后不动画、30 分钟过期 |
+| review 输出目录改为 `zcode-tasks/codex-regression`，执行 `node scripts/verify-task-status.mjs` | 13 项原有旅程通过，[result.json](../../../.impeccable/review/zcode-tasks/codex-regression/result.json) / [日志](../../../.impeccable/review/zcode-tasks/native-regression.log)，含水流、减少动效、设置、窄条、0m / 29m / 30m、Pro |
+| 260 个清单文件哈希与测试前的系统配置核对 | 全部匹配；原 ZCode 协议处理器及 Desktop 快捷方式已恢复，[artifact-check.json](../../../.impeccable/review/zcode-tasks/artifact-check.json) |
+
+| 与批准 V6 对照 | 本轮真实产物证据与观察 |
+| --- | --- |
+| 同一透明单行，不增加任务来源徽章 | [Codex 额度](../../../.impeccable/review/zcode-tasks/mixed-codex-quota-windows.png)、[ZCode 额度](../../../.impeccable/review/zcode-tasks/mixed-zcode-quota-windows.png)：相同状态栏，额度舱按选中来源显示 |
+| 完成圈内勾与分钟、悬停和点击目标 | [项目详情](../../../.impeccable/review/zcode-tasks/project-details-windows.png)、[29m](../../../.impeccable/review/zcode-tasks/codex-regression/age-29m-windows.png)：圈内无重叠，详情展示所属路径；[系统 URI 捕获](../../../.impeccable/review/zcode-tasks/project-dispatch.json) 确认中文与空格路径解码正确 |
+| 超额九圈加省略号，窄条排版保持 | [混合溢出](../../../.impeccable/review/zcode-tasks/mixed-overflow-windows.png)、[窄条](../../../.impeccable/review/zcode-tasks/codex-regression/narrow-windows.png)：其余任务可点，列表可滚动，未增加第二行 |
+| V6 间隙与水流继续有效 | [尺寸记录](../../../.impeccable/review/zcode-tasks/codex-regression/layout-metrics.json)：标准 7.3px，与 7.4px 目标在 1px 原生取整容差内；窄条通过 3.9px 断言。渲染代码未改；[运动测量](../../../.impeccable/review/zcode-tasks/codex-regression/motion-summary.json) 为 61 帧 / 7645ms，亮纹移动 13.97px，减少动效 0.28px |
+
+复核的数据流：ZCode 执行元数据 → 独立只读来源快照 → 两来源合并排序与持久提醒 → 与额度来源独立的任务栏 → 后端核对索引中所属项目 → 公共 workspace URI。身份包含来源 / 工作区，项目路径不是前端任意输入。简化为共用排序函数并每次快照只准备一次工具元数据查询；相应分支已由上述测试覆盖。
+
+本轮验证脚本曾错误使用 UIA 的 `texts` 字段及混合大小写来源名，保存复现后改为真实返回的 `names` / `ZCODE`。截图背景还受到隐藏启动参数影响；改为仅显示自有验证窗口，并在截图前核对可见性及透明角落像素。以上修复均在验证脚本，产品没有为通过检查修改状态或降低断言；最终两套原生检查均重新运行。早期截图已被最终隔离背景截图替换，原始失败记录留在 `.scratch/zcode-tasks/`。
+
+现场边界：真实 ZCode 旧任务读取已证明，但没有真实正在执行 / 等待的 ZCode 轮次可复测；运行、等待与退出检查使用执行元数据及同名进程夹具。项目点击只证明真实 QuoDex 鼠标点击进入系统协议处理器，使用临时捕获处理器并恢复原值，未声称实际 ZCode 项目窗口打开。真实活动轮次和项目窗口跳转仍待用户验收；不得把这些夹具检查扩大为现场全部旅程通过。
 
 ## 历史 V6 修订：间隙减半、运行水流加粗（2026-10-02）
 
