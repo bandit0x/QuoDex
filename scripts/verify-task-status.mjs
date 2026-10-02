@@ -203,7 +203,14 @@ try {
     setChats(["running"]);await setZcodeChats(["running"]);await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode running before Codex loss");for(const socket of connections)socket.destroy();
     await waitFor(data=>!data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("项目任务 1 · 运行中"),"Codex failure isolated");await capture("codex-disconnected-zcode-running-windows");checks.push("Codex disconnect never invalidates ZCode execution");
     zcodeAgent.exec("ALTER TABLE turn_usage RENAME TO unavailable;");await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"ZCode schema loss unknown");zcodeAgent.exec("ALTER TABLE unavailable RENAME TO turn_usage;");await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode recovers");checks.push("ZCode source failure invalidates only its source and recovers");
-    zcodeRuntime.kill();await new Promise(resolve=>zcodeRuntime.once("exit",resolve));zcodeRuntime=null;await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"stopped ZCode runtime unknown");checks.push("OS runtime disappearance stops ZCode water animation");
+    zcodeRuntime.kill();await new Promise(resolve=>zcodeRuntime.once("exit",resolve));zcodeRuntime=null;
+    const survivingZcode=Number(execFileSync(pwsh,["-NoProfile","-Command","@(Get-Process -Name ZCode -ErrorAction SilentlyContinue).Count"],{encoding:"utf8",windowsHide:true}).trim());
+    if(survivingZcode>0) {
+      assert(bridge("read").buttons.includes("项目任务 1 · 运行中"),"surviving real runtime still validates a current journal");
+      zcodeAgent.exec("UPDATE turn_usage SET started_at=0;");
+    }
+    await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"stopped or restarted ZCode runtime unknown");
+    checks.push(survivingZcode>0 ? "existing ZCode kept running; stale journal predating surviving runtime stops water animation" : "OS runtime disappearance stops ZCode water animation");
     setChats([]);await setZcodeChats(["completed"],30);await dimensions(130);await capture("mixed-empty-windows");checks.push("expired ZCode success restores original cockpit height");
   } else if(process.argv.includes("--layout-only")) {
     await settingsRoundTrip();

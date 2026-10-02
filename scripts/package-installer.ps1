@@ -57,13 +57,15 @@ $config = [ordered]@{
         targets = @("nsis")
         resources = [ordered]@{
             $codexRuntime = "codex-runtime/bin/codex.exe"
+            $WebView2RuntimePath = "webview2-runtime"
             (Join-Path $projectRoot "README.md") = "README.md"
             (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") = "THIRD_PARTY_NOTICES.md"
         }
         windows = [ordered]@{
             webviewInstallMode = [ordered]@{
-                type = "fixedRuntime"
-                path = $WebView2RuntimePath
+                # The app selects this sibling runtime before creating its WebView.
+                # fixedRuntime embeds the build machine's absolute input path.
+                type = "skip"
             }
             nsis = [ordered]@{
                 installMode = "currentUser"
