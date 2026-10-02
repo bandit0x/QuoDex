@@ -1,8 +1,8 @@
 {
   "revision": "V5 deforming water edge",
   "status": "Implemented",
-  "approval": "approved by user on 2026-10-02; native implementation awaiting verification",
-  "productSource": "2c9e8cd (product implementation 262dc77)",
+  "approval": "approved by user on 2026-10-02; native implementation and verification recorded in docs/design/task-status/brief.md; user acceptance pending",
+  "prototypeCockpitSource": "2c9e8cd (historical V2 screenshot from product 262dc77)",
   "logicalCircleDiameter": 20.4,
   "logicalBorderWidth": 1.2,
   "logicalHitTarget": [27, 28],
@@ -34,9 +34,9 @@
     "https://github.com/DavidHDev/canvas-ui"
   ],
   "implementationNotes": [
-    "Fix the overflow-list small selector overriding circle minute typography",
-    "Use stable per-chat phase seeds when integrating the wave renderer; measure cost in the actual native app",
+    "Overflow-list minute typography and stable per-chat phases have been integrated; current native evidence belongs to docs/design/task-status/brief.md",
+    "Aggregate app-process CPU sampling cannot be attributed to the water renderer alone",
     "Keep per-chat state behavior and quota cockpit unchanged",
-    "After design approval, verify motion and minute clearance in the actual packaged native app"
+    "This file describes the approved mock; current product verification and acceptance status belong to the brief"
   ]
 }

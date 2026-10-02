@@ -6,11 +6,11 @@ Status: Acceptance pending
 
 ## 当前修订：呼吸灯与水流边缘（2026-10-02）
 
-修订状态：Implemented。用户于 2026-10-02 明确“批准，可以实施”，批准 V5 逐帧变化的水纹。已接入任务行与溢出列表，圈直径 / 边框与完成时间布局同步调整；当前等待本次构建、测试和原生产物检查。V3 因水流几乎看不见被拒绝，V4 因固定蒙版不够灵动被拒绝；旧稿保留用于复现。此前的构建与原生验证仅覆盖下面记录的 V2 产物。
+修订状态：Acceptance pending。用户于 2026-10-02 明确“批准，可以实施”，批准 V5 逐帧变化的水纹。已接入任务行与溢出列表，圈直径 / 边框与完成时间布局同步调整，本次构建、测试与真实原生产物检查通过；独立视觉复核结论为 ship，等待用户验收。V3 因水流几乎看不见被拒绝，V4 因固定蒙版不够灵动被拒绝；旧稿保留用于复现。
 
 - 可见直径从 24 降至 20.4 逻辑像素，边框从 1 增至 1.2；点击区域与单行容量继续沿用。
 - 运行时柔和呼吸（2.8 秒）。水纹使用逐帧变化的非对称波峰，主流和追随流以约 2.6 / 3.9 秒的基础周期前进，速度、前沿宽度与拖尾长度持续变化；追赶时汇合，错开后分开。径向轮廓内收 0–0.34px，亮纹宽度 0.72–1.2px，局部起伏保持在 20.4px 外轮廓内。圆心留空，不增加内轨、准星或转子。
-- 完成勾与分钟向圆心收拢，以最宽的 `29m` 检查边缘留白；产品实现还须修正溢出列表中 `.task-list-entry small` 对完成圈分钟样式的覆盖。
+- 完成勾与分钟使用同一个 SVG 坐标系向圆心收拢，以最宽的 `29m` 检查边缘留白；溢出列表中的说明文字样式已限定在外层，避免覆盖圈内分钟。
 - 减少动效时去除空间流动，保留低幅度呼吸；隐藏时暂停。具体成本及真实浮窗视觉须在实现后验证。
 - 验收边界：真实产物的主任务行与溢出列表均使用新尺寸及边框；`0m` / `10m` / `29m` 不碰边；运行连续帧同时呈现呼吸、清楚的边缘流动，以及波峰和拖尾的形变；10 位单行、溢出操作和空任务收起继续有效。
 
@@ -19,6 +19,38 @@ Status: Acceptance pending
 预览：[动态页面](../../../.impeccable/mocks/task-status/v3/index.html)、[浏览器截图](../../../.impeccable/mocks/task-status/v3/water-v5-preview.jpg)、[实际尺寸和放大细节动图](../../../.impeccable/mocks/task-status/v3/water-v5-motion.gif)。通过 CUA 在 304px 浏览器视口采集 225 帧，跨度 7199ms，按实际帧时间编码，未加速；原帧与时间记录在 `.scratch/task-water-v5-frames/`。设计脚本语法检查通过，浏览器中暂停/播放按钮已核对。绘制由一个共享循环驱动，上限 30 次/秒、DPR 上限 2，隐藏/暂停/减少动效时停止 Canvas 循环；真实原生产物的性能须在批准实现后测量。
 
 页面中的驾驶舱为既有原生截图，任务圈为演示，不能作为真实产品验证，也不能代替用户对水流观感的审核。旧复杂方向保存在 `v3/rejected-orbit-options.html`；弱水流源码在 `155b0a7`，固定蒙版水流源码在 `246357a`，旧截图与动图保留以便复现。
+
+### 当前 V5 产物与复现证据
+
+产品源码：`499621b`；构建来源提交：`fa1655a`，分支 `feature/v0.2.1-task-status`。便携目录：[QuoDex.exe](../../../release/QuoDex-0.2.1-win-x64/QuoDex.exe)，相邻 runtime 必须完整保留；[manifest.json](../../../release/QuoDex-0.2.1-win-x64/manifest.json) 记录 260 个文件哈希。exe SHA256：`cb965024462158098ef6029d3bed30ee0d518e04769bcf5cd5b82089b025f16d`。
+
+环境：Windows x64 / NT 10.0.26200，PowerShell 7.6.5，Node 24.18.0 / npm 11.16.0，cargo 1.97.1，固定 WebView2 151.0.4129.78。验证日志统一保留于忽略目录 `.scratch/task-water-logs/`。
+
+| 执行步骤 | 本次实际结果 |
+| --- | --- |
+| `npm test` | 7 文件 / 74 项通过，含运行 Canvas → 完成 SVG 切换、逐帧变化、减少动效与卸载停止；`final-frontend.log` |
+| `cargo test`（src-tauri） | 77 项通过、2 项默认忽略；`final-rust.log` |
+| PowerShell 7 执行 `scripts/package-portable.ps1 -WebView2RuntimePath release/QuoDex-0.2.0-win-x64/webview2-runtime` | `tsc`、Vite、Rust release 构建通过，生成 261 文件便携目录；`final-package.log` |
+| 指定 `QUODEX_EXECUTABLE` 为交付 exe、`QUODEX_PWSH` 为 PowerShell 7、`QUODEX_TASK_REVIEW_DIR=.impeccable/review/task-water-v5` 后执行 `node scripts/verify-task-status.mjs` | 新建 SQLite / 配置 / WebView 数据，完整启动实际 exe，通过运行、等待、报错移除及重启、单行溢出、分钟、减少动效、窄条、设置、取消、断连与 Pro 检查；[原生记录](../../../.impeccable/review/task-water-v5/result.json)，`final-native.log` |
+| `cargo test task_status::tests::live_desktop_read_only_smoke -- --ignored --nocapture` | 真实来源观察到 4 个聊天状态，其中 2 个运行、0 个等待，跨 18 秒刷新无诊断；`final-live.log`。此项显式执行了上面的一个 ignored 测试 |
+| 便携目录哈希与快捷方式恢复核对 | [artifact-check.json](../../../.impeccable/review/task-water-v5/artifact-check.json)：260 文件哈希匹配，原 Desktop 快捷方式与备份逐字节一致 |
+| 单次 CSS detector、fresh impeccable finish-reviewer | detector `[]`；[独立视觉复核](../../../.impeccable/review/task-water-v5/finish-review.md) disposition: ship，15 个原生场景及选帧无 material_fixes；这是视觉文件复核，不扩大为现场等待或跳转验收 |
+
+可审阅的本次日志副本：[前端](../../../.impeccable/review/task-water-v5/frontend-tests.log)、[Rust](../../../.impeccable/review/task-water-v5/rust-tests.log)、[构建](../../../.impeccable/review/task-water-v5/build.log)、[真实来源只读检查](../../../.impeccable/review/task-water-v5/live-readonly.log)。代码复核核对了按聊天保持身份、Canvas / 观察器 / 媒体事件的卸载清理、app 与系统减少动效接入、完成 SVG 的统一坐标及列表样式边界；相应运行切换与动效生命周期测试见前端日志。
+
+| 批准项 | 当前原生对照 |
+| --- | --- |
+| 20.4px 可见直径、1.2px 名义边框、点击区域保留 | [日常](../../../.impeccable/review/task-water-v5/compact-daily-windows.png)、[10 个运行](../../../.impeccable/review/task-water-v5/ten-running-windows.png)；UIA 命中边界约 28 × 28 物理像素（原 27 × 28 逻辑尺寸取整） |
+| 呼吸与变化的水流边缘 | [原生动图](../../../.impeccable/review/task-water-v5/native-water-motion.gif)、[61 帧测量](../../../.impeccable/review/task-water-v5/pulse.json)，跨度 7524ms，按原始帧时间编码未加速；波峰亮纹质心移动大于 2px |
+| 完成勾与分钟不碰边 | [0m](../../../.impeccable/review/task-water-v5/age-0m-windows.png)、[10m](../../../.impeccable/review/task-water-v5/ten-slots-windows.png)、[29m](../../../.impeccable/review/task-water-v5/age-29m-windows.png)、[溢出 29m](../../../.impeccable/review/task-water-v5/overflow-29m-windows.png) |
+| 10 位、溢出、等待、失败、空态与驾驶舱共存 | [10 位](../../../.impeccable/review/task-water-v5/ten-slots-windows.png)、[溢出](../../../.impeccable/review/task-water-v5/overflow-windows.png)、[等待与失败](../../../.impeccable/review/task-water-v5/attention-windows.png)、[空态](../../../.impeccable/review/task-water-v5/empty-windows.png)、[窄条](../../../.impeccable/review/task-water-v5/narrow-windows.png)、[设置](../../../.impeccable/review/task-water-v5/settings-windows.png)、[Pro](../../../.impeccable/review/task-water-v5/pro-windows.png) |
+| 减少动效停止空间流动 | 原生设置开启后的 [15 帧](../../../.impeccable/review/task-water-v5/reduced-motion.json)，亮纹质心移动小于 1.5px；低幅度呼吸仍保留 |
+
+本次原生运动检查的首次失败来自测量边界：28px 透明点击区包含桌面白色背景，掩盖了亮纹质心移动。复现保留在 `.scratch/task-water-diagnosis/`；修正为只采样圈内半径 8–9.6px 的不透明边缘后通过原有移动阈值，并要求每帧存在可见亮纹。尺寸、可见性和减少动效诊断均正常，诊断代码已移除，未为通过检查修改产品水流。
+
+[聚合 CPU 采样](../../../.impeccable/review/task-water-v5/performance.json)：10 个运行时约 6.93s 内 1.609 CPU 秒，10 个完成时约 6.944s 内 0.844 CPU 秒；范围是整个自有 app 进程树，包含额度动效、后端和 WebView 进程启停，不能将差值归因于水流或当作系统 CPU 百分比。渲染实现共用一条 30fps 上限循环，隐藏与减少动效会停 Canvas。
+
+所有新 UI 截图来自交付 exe 的虚构聊天与额度数据；透明区域保留捕获时真实桌面或原生验证背景。原生夹具不证明现场等待事件或真实聊天跳转；本次现场只读来源通过，真实跳转的历史证据在 V2 节。当前没有现场等待事件可复测，该旅程仍待用户验收；Desktop 内部协议对其他版本的兼容性不能保证。
 
 ## 已确认需求
 
@@ -34,28 +66,28 @@ Status: Acceptance pending
 
 用户补充确认：报错圈保留到再次运行或手动移除；没有可展示任务时收掉透明任务空间，恢复原窗口高度。
 
-当前版本为 C / V2，取代先前的“两排 + 滚动”设想。原 A/B/C 图仅作为方向选择记录，最终状态以 V2 图与以下规则为准。
+当前布局沿用 C / V2，取代先前的“两排 + 滚动”设想；圈的尺寸、边框、分钟排版与运行动画采用上方已批准的 V5 修订。原 A/B/C 图仅作为方向选择记录。
 
 ## 方向合同与审查依据
 
-以下五块整理已批准的 C / V2 决策，是收尾记录，不是重新选择设计方向。
+以下五块整理已批准的 C 布局与 V5 动效，是收尾记录。
 
 - **THESIS**：在原额度驾驶舱上方直接看见各聊天的运行与近期结果。
 - **OWN-WORLD**：继承 QuoDex 已有透明浮窗、玻璃驾驶舱、字体与额度内容；新增任务圈使用同一青色 / 绿色视觉语言。
 - **STORY**：扫读圆圈 → 悬停辨认聊天与原因 → 点击打开聊天；超出容量时通过 `...` 继续查看。
 - **FIRST VIEWPORT**：真实紧凑窗口以原 300 × 130 为基础，任务行增加 36 逻辑像素；详情临时增加 160，空任务恢复原高度。
-- **FORM**：上方透明单行圆圈；精确 SVG 状态符号和持续活动脉冲。属于现有界面的局部组件扩展，适用 impeccable `reference/new-work.md` 的 “Extend an existing surface” 及 “Never run the script for a local extension or a precisely specified narrow request”。因此没有运行 concept-seed，也不存在 seed key；不事后补造 seed。
+- **FORM**：上方透明单行 20.4px 圆圈；完成状态使用同一 SVG 中的勾与分钟，运行状态使用呼吸灯和逐帧变化的水流边缘，不增加转子或内轨。属于现有界面的局部组件扩展，适用 impeccable `reference/new-work.md` 的 “Extend an existing surface” 及 “Never run the script for a local extension or a precisely specified narrow request”。因此没有运行 concept-seed，也不存在 seed key；不事后补造 seed。
 
-**QUALITY BAR**：在实际 300px 窗口里勾与分钟同时可辨；运行状态有真实连续帧证据；单行容量与 `...` 符合规则；详情完整可操作且不遮额度数字；未知不冒充成功；驾驶舱材质保持既有实现。
+**QUALITY BAR**：在实际 300px 窗口里勾与 `0m` / `10m` / `29m` 同时可辨且不碰边；运行水流的亮纹明确移动并有形变的真实连续帧证据；减少动效时水流位置稳定；单行容量与 `...` 符合规则；详情完整可操作且不遮额度数字；未知不冒充成功；驾驶舱材质保持既有实现。
 
-批准图是 1536 × 1024 多场景说明板，未批准把整张板变成应用窗口。尺度以本文件的 300px 驾驶舱为准，实际圈直径 24 逻辑像素以容纳约 10 位；`.impeccable/review/hero-repro.png` 是 300 × 166 原生单场景截图。生成图的装饰比例不替代真实浮窗尺寸约束。
+V2 批准图是 1536 × 1024 多场景说明板，尺度以本文件的 300px 驾驶舱为准。V5 进一步批准实际圈直径 20.4 逻辑像素，仍容纳 10 位；`.impeccable/review/hero-repro.png` 是历史 V2 原生截图，当前 V5 证据使用独立目录。生成图的装饰比例不替代真实浮窗尺寸约束。
 
 ## V2 交互与布局规则（已批准）
 
 - **最多一行**：紧凑视图目标为 10 个状态位；10 个以内全部显示，超出则显示 9 个聊天圈加 `...`。窄条按可用宽度减少容量，不换行、不扩大任务条高度、不增加任务条滚动。
 - **溢出入口**：点击 `...` 展开其余聊天的临时列表，列出名称、状态与完成分钟数，可点击打开对应聊天。关闭列表后仍只保留单行任务条。
 - **完成标识**：绿色勾在圈内上半部，`10m` 等分钟数在圈内下半部。使用真实完成时间按分钟向下取整，从 `0m` 开始；距完成时间达到 30 分钟时移除。不能从发现任务的时间或启动 QuoDex 的时间重新计时。
-- **活动动画**：运行圈持续做约 1.4 秒周期的呼吸脉冲，可配合亮弧缓慢旋转。等待、完成、报错与未知圈不做活动动画。减少动效时保留低幅度透明度脉冲，以满足活动提示，同时去除旋转与大面积辉光。
+- **活动动画**：运行圈采用上方 V5 修订的 2.8 秒呼吸与变化的水流边缘。等待、完成、报错与未知圈不做活动动画。减少动效时保留低幅度透明度脉冲，停止空间流动。
 - **排序与身份**：每个聊天只有一个圈，最新执行轮次复用它；运行、等待与报错优先显示，近期成功随后。同状态顺序保持稳定，不能每次轮询随机重排。更多运行任务被收进列表时，`...` 也需给出轻微活动提示。
 - **报错提醒**：保留到同一聊天再次运行或手动移除；手动移除只针对该次报错，未来新一轮仍正常出现。悬停提示中的“移除提醒”是低风险操作，一次提交。
 - **空状态**：确认没有可展示聊天时收掉整个任务区，恢复原窗口高度。尽量维持驾驶舱在屏幕上的位置；靠近屏幕边界时按实际工作区约束摆放。
@@ -74,9 +106,9 @@ Status: Acceptance pending
 
 以上为演示数据设计图。运行圈的三个时间帧是同一个聊天的动画分镜，不是三个任务；静态分镜不能证明动画已经运行。批准后须在真实产物中录制或连续采集至少一个完整脉冲周期，并核对单行容量、圈内分钟数、30 分钟移除和空任务收起。
 
-## 验收与交付证据（2026-10-02）
+## 历史 V2 验收证据（2026-10-02，已被 V5 产物替代）
 
-产品源码版本：`262dc77`，分支 `feature/v0.2.1-task-status`。交付文件：[QuoDex.exe](../../../release/QuoDex-0.2.1-win-x64/QuoDex.exe)，相邻 runtime 目录须完整保留；[manifest.json](../../../release/QuoDex-0.2.1-win-x64/manifest.json) 记录各文件 SHA256。可执行文件 SHA256：`cf8a68cc7d05e1c2096a1a9b9f3c11abc22198ed9ab3cfac6aefb19287db6573`。
+当时产品源码版本：`262dc77`，分支 `feature/v0.2.1-task-status`。当时便携路径为 `release/QuoDex-0.2.1-win-x64/QuoDex.exe`，该目录与 manifest 现已由上方 V5 产物覆盖。历史可执行文件 SHA256：`cf8a68cc7d05e1c2096a1a9b9f3c11abc22198ed9ab3cfac6aefb19287db6573`；以下记录只证明当时的 V2 检查。
 
 验证环境：Windows x64 / NT 10.0.26200；PowerShell 7.6.5；Node 24.18.0 / npm 11.16.0；cargo 1.97.1；包内 WebView2 151.0.4129.78。任务实际来源为本机 Codex Desktop 26.930.2377.0 / app-server 0.159.0-alpha12.1。
 

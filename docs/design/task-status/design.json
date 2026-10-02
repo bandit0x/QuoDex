@@ -1,22 +1,24 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T09:45:33Z",
+  "generatedAt": "2026-10-02T11:24:32Z",
   "title": "Design System: QuoDex Task Status Extension",
   "extensions": {
     "scope": {
       "boundary": "docs/design/task-status",
       "designFile": "DESIGN.md",
       "currentStateEntry": "brief.md",
-      "sourceVersion": "262dc77",
+      "sourceVersion": "499621b",
       "sources": [
         "src/TaskStatusStrip.tsx",
         "src/TaskStatusStrip.css",
+        "src/TaskWaterFlow.tsx",
         "src/App.css",
         "src/App.tsx",
         "src/windowClient.ts"
       ],
-      "componentExamples": "仅为源码组件演示，不代表真实 Desktop 等待事件或原生导航能力。",
-      "tonalRamps": "源码未定义状态色阶；本地扩展不合成新的产品色阶。"
+      "componentExamples": "独立 HTML/CSS 示例无需 React 或脚本；不代表真实 Desktop 等待事件或原生导航。运行示例只显示生产 Canvas 未绘制时的后备轮廓与 CSS 呼吸；真实 V5 形变水流须连接 src/TaskWaterFlow.tsx。当前证据统一见 brief.md。",
+      "tonalRamps": "源码未定义状态色阶；本地扩展不合成新的产品色阶。",
+      "buildVersion": "fa1655a"
     },
     "colorMeta": {
       "running": {
@@ -70,6 +72,10 @@
       "list-hover": {
         "role": "neutral",
         "displayName": "列表悬停深青"
+      },
+      "state-interior": {
+        "role": "neutral",
+        "displayName": "状态内底"
       }
     },
     "typographyMeta": {
@@ -91,7 +97,7 @@
       },
       "minutes": {
         "displayName": "完成分钟",
-        "purpose": "完成圈内的分钟数，font-variant-numeric: tabular-nums。"
+        "purpose": "完成 SVG 圈内的 0m 至 29m；font-variant-numeric: tabular-nums，使用 SVG 基线定位，不继承列表说明文字样式。"
       }
     },
     "shadows": [
@@ -108,29 +114,29 @@
     ],
     "motion": [
       {
+        "purpose": "运行 Canvas 与包含隐藏运行任务的溢出入口。",
         "name": "task-breathe",
-        "value": "1.4s ease-in-out infinite; opacity: 1 → .5 → 1",
-        "purpose": "运行圈及包含隐藏运行任务的溢出入口。"
+        "value": "2.8s ease-in-out infinite; opacity: 1 → .85 → 1"
       },
       {
-        "name": "task-orbit",
-        "value": "3s linear infinite; transform: rotate(360deg)",
-        "purpose": "运行圈亮弧。"
+        "purpose": "主流与追随流的前沿宽度、拖尾、速度和相对强度持续变化，追赶时汇合、错开后分开；非固定蒙版旋转。",
+        "name": "task-water-flow",
+        "value": "Canvas; asymmetric wave packets; base periods: 2.6s / 3.9s"
       },
       {
+        "purpose": "系统或应用减少动效时停止 Canvas 空间流动，保留轻呼吸。",
         "name": "task-breathe-subtle",
-        "value": "1.4s ease-in-out infinite; opacity: 1 → .78 → 1",
-        "purpose": "减少动效时保留活动提示，同时停用旋转。"
+        "value": "2.8s ease-in-out infinite; opacity: 1 → .86 → 1"
       },
       {
+        "purpose": "离开圈或详情后核对原生鼠标位置，过期查询不可关闭新弹层。",
         "name": "popover-close-delay",
-        "value": "160ms",
-        "purpose": "离开圈或详情后核对原生鼠标位置，过期查询不可关闭新弹层。"
+        "value": "160ms"
       }
     ],
     "nativeLayout": {
       "overlayScale": 0.5,
-      "circleLogicalSize": 24,
+      "circleLogicalSize": 20.4,
       "buttonLogicalSize": {
         "width": 27,
         "height": 28
@@ -147,7 +153,58 @@
       "rowWrap": false,
       "popoverScroll": true,
       "focusViewport": "html/body/#root overflow: clip；焦点不可滚动缩放画布。",
-      "popupPointerBoundary": "关闭前通过原生 cursorPosition/innerPosition/scaleFactor 映射到 elementFromPoint。"
+      "popupPointerBoundary": "关闭前通过原生 cursorPosition/innerPosition/scaleFactor 映射到 elementFromPoint。",
+      "circleCssSize": 40.8,
+      "nominalBorderLogicalSize": 1.2,
+      "nominalBorderCssSize": 2.4,
+      "buttonCssSize": {
+        "height": 56,
+        "width": 54
+      },
+      "uiaRounding": "约 28 × 28 的原生 UIA 边界来自 27 × 28 逻辑 px 取整，不是新尺寸。"
+    },
+    "waterFlow": {
+      "maxDpr": 2,
+      "phase": "chatId → stable FNV-style hash phase",
+      "reducedMotion": "保留 task-breathe-subtle；停止空间流动。",
+      "renderer": "src/TaskWaterFlow.tsx",
+      "pause": "IntersectionObserver 不可见、document.hidden、系统或应用减少动效时停止该 Canvas 重绘；无移动流时取消共享循环。不可见或页面隐藏时暂停 Canvas 的 CSS 呼吸。",
+      "reuse": "主行与 overflow 列表共用 TaskCircle / TaskWaterFlow",
+      "sharedScheduler": "requestAnimationFrame; 30fps maximum paint rate",
+      "fallback": "未绘制时显示名义描边与状态内底，不使用旧旋转 SVG 弧。",
+      "luminousWidthLogicalRange": [
+        0.72,
+        1.2
+      ],
+      "center": "深色空心区域，无内轨、准星或转子",
+      "edgeInsetLogicalRange": [
+        0,
+        0.34
+      ]
+    },
+    "completedGeometry": {
+      "circle": {
+        "strokeWidth": 2.4,
+        "cx": 20.4,
+        "r": 19.2,
+        "cy": 20.4
+      },
+      "outerBorder": 0,
+      "viewBox": "0 0 40.8 40.8",
+      "minutes": {
+        "fontWeight": 650,
+        "y": 29.8,
+        "textAnchor": "middle",
+        "x": 20.4,
+        "logicalFontSize": 7,
+        "cssFontSize": 14
+      },
+      "listTextScope": ".task-list-entry > span:last-child > small",
+      "check": {
+        "transform": "translate(10.8 3.5) scale(.8)",
+        "strokeWidth": 2.8,
+        "path": "m5 12 4 4 10-10"
+      }
     }
   },
   "components": [
@@ -155,17 +212,17 @@
       "name": "Task Circle / running",
       "kind": "button",
       "refersTo": "task-running",
-      "description": "组件演示：运行中；CSS 值遵循源码，并显式呈现 0.5 缩放。",
-      "html": "<div class=\"ds-running-preview\"><button type=\"button\" class=\"ds-running-button\" aria-label=\"组件演示：运行中\"><span class=\"ds-running-circle\" aria-hidden=\"true\"><svg class=\"ds-running-arc\" viewBox=\"0 0 48 48\"><path d=\"M24 3a21 21 0 0 1 21 21\" /></svg></span></button></div>",
-      "css": ".ds-running-preview { width: 27px; height: 28px; } .ds-running-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-running-circle { position: relative; box-sizing: border-box; display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; flex-direction: column; border: 2px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: var(--cyan, #50d8ff); box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-running-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-running-button:hover .ds-running-circle, .ds-running-button:focus-visible .ds-running-circle { background: rgba(13, 37, 48, .95); } .ds-running-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } .ds-running-circle { animation: ds-task-breathe 1.4s ease-in-out infinite; } .ds-running-circle svg.ds-running-arc { position: absolute; inset: -2px; width: 48px; height: 48px; stroke-width: 3.5; animation: ds-task-orbit 3s linear infinite; } @keyframes ds-task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .5; } } @keyframes ds-task-orbit { to { transform: rotate(360deg); } } .ds-running-preview.ds-reduce-motion .ds-running-circle { animation: ds-task-subtle 1.4s ease-in-out infinite; } .ds-running-preview.ds-reduce-motion .ds-running-arc { animation: none; } @keyframes ds-task-subtle { 0%,100% { opacity: 1; } 50% { opacity: .78; } }"
+      "description": "组件演示：运行中，0.5 缩放。仅显示生产 Canvas 未绘制时的后备轮廓及 CSS 呼吸，不展示真实 V5 水流。动态形变须接 TaskWaterFlow，sidecar 不执行脚本。",
+      "html": "<div class=\"ds-running-preview\"><button type=\"button\" class=\"ds-running-button\" aria-label=\"组件演示：运行中，后备轮廓\"><span class=\"ds-running-circle\" aria-hidden=\"true\"><canvas class=\"ds-running-flow\" width=\"41\" height=\"41\"></canvas></span></button></div>",
+      "css": ".ds-running-preview { width: 27px; height: 28px; } .ds-running-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-running-circle { position: relative; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--cyan, #50d8ff); box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-running-flow { box-sizing: border-box; display: block; width: 40.8px; height: 40.8px; border: 2.4px solid var(--cyan, #50d8ff); border-radius: 50%; background: #071723; animation: ds-task-breathe 2.8s ease-in-out infinite; } .ds-running-button:hover .ds-running-circle, .ds-running-button:focus-visible .ds-running-circle { background: rgba(13, 37, 48, .95); } .ds-running-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } @keyframes ds-task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } } .ds-running-preview.ds-reduce-motion .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } @keyframes ds-task-subtle { 0%,100% { opacity: 1; } 50% { opacity: .86; } } @media (prefers-reduced-motion: reduce) { .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } }"
     },
     {
       "name": "Task Circle / completed",
       "kind": "button",
       "refersTo": "task-completed",
-      "description": "组件演示：已完成 · 10 分钟前；CSS 值遵循源码，并显式呈现 0.5 缩放。",
-      "html": "<div class=\"ds-completed-preview\"><button type=\"button\" class=\"ds-completed-button\" aria-label=\"组件演示：已完成 · 10 分钟前\"><span class=\"ds-completed-circle\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"m5 12 4 4 10-10\" /></svg><small>10m</small></span></button></div>",
-      "css": ".ds-completed-preview { width: 27px; height: 28px; } .ds-completed-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-completed-circle { position: relative; box-sizing: border-box; display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; flex-direction: column; border: 2px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #65edb8; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-completed-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-completed-button:hover .ds-completed-circle, .ds-completed-button:focus-visible .ds-completed-circle { background: rgba(13, 37, 48, .95); } .ds-completed-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } .ds-completed-circle svg { width: 24px; height: 21px; } .ds-completed-circle small { font-size: 17px; line-height: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }"
+      "description": "组件演示：已完成 · 10 分钟前，0.5 缩放。轮廓、勾与分钟在同一个 SVG 内，和主行及 overflow 的生产结构一致。",
+      "html": "<div class=\"ds-completed-preview\"><button type=\"button\" class=\"ds-completed-button\" aria-label=\"组件演示：已完成 · 10 分钟前\"><span class=\"ds-completed-circle\" aria-hidden=\"true\"><svg viewBox=\"0 0 40.8 40.8\"><circle cx=\"20.4\" cy=\"20.4\" r=\"19.2\" /><path d=\"m5 12 4 4 10-10\" transform=\"translate(10.8 3.5) scale(.8)\" /><text x=\"20.4\" y=\"29.8\" text-anchor=\"middle\">10m</text></svg></span></button></div>",
+      "css": ".ds-completed-preview { width: 27px; height: 28px; } .ds-completed-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-completed-circle { position: relative; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: #65edb8; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-completed-circle svg { width: 40.8px; height: 40.8px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-completed-circle circle { fill: #071723; stroke-width: 2.4; } .ds-completed-circle path { stroke-width: 2.8; } .ds-completed-circle text { fill: currentColor; stroke: none; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; } .ds-completed-button:hover .ds-completed-circle, .ds-completed-button:focus-visible .ds-completed-circle { background: rgba(13, 37, 48, .95); } .ds-completed-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; }"
     },
     {
       "name": "Task Circle / waiting",
@@ -173,7 +230,7 @@
       "refersTo": "task-waiting",
       "description": "组件演示：等待你操作；CSS 值遵循源码，并显式呈现 0.5 缩放。",
       "html": "<div class=\"ds-waiting-preview\"><button type=\"button\" class=\"ds-waiting-button\" aria-label=\"组件演示：等待你操作\"><span class=\"ds-waiting-circle\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"M8 5v14M16 5v14\" /></svg></span></button></div>",
-      "css": ".ds-waiting-preview { width: 27px; height: 28px; } .ds-waiting-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-waiting-circle { position: relative; box-sizing: border-box; display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; flex-direction: column; border: 2px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #ffd27a; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-waiting-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-waiting-button:hover .ds-waiting-circle, .ds-waiting-button:focus-visible .ds-waiting-circle { background: rgba(13, 37, 48, .95); } .ds-waiting-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } "
+      "css": ".ds-waiting-preview { width: 27px; height: 28px; } .ds-waiting-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-waiting-circle { position: relative; box-sizing: border-box; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; flex-direction: column; border: 2.4px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #ffd27a; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-waiting-circle svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-waiting-button:hover .ds-waiting-circle, .ds-waiting-button:focus-visible .ds-waiting-circle { background: rgba(13, 37, 48, .95); } .ds-waiting-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } "
     },
     {
       "name": "Task Circle / failed",
@@ -181,7 +238,7 @@
       "refersTo": "task-failed",
       "description": "组件演示：执行报错；CSS 值遵循源码，并显式呈现 0.5 缩放。",
       "html": "<div class=\"ds-failed-preview\"><button type=\"button\" class=\"ds-failed-button\" aria-label=\"组件演示：执行报错\"><span class=\"ds-failed-circle\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"M12 4v10m0 4v2\" /></svg></span></button></div>",
-      "css": ".ds-failed-preview { width: 27px; height: 28px; } .ds-failed-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-failed-circle { position: relative; box-sizing: border-box; display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; flex-direction: column; border: 2px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #ff897e; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-failed-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-failed-button:hover .ds-failed-circle, .ds-failed-button:focus-visible .ds-failed-circle { background: rgba(13, 37, 48, .95); } .ds-failed-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } "
+      "css": ".ds-failed-preview { width: 27px; height: 28px; } .ds-failed-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-failed-circle { position: relative; box-sizing: border-box; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; flex-direction: column; border: 2.4px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #ff897e; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-failed-circle svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-failed-button:hover .ds-failed-circle, .ds-failed-button:focus-visible .ds-failed-circle { background: rgba(13, 37, 48, .95); } .ds-failed-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } "
     },
     {
       "name": "Task Circle / unknown",
@@ -189,15 +246,15 @@
       "refersTo": "task-unknown",
       "description": "组件演示：状态未知；CSS 值遵循源码，并显式呈现 0.5 缩放。",
       "html": "<div class=\"ds-unknown-preview\"><button type=\"button\" class=\"ds-unknown-button\" aria-label=\"组件演示：状态未知\"><span class=\"ds-unknown-circle\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"M8 8a4 4 0 1 1 7 3c-2 1-3 2-3 4m0 3v2\" /></svg></span></button></div>",
-      "css": ".ds-unknown-preview { width: 27px; height: 28px; } .ds-unknown-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-unknown-circle { position: relative; box-sizing: border-box; display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; flex-direction: column; border: 2px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #c4d6e1; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-unknown-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-unknown-button:hover .ds-unknown-circle, .ds-unknown-button:focus-visible .ds-unknown-circle { background: rgba(13, 37, 48, .95); } .ds-unknown-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } .ds-unknown-circle { border-style: dashed; }"
+      "css": ".ds-unknown-preview { width: 27px; height: 28px; } .ds-unknown-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-unknown-circle { position: relative; box-sizing: border-box; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; flex-direction: column; border: 2.4px solid currentColor; border-radius: 50%; background: rgba(3, 15, 22, .75); color: #c4d6e1; box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-unknown-circle svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; } .ds-unknown-button:hover .ds-unknown-circle, .ds-unknown-button:focus-visible .ds-unknown-circle { background: rgba(13, 37, 48, .95); } .ds-unknown-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } .ds-unknown-circle { border-style: dashed; }"
     },
     {
       "name": "Overflow Entry",
       "kind": "button",
       "refersTo": "task-overflow",
       "description": "组件演示：字面 ... 占一个状态位。这里展示静态入口，完整展开行为由 React 组件管理。",
-      "html": "<div class=\"ds-overflow-preview\"><button type=\"button\" class=\"ds-overflow-button\" aria-label=\"组件演示：其余 4 个聊天\" aria-expanded=\"false\">...</button></div>",
-      "css": ".ds-overflow-preview { width: 27px; height: 28px; } .ds-overflow-button { box-sizing: border-box; width: 48px; height: 48px; margin: 4px 3px; padding: 0; border: 0; border-radius: 50%; color: #d9eff7; background: rgba(3, 15, 22, .75); font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; font-size: 30px; line-height: 1; letter-spacing: 1px; cursor: pointer; transform: scale(.5); transform-origin: top left; } .ds-overflow-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; }"
+      "html": "<div class=\"ds-overflow-preview\"><button type=\"button\" class=\"ds-overflow-button\" aria-label=\"组件演示：其余 4 个聊天\" aria-expanded=\"false\"><span class=\"ds-overflow-indicator\">...</span></button></div>",
+      "css": ".ds-overflow-preview { width: 27px; height: 28px; } .ds-overflow-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #d9eff7; background: transparent; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; cursor: pointer; transform: scale(.5); transform-origin: top left; } .ds-overflow-indicator { display: grid; place-items: center; width: 40.8px; height: 40.8px; border-radius: 50%; font-size: 25.5px; line-height: 1; letter-spacing: 1px; background: rgba(3, 15, 22, .75); } .ds-overflow-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } .ds-overflow-button.ds-overflow-active .ds-overflow-indicator { animation: ds-overflow-breathe 2.8s ease-in-out infinite; } @keyframes ds-overflow-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } } .ds-overflow-preview.ds-reduce-motion .ds-overflow-active .ds-overflow-indicator { animation: ds-overflow-subtle 2.8s ease-in-out infinite; } @keyframes ds-overflow-subtle { 0%,100% { opacity: 1; } 50% { opacity: .86; } } @media (prefers-reduced-motion: reduce) { .ds-overflow-active .ds-overflow-indicator { animation: ds-overflow-subtle 2.8s ease-in-out infinite; } }"
     },
     {
       "name": "Task Popover / Failure",
@@ -210,33 +267,39 @@
   ],
   "narrative": {
     "northStar": "透明额度驾驶舱",
-    "overview": "这是既有 QuoDex 界面的局部扩展，仅约束任务圆圈、溢出入口和临时详情。上方透明区域使聊天状态先进入视线，原驾驶舱的液态玻璃、额度布局、来源色与字体继续由既有实现拥有。本文件没有创建新的产品身份，也不替代根级设计系统。\n\n采用已批准的 C / V2 表达：扫读圆圈，悬停或键盘聚焦查看名称与原因，点击打开聊天，超出容量时通过 `...` 查看其余项。该局部扩展继承既有世界，concept-seed 的适用依据与批准记录在 [brief.md](brief.md)；不为这次扩展补造 seed。",
+    "overview": "这是既有 QuoDex 界面的局部扩展，仅约束任务圆圈、溢出入口和临时详情。上方透明区域使聊天状态先进入视线，原驾驶舱的液态玻璃、额度布局、来源色与字体继续由既有实现拥有。本文件没有创建新的产品身份，也不替代根级设计系统。\n\n采用已批准的 V5 局部表达：扫读圆圈，悬停或键盘聚焦查看名称与原因，点击打开聊天，超出容量时通过 `...` 查看其余项。运行圈以轻呼吸和持续形变的边缘水光表达活动，完成勾与分钟向圈内收拢。该局部扩展继承既有世界，五块方向合同、QUALITY BAR、concept-seed 的适用依据与批准记录统一在 [brief.md](brief.md)。",
     "keyCharacteristics": [
       "无整块容器的透明单行，保留原驾驶舱材质。",
-      "状态颜色与精确 SVG 形状共同表达含义。",
+      "状态颜色与 SVG 符号、运行态 Canvas 水流共同表达含义。",
       "圈内同时容纳完成勾与真实结束时间的分钟数。",
       "原生窗口为可交互弹层提供独立空间。"
     ],
     "rules": [
       {
+        "body": "状态同时使用颜色与可辨形态；运行使用轻呼吸与形变水流边缘，完成使用勾与分钟，等待使用暂停，报错使用感叹号，未知使用虚线问号。",
         "name": "The State Pairing Rule",
-        "body": "状态同时使用颜色与符号；运行使用活动弧，完成使用勾与分钟，等待使用暂停，报错使用感叹号，未知使用虚线问号。",
         "section": "colors"
       },
       {
-        "name": "The Local Scale Rule",
         "body": "这里的小字号服务于已批准的 300px 桌面浮窗，不能扩展为其他页面的通用正文尺度。",
+        "name": "The Local Scale Rule",
         "section": "typography"
       },
       {
-        "name": "The One Row Rule",
         "body": "容量是状态位数量，`...` 占一个位；更多任务进入临时列表。",
+        "name": "The One Row Rule",
         "section": "layout"
+      },
+      {
+        "body": "运行提示是轻呼吸与逐帧变化的边缘水光；固定蒙版旋转、多轨环与转子不属于本次批准的任务组件表达。",
+        "name": "The Living Edge Rule",
+        "section": "components"
       }
     ],
     "dos": [
       "Do 继承现有驾驶舱的透明背景、材质和字体，只在任务组件边界使用本地状态色。",
       "Do 同时展示完成勾与按真实结束时间计算的分钟数。",
+      "Do 在主行与溢出列表复用同一个任务圈，保持尺寸、分钟与减少动效一致。",
       "Do 为详情增加原生窗口空间，并让长内容在面板内滚动。",
       "Do 保留未知、来源诊断与减少动效的真实语义。",
       "Do 将当前状态、现场验收与限制统一记录在 brief.md。"
@@ -245,6 +308,7 @@
       "Don't 把任务行改成两排、行内滚动或随任务数扩大高度。",
       "Don't 把生成说明板的背景、装饰比例或字形用于重绘既有驾驶舱。",
       "Don't 用静态颜色替代运行活动提示，或用 Unicode 图标替代 SVG。",
+      "Don't 将固定蒙版旋转、多轨或转子用于本轮运行圈，也不要把 Canvas 亮纹固化为恒宽机械环。",
       "Don't 把演示等待形状或协议夹具记作真实 Desktop 等待事件。",
       "Don't 将这里的局部尺寸、字号和颜色提升为产品范围的新规范。"
     ]

@@ -1,0 +1,16 @@
+{
+  "running": {
+    "frames": 61,
+    "spanMs": 7524,
+    "greenMeanMinimum": 102.64473684210526,
+    "greenMeanMaximum": 133.67105263157896,
+    "highlightTravelPixels": 13.812321653057495
+  },
+  "reducedMotion": {
+    "frames": 15,
+    "spanMs": 1768,
+    "greenMeanMinimum": 81.8804347826087,
+    "greenMeanMaximum": 88.8695652173913,
+    "highlightTravelPixels": 0.8166889000924662
+  }
+}

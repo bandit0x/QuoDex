@@ -1,0 +1,46 @@
+{
+  "status": "Verified",
+  "executable": "D:\\bandit\\projects\\QuoDex\\QuoDex\\release\\QuoDex-0.2.1-win-x64\\QuoDex.exe",
+  "sha256": "cb965024462158098ef6029d3bed30ee0d518e04769bcf5cd5b82089b025f16d",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "native release startup, two active chats and actual persisted ten-minute finish; 300x166 window",
+    "native water pixels change across multiple 2.8-second breaths and changing waves; measured frame times in pulse.json and flow frames",
+    "waiting, failure and unknown; actual native dismissal command",
+    "failure dismissal persists after native restart",
+    "ten slots; nine + ellipsis; four remaining native list buttons",
+    "native reduced-motion setting holds water position; aggregate app CPU samples with ten running and ten completed chats",
+    "0m and overflow29m native layouts; ten simultaneous water circles",
+    "expanded, narrow and settings native dimensions and round trip",
+    "29m visible, actual finish +30m expires and original130 height restored",
+    "cancelled chat absent",
+    "disconnect invalidates active circle",
+    "Pro quota material retains independent chat row"
+  ],
+  "screenshots": [
+    "compact-daily-windows.png",
+    "hover-windows.png",
+    "attention-windows.png",
+    "failure-details-windows.png",
+    "ten-slots-windows.png",
+    "overflow-windows.png",
+    "overflow-29m-windows.png",
+    "age-0m-windows.png",
+    "ten-running-windows.png",
+    "reduced-motion-windows.png",
+    "narrow-windows.png",
+    "settings-windows.png",
+    "age-29m-windows.png",
+    "empty-windows.png",
+    "pro-windows.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "Fixture does not prove live Desktop waiting requests or chat navigation."
+  ]
+}
