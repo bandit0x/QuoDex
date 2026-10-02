@@ -11,11 +11,13 @@ if ($taskRequest.op -eq 'shortcut') {
     @{ exists=$taskShortcutExists } | ConvertTo-Json -Compress
   } elseif (Test-Path -LiteralPath $taskShortcutPath) {
     $taskShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($taskShortcutPath)
+    $taskShortcutRestored = $false
     if ($taskShortcut.TargetPath -eq $taskRequest.executable) {
       if ($taskRequest.existed) { Copy-Item -LiteralPath $taskRequest.backup -Destination $taskShortcutPath -Force }
       else { Remove-Item -LiteralPath $taskShortcutPath }
+      $taskShortcutRestored = $true
     }
-    @{ restored=$true } | ConvertTo-Json -Compress
+    @{ restored=$taskShortcutRestored } | ConvertTo-Json -Compress
   } else { @{ restored=$false } | ConvertTo-Json -Compress }
   exit
 }
@@ -60,7 +62,21 @@ $taskRoot = [System.Windows.Automation.AutomationElement]::FromHandle($taskHandl
 $taskElements = $taskRoot.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
 $taskButtons = @($taskElements | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button })
 $taskResult = @{ width=$taskRect.Right-$taskRect.Left; height=$taskRect.Bottom-$taskRect.Top; x=$taskRect.Left; y=$taskRect.Top; buttons=@($taskButtons | ForEach-Object { $_.Current.Name }); names=@($taskElements | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
-$taskResult.buttonBounds = @($taskButtons | ForEach-Object { $taskB = $_.Current.BoundingRectangle; @{ name=$_.Current.Name; x=$taskB.X; y=$taskB.Y; width=$taskB.Width; height=$taskB.Height } })
+$taskResult.buttonBounds = @($taskButtons | ForEach-Object { $taskB = $_.Current.BoundingRectangle; @{ name=$_.Current.Name; help=$_.Current.HelpText; x=$taskB.X; y=$taskB.Y; width=$taskB.Width; height=$taskB.Height } })
+if ($taskRequest.op -eq 'cpu') {
+  $taskAllProcesses = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId
+  $taskOwnedIds = [Collections.Generic.HashSet[int]]::new()
+  [void]$taskOwnedIds.Add([int]$taskRequest.pid)
+  do {
+    $taskAdded = $false
+    foreach ($taskChild in $taskAllProcesses) {
+      if ($taskOwnedIds.Contains([int]$taskChild.ParentProcessId) -and $taskOwnedIds.Add([int]$taskChild.ProcessId)) { $taskAdded = $true }
+    }
+  } while ($taskAdded)
+  $taskCpuProcesses = @(Get-Process -Id @($taskOwnedIds) -ErrorAction SilentlyContinue)
+  $taskResult.cpuSeconds = ($taskCpuProcesses | ForEach-Object { $_.TotalProcessorTime.TotalSeconds } | Measure-Object -Sum).Sum
+  $taskResult.processCount = $taskCpuProcesses.Count
+}
 if($taskRequest.op -in @('click','hover')) {
   $taskTarget = $taskButtons | Where-Object { $_.Current.Name -eq $taskRequest.name } | Select-Object -First 1
   if(!$taskTarget){ throw "Button not found: $($taskRequest.name)" }
@@ -125,13 +141,22 @@ if($taskRequest.op -eq 'pulse') {
     try {
       $taskGraphics = [System.Drawing.Graphics]::FromImage($taskBitmap)
       try { $taskGraphics.CopyFromScreen($taskRect.Left,$taskRect.Top,0,0,$taskBitmap.Size) } finally { $taskGraphics.Dispose() }
-      $taskGreen = 0
+      $taskGreen = 0; $taskRingPixels = 0; $taskBrightWeight = 0; $taskBrightX = 0; $taskBrightY = 0
+      # Sample inside the opaque water rim, excluding the transparent hit target and desktop.
+      # UIA's 28px button height is the 100% Windows scale reference; radius scales with DPI.
+      $taskRingScale = $taskBounds.Height / 28
       for($taskX=0;$taskX -lt [int]$taskBounds.Width;$taskX++) { for($taskY=0;$taskY -lt [int]$taskBounds.Height;$taskY++) {
-        $taskGreen += $taskBitmap.GetPixel([int]($taskBounds.X-$taskRect.Left)+$taskX,[int]($taskBounds.Y-$taskRect.Top)+$taskY).G
+        $taskDx = $taskX+.5-$taskBounds.Width/2; $taskDy = $taskY+.5-$taskBounds.Height/2
+        $taskRadius = [Math]::Sqrt($taskDx*$taskDx+$taskDy*$taskDy)/$taskRingScale
+        if($taskRadius -lt 8 -or $taskRadius -gt 9.6) { continue }
+        $taskPixelGreen = $taskBitmap.GetPixel([int]($taskBounds.X-$taskRect.Left)+$taskX,[int]($taskBounds.Y-$taskRect.Top)+$taskY).G
+        $taskGreen += $taskPixelGreen; $taskRingPixels++
+        $taskWeight = [Math]::Max(0,$taskPixelGreen-150)
+        $taskBrightWeight += $taskWeight; $taskBrightX += $taskDx*$taskWeight; $taskBrightY += $taskDy*$taskWeight
       } }
       if($taskFrame -in @(0,7,14)) { $taskBitmap.Save((Join-Path $taskRequest.path "pulse-$taskFrame.png"),[System.Drawing.Imaging.ImageFormat]::Png) }
       if($taskRequest.saveAll) { $taskBitmap.Save((Join-Path $taskRequest.path ("flow-{0:D3}.png" -f $taskFrame)),[System.Drawing.Imaging.ImageFormat]::Png) }
-      @{ elapsedMs=$taskClock.ElapsedMilliseconds; greenMean=$taskGreen/($taskBounds.Width*$taskBounds.Height) }
+      @{ elapsedMs=$taskClock.ElapsedMilliseconds; ringPixels=$taskRingPixels; brightWeight=$taskBrightWeight; greenMean=$taskGreen/$taskRingPixels; brightX=if($taskBrightWeight){$taskBrightX/$taskBrightWeight}else{0}; brightY=if($taskBrightWeight){$taskBrightY/$taskBrightWeight}else{0} }
     } finally { $taskBitmap.Dispose() }
     Start-Sleep -Milliseconds 100
   })

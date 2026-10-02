@@ -118,6 +118,15 @@ async function capture(name) {
   const filename = `${name}.png`; bridge("capture", { path: path.join(output, filename) }); screenshots.push(filename);
 }
 async function button(name, op = "click") { await waitFor(data => data.buttons.includes(name), name); const result=bridge(op,{name}); await writeFile(path.join(root,op==="hover"?"hover-trace.json":"click-trace.json"),JSON.stringify(result,null,2)); }
+async function measureCpu() {
+  const before=bridge("cpu"), started=Date.now(); await pause(6000); const after=bridge("cpu");
+  return {cpuSeconds:after.cpuSeconds-before.cpuSeconds,wallSeconds:(Date.now()-started)/1000,processesBefore:before.processCount,processesAfter:after.processCount,scope:"owned app and descendants, including quota animation and backend; not isolated renderer cost"};
+}
+async function toggleReducedMotion() {
+  await button("展开重置详情"); await dimensions(196); await button("设置"); await dimensions(356);
+  bridge("toggle",{name:"减少动效"}); await button("关闭设置"); await dimensions(196); await button("收起重置详情"); await dimensions(166);
+}
+const brightTravel = frames => Math.max(...frames.map(frame=>Math.hypot(frame.brightX-frames[0].brightX,frame.brightY-frames[0].brightY)));
 async function settingsRoundTrip() {
   await button("展开重置详情"); await dimensions(196);
   await button("设置"); await dimensions(356); await capture("settings-windows");
@@ -149,8 +158,11 @@ try {
   await dimensions(166); await capture("compact-daily-windows");
   checks.push("native release startup, two active chats and actual persisted ten-minute finish; 300x166 window");
   const pulse=bridge("pulse",{name:"整理项目文档 · 运行中",path:output,samples:61,saveAll:true}).pulse;
-  assert(Math.max(...pulse.map(frame=>frame.greenMean))-Math.min(...pulse.map(frame=>frame.greenMean))>1);
+  await writeFile(path.join(root,"motion-boundary.json"),JSON.stringify(bridge("read"),null,2));
   await writeFile(path.join(output,"pulse.json"),JSON.stringify(pulse,null,2));
+  assert(pulse.every(frame=>frame.ringPixels>0 && frame.brightWeight>0),"native water rim must have visible moving highlights");
+  assert(Math.max(...pulse.map(frame=>frame.greenMean))-Math.min(...pulse.map(frame=>frame.greenMean))>1);
+  assert(brightTravel(pulse)>2,"water crest must travel along the edge, not merely fade in place");
   checks.push("native water pixels change across multiple 2.8-second breaths and changing waves; measured frame times in pulse.json and flow frames");
   await button("整理项目文档 · 运行中", "hover"); await dimensions(326); await capture("hover-windows");
   bridge("escape"); await dimensions(166);
@@ -173,6 +185,15 @@ try {
   bridge("escape"); await dimensions(166);
   setChats(["completed"],0); await waitFor(data=>data.buttons.some(name=>name.endsWith("0 分钟前")),"0m"); await capture("age-0m-windows");
   setChats(Array(10).fill("running")); await waitFor(data=>data.buttons.filter(name=>name.endsWith("运行中")).length===10,"ten running circles"); await capture("ten-running-windows");
+  const activeCpu=await measureCpu();
+  await toggleReducedMotion(); await capture("reduced-motion-windows");
+  const reduced=bridge("pulse",{name:"整理项目文档 · 运行中",path:root,samples:15}).pulse;
+  assert(brightTravel(reduced)<1.5,"reduced motion must keep water position stable while breathing");
+  await writeFile(path.join(output,"reduced-motion.json"),JSON.stringify(reduced,null,2));
+  await toggleReducedMotion();
+  setChats(Array(10).fill("completed")); await waitFor(data=>data.buttons.filter(name=>name.includes("已完成 ·")).length===10,"static baseline");
+  const staticCpu=await measureCpu(); await writeFile(path.join(output,"performance.json"),JSON.stringify({tenRunning:activeCpu,tenCompleted:staticCpu},null,2));
+  checks.push("native reduced-motion setting holds water position; aggregate app CPU samples with ten running and ten completed chats");
   checks.push("0m and overflow29m native layouts; ten simultaneous water circles");
   await button("展开重置详情"); await dimensions(196);
   await button("收起为窄条"); await dimensions(84); await capture("narrow-windows");
