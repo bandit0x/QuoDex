@@ -27,7 +27,8 @@ if ($taskRequest.op -eq 'background') {
 using System;
 using System.Runtime.InteropServices;
 public class QuoDexBackdrop {
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr handle,int command);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr handle,IntPtr after,int x,int y,int width,int height,uint flags);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr handle);
 }
 '@
   $taskForm = [System.Windows.Forms.Form]::new()
@@ -41,7 +42,14 @@ public class QuoDexBackdrop {
   # this test-owned form after startup, without activating another application.
   $taskTimer = [System.Windows.Forms.Timer]::new()
   $taskTimer.Interval = 250
-  $taskTimer.Add_Tick({ [void][QuoDexBackdrop]::ShowWindow($taskForm.Handle,4); $taskTimer.Stop() })
+  $taskTimer.Add_Tick({
+    $taskBounds=[System.Windows.Forms.SystemInformation]::VirtualScreen
+    [void][QuoDexBackdrop]::SetWindowPos($taskForm.Handle,[IntPtr]::new(-1),$taskBounds.X,$taskBounds.Y,$taskBounds.Width,$taskBounds.Height,80)
+    if ($taskRequest.readyPath) {
+      @{visible=[QuoDexBackdrop]::IsWindowVisible($taskForm.Handle)} | ConvertTo-Json -Compress | Set-Content -LiteralPath $taskRequest.readyPath -Encoding utf8
+    }
+    $taskTimer.Stop()
+  })
   $taskTimer.Start()
   [System.Windows.Forms.Application]::Run($taskForm)
   exit
@@ -134,6 +142,8 @@ if($taskRequest.op -eq 'capture') {
     $taskGraphics = [System.Drawing.Graphics]::FromImage($taskBitmap)
     try { $taskGraphics.CopyFromScreen($taskRect.Left,$taskRect.Top,0,0,$taskBitmap.Size) } finally { $taskGraphics.Dispose() }
     $taskBitmap.Save($taskRequest.path,[System.Drawing.Imaging.ImageFormat]::Png)
+    $taskCorner=$taskBitmap.GetPixel(0,0)
+    $taskResult.backgroundPixel=@{r=[int]$taskCorner.R;g=[int]$taskCorner.G;b=[int]$taskCorner.B}
   } finally { $taskBitmap.Dispose() }
 }
 if($taskRequest.op -eq 'pulse') {

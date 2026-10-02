@@ -121,7 +121,10 @@ async function stop() {
 async function dimensions(height) { return waitFor(data => data.height === height, `native height ${height}`); }
 async function capture(name) {
   await pause(300);
-  const filename = `${name}.png`; bridge("capture", { path: path.join(output, filename) }); screenshots.push(filename);
+  const filename = `${name}.png`;
+  const captured=bridge("capture", { path: path.join(output, filename) });
+  assert.deepEqual(captured.backgroundPixel,{r:19,g:34,b:47},"test backdrop must cover transparent screenshot corner");
+  screenshots.push(filename);
 }
 async function button(name, op = "click") { await waitFor(data => data.buttons.includes(name), name); const result=bridge(op,{name,movePointerAway:op==="click" && name==="关闭设置"}); await writeFile(path.join(root,op==="hover"?"hover-trace.json":"click-trace.json"),JSON.stringify(result,null,2)); }
 async function measureCpu() {
@@ -139,7 +142,8 @@ async function settingsRoundTrip() {
   await button("关闭设置"); await dimensions(196); await pause(300);
   await button("收起重置详情"); await dimensions(166);
 }
-const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background"})).toString("base64")],{windowsHide:true});
+const backgroundReady=path.join(root,"background-ready.json");
+const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background",readyPath:backgroundReady})).toString("base64")],{windowsHide:true});
 const shortcutBackup = path.join(root,"original-QuoDex.lnk");
 const shortcut = bridge("shortcut",{action:"save",backup:shortcutBackup});
 const protocol = action => JSON.parse(execFileSync(pwsh,["-NoProfile","-File",protocolScript,"-Action",action,"-Root",root],{encoding:"utf8",windowsHide:true}));
@@ -167,6 +171,8 @@ async function setZcodeChats(statuses,age=10) {
   }
 }
 try {
+  let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
+  assert(ready?.visible,"native test backdrop is visible before capturing windows");
   setChats(["running", "running", "completed"]); await start();
   if(process.argv.includes("--mixed-only")) {
     // OS-shaped runtime fixture; never claim this is a real ZCode execution.
