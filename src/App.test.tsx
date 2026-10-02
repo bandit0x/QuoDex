@@ -34,6 +34,30 @@ const inertPreferences = {
   }),
 };
 
+describe("mixed task row", () => {
+  it("shows both applications' tasks under ZCode quota and opens the matching project", async () => {
+    const openChat = vi.fn(async () => undefined);
+    render(<App {...inertPreferences}
+      loadPreferences={async () => ({ ...basePreferences, source: "zcode" as const })}
+      loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot}
+      openChat={openChat}
+      loadTaskStatus={async () => ({ observedAtMs: Date.now(), diagnostic: null, tasks: [
+        { id: "codex-example", turnId: "turn-1", title: "整理文档", state: "running" as const, completedAtMs: null, detail: null },
+        { id: "zcode:example:ses-example", turnId: "turn-2", title: "修复项目", state: "completed" as const, completedAtMs: Date.now() - 610_000, detail: null, projectPath: "D:/example" },
+      ] })}
+    />);
+    const strip = await screen.findByRole("region", { name: "聊天任务" });
+    expect(within(strip).getByRole("button", { name: "整理文档 · 运行中" })).toBeInTheDocument();
+    const project = within(strip).getByRole("button", { name: "修复项目 · 已完成 · 10 分钟前" });
+    fireEvent.mouseEnter(project);
+    expect(await screen.findByText("点击圆圈打开项目")).toBeInTheDocument();
+    expect(screen.getByText("D:/example")).toBeInTheDocument();
+    fireEvent.click(project);
+    expect(openChat).toHaveBeenCalledWith("zcode:example:ses-example");
+  });
+});
+
 const healthySnapshot: CapacitySnapshot = {
   sourceState: "healthy",
   planType: null,

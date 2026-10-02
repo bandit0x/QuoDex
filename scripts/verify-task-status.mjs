@@ -1,7 +1,7 @@
 // Native release smoke: real SQLite -> Desktop-shaped pipe -> Rust commands -> production UI.
 // Fictional chats only. No browser entry, React mocks, or frontend state injection.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, copyFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { createServer } from "node:net";
 import { spawn, execFileSync } from "node:child_process";
@@ -30,6 +30,11 @@ const checks = [];
 const screenshots = [];
 let nativePid;
 let nativeProcess;
+let zcodeRuntime;
+let zcodeIndex;
+let zcodeAgent;
+let projectProtocolInstalled=false;
+const protocolScript=path.resolve("scripts/task-project-protocol.ps1");
 const send = (socket, message) => {
   const bytes = Buffer.from(JSON.stringify(message));
   const header = Buffer.alloc(4); header.writeUInt32LE(bytes.length);
@@ -97,7 +102,8 @@ async function waitFor(test, label) {
 async function start(scenario = "healthy") {
   nativeProcess = spawn(executable, [], { windowsHide: true, env: {
     ...process.env, CODEX_SQLITE_HOME: home, CODEX_HOME: home, CODEX_CREDITS_CONFIG_DIR: config,
-    USERPROFILE: root, APPDATA: path.join(root, "Roaming"), LOCALAPPDATA: path.join(root, "Local"),
+    USERPROFILE: root, ZCODE_DATA_BASE_DIR: root, APPDATA: path.join(root, "Roaming"), LOCALAPPDATA: path.join(root, "Local"),
+    CODEX_CREDITS_ZCODE_QUOTA_RESPONSE_FILE:path.resolve("fixtures/zcode-quota-fixture.json"),
     QUODEX_TASK_IPC_ENDPOINT: endpoint,
     CODEX_CREDITS_APP_SERVER_EXECUTABLE: process.execPath,
     CODEX_CREDITS_APP_SERVER_ARGS: JSON.stringify([path.resolve("fixtures/app-server-fixture.mjs")]),
@@ -136,9 +142,64 @@ async function settingsRoundTrip() {
 const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background"})).toString("base64")],{windowsHide:true});
 const shortcutBackup = path.join(root,"original-QuoDex.lnk");
 const shortcut = bridge("shortcut",{action:"save",backup:shortcutBackup});
+const protocol = action => JSON.parse(execFileSync(pwsh,["-NoProfile","-File",protocolScript,"-Action",action,"-Root",root],{encoding:"utf8",windowsHide:true}));
+async function setZcodeChats(statuses,age=10) {
+  if(!zcodeIndex) {
+    const zhome=path.join(root,".zcode");
+    await mkdir(path.join(zhome,"v2"),{recursive:true}); await mkdir(path.join(zhome,"cli/db"),{recursive:true});
+    zcodeIndex=new DatabaseSync(path.join(zhome,"v2/tasks-index.sqlite"));
+    zcodeAgent=new DatabaseSync(path.join(zhome,"cli/db/db.sqlite"));
+    zcodeIndex.exec("CREATE TABLE tasks(workspace_key TEXT,workspace_path TEXT,workspace_identity TEXT,task_id TEXT,title TEXT,task_status TEXT,deleted INTEGER,meta_json TEXT);");
+    zcodeAgent.exec("CREATE TABLE session(id TEXT,parent_id TEXT,task_type TEXT); CREATE TABLE turn_usage(session_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_code TEXT); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE part(id TEXT,message_id TEXT,session_id TEXT,time_updated INTEGER,data TEXT);");
+  }
+  zcodeIndex.exec("DELETE FROM tasks;");zcodeAgent.exec("DELETE FROM session;DELETE FROM turn_usage;DELETE FROM message;DELETE FROM part;");
+  const now=Date.now();
+  for(const [index,status]of statuses.entries()) {
+    const id=`ses-example-${index}`,title=`项目任务 ${index+1}`,project=path.join(root,`示例 项目 ${index+1}`);
+    await mkdir(project,{recursive:true});
+    zcodeIndex.prepare("INSERT INTO tasks VALUES(?,?,NULL,?,?,?,0,'{}')").run(project,project,id,title,status==="failed"?"error":"completed");
+    zcodeAgent.prepare("INSERT INTO session VALUES(?,NULL,'interactive')").run(id);
+    zcodeAgent.prepare("INSERT INTO turn_usage VALUES(?,?,?, ?,?,NULL)").run(id,`turn-${index}`,status==="waiting"||status==="permission"?"running":status==="failed"?"error":status,now,["completed","failed","cancelled"].includes(status)?now-age*60000:null);
+    if(status==="waiting"||status==="permission") {
+      zcodeAgent.prepare("INSERT INTO message VALUES(?,?,?,'{}')").run(`message-${index}`,id,now);
+      zcodeAgent.prepare("INSERT INTO part VALUES(?,?,?,?,?)").run(`part-${index}`,`message-${index}`,id,now,JSON.stringify({type:"tool",tool:status==="waiting"?"AskUserQuestion":"Bash",state:{status:"pending"}}));
+    }
+  }
+}
 try {
   setChats(["running", "running", "completed"]); await start();
-  if(process.argv.includes("--layout-only")) {
+  if(process.argv.includes("--mixed-only")) {
+    // OS-shaped runtime fixture; never claim this is a real ZCode execution.
+    const runtimeExe=path.join(root,"ZCode.exe");await copyFile(process.execPath,runtimeExe);
+    zcodeRuntime=spawn(runtimeExe,["-e","setInterval(()=>{},1000)"],{windowsHide:true});await pause(250);
+    setChats(["running","completed"]);await setZcodeChats(["running","completed","waiting","failed","permission","cancelled"]);
+    await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中")&&data.buttons.includes("项目任务 3 · 等待你操作"),"mixed source tasks");
+    assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));
+    assert(!bridge("read").buttons.some(name=>name.startsWith("项目任务 6")));
+    await dimensions(166);await capture("mixed-codex-quota-windows");
+    await button("展开重置详情");await dimensions(196);await button("设置");await dimensions(356);
+    await button("Zcode");await button("关闭设置");await dimensions(196);await button("收起重置详情");await dimensions(166);
+    await waitFor(data=>data.texts.includes("ZCode"),"ZCode quota selected");
+    assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));assert(bridge("read").buttons.includes("项目任务 1 · 运行中"));
+    await capture("mixed-zcode-quota-windows");checks.push("both applications mixed under both quota selections; cancellation removed; waiting question and unknown permission shown");
+    await button("项目任务 2 · 已完成 · 10 分钟前","hover");await dimensions(326);await capture("project-details-windows");
+    assert(bridge("read").texts.includes("点击圆圈打开项目"));bridge("escape");await dimensions(166);
+    const installed=protocol("install");projectProtocolInstalled=installed.installed;assert(projectProtocolInstalled);
+    await button("项目任务 2 · 已完成 · 10 分钟前");
+    let launched;for(let attempt=0;attempt<30;attempt++){try{launched=JSON.parse(await readFile(path.join(root,"project-launch.json"),"utf8"));break;}catch{await pause(150);}}
+    assert(launched,"native project dispatch delivered");const url=new URL(launched.url);assert.equal(url.protocol,"zcode:");assert.equal(url.hostname,"workspace");assert.equal(url.searchParams.get("path"),path.join(root,"示例 项目 2"));
+    await writeFile(path.join(output,"project-dispatch.json"),JSON.stringify({protocol:url.protocol,host:url.hostname,path:url.pathname,ownedProjectDecodedCorrectly:true},null,2));
+    assert(protocol("restore").restored);projectProtocolInstalled=false;checks.push("real native circle click reaches OS protocol handler with correctly encoded owned project path; handler restored");
+    await button("项目任务 4 · 执行报错","hover");await button("移除提醒");bridge("escape");await pause(1300);assert(!bridge("read").buttons.includes("项目任务 4 · 执行报错"));
+    await stop();await start();assert(!bridge("read").buttons.includes("项目任务 4 · 执行报错"));checks.push("ZCode failure reminder dismisses through shared command and stays dismissed across restart");
+    setChats(Array(5).fill("running"));await setZcodeChats(Array(8).fill("completed"));await button("其余 4 个聊天");await dimensions(326);await capture("mixed-overflow-windows");
+    assert.equal(bridge("read").buttons.filter(name=>name.includes("分钟前")).length,8);bridge("escape");checks.push("mixed 13 chats use nine circles plus ellipsis; all remaining ZCode entries accessible");
+    setChats(["running"]);await setZcodeChats(["running"]);await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode running before Codex loss");for(const socket of connections)socket.destroy();
+    await waitFor(data=>!data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("项目任务 1 · 运行中"),"Codex failure isolated");await capture("codex-disconnected-zcode-running-windows");checks.push("Codex disconnect never invalidates ZCode execution");
+    zcodeAgent.exec("ALTER TABLE turn_usage RENAME TO unavailable;");await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"ZCode schema loss unknown");zcodeAgent.exec("ALTER TABLE unavailable RENAME TO turn_usage;");await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode recovers");checks.push("ZCode source failure invalidates only its source and recovers");
+    zcodeRuntime.kill();await new Promise(resolve=>zcodeRuntime.once("exit",resolve));zcodeRuntime=null;await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"stopped ZCode runtime unknown");checks.push("OS runtime disappearance stops ZCode water animation");
+    setChats([]);await setZcodeChats(["completed"],30);await dimensions(130);await capture("mixed-empty-windows");checks.push("expired ZCode success restores original cockpit height");
+  } else if(process.argv.includes("--layout-only")) {
     await settingsRoundTrip();
     setChats(["completed"],29);
     await waitFor(data => data.buttons.some(name => name.endsWith("29 分钟前")), "29m after settings");
@@ -229,8 +290,16 @@ try {
   }
   assert.deepEqual(errors,[]);
   assert([...methods].every(method => ["initialize", "thread-owner-discovery", "thread-stream-following-changed", "client-discovery-response"].includes(method)));
-  const result = {status:"Verified",executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),environment:"Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",checks,screenshots,errors,methods:[...methods],limitations:["Fixture does not prove live Desktop waiting requests or chat navigation."]};
+  const mixed = process.argv.includes("--mixed-only");
+  const result = {status:"Verified",executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),environment:"Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",checks,screenshots,errors,methods:[...methods],limitations:mixed ? ["ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn.","Project click reaches a temporary OS protocol capture handler; the original registered handler is restored. This does not prove a real ZCode project window opened.","Ordinary pending tools remain unknown because the persisted format cannot distinguish queuing from approval."] : ["Fixture does not prove live Desktop waiting requests or chat navigation."]};
   await writeFile(path.join(output,"result.json"),JSON.stringify(result,null,2)); console.log(JSON.stringify(result));
 } finally {
-  await stop(); bridge("shortcut",{action:"restore",backup:shortcutBackup,existed:shortcut.exists,executable}); background.kill(); for(const socket of connections)socket.destroy(); await new Promise(resolve=>server.close(resolve)); state.close();history.close();
+  try {
+    if(projectProtocolInstalled)assert(protocol("restore").restored);
+  } finally {
+    zcodeRuntime?.kill();zcodeIndex?.close();zcodeAgent?.close();
+    await stop();
+    try { bridge("shortcut",{action:"restore",backup:shortcutBackup,existed:shortcut.exists,executable}); }
+    finally { background.kill();for(const socket of connections)socket.destroy();await new Promise(resolve=>server.close(resolve));state.close();history.close(); }
+  }
 }

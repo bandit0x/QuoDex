@@ -10,6 +10,7 @@ export interface ChatTask {
   completedAtMs: number | null;
   expiresAtMs?: number | null;
   detail: string | null;
+  projectPath?: string;
 }
 
 export interface TaskStatusSnapshot {

@@ -6,6 +6,7 @@ mod preferences;
 mod task_status;
 mod tomato_cloud;
 mod zcode_quota;
+mod zcode_tasks;
 
 use capacity::{CapacityService, CapacitySnapshot, Diagnostic};
 use preferences::{restore_window_position, DisplayPreferences, PreferencesStore};
@@ -136,6 +137,21 @@ fn open_codex_chat(id: String) -> Result<(), Diagnostic> {
 }
 
 #[tauri::command]
+fn open_task_chat(service: State<'_, TaskStatusService>, id: String) -> Result<(), Diagnostic> {
+    if id.starts_with("zcode:") {
+        let url = service.zcode_project_url(&id)?;
+        open::that(url.as_str()).map_err(|_| {
+            Diagnostic::new(
+                "QDT-624",
+                "无法打开 ZCode 项目；确认 ZCode 已安装并注册链接",
+            )
+        })
+    } else {
+        open_codex_chat(id)
+    }
+}
+
+#[tauri::command]
 async fn read_capacity_snapshot(
     service: State<'_, CapacityService>,
 ) -> Result<CapacitySnapshot, Diagnostic> {
@@ -246,6 +262,7 @@ pub fn run() {
             read_task_status,
             dismiss_task_failure,
             open_codex_chat,
+            open_task_chat,
             read_capacity_snapshot,
             read_tomato_connection,
             read_zcode_quota_snapshot,

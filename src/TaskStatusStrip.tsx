@@ -78,7 +78,7 @@ export function TaskStatusStrip({ tasks, now, capacity, reducedMotion = false, o
   }, [isOpen]);
   if (visible.length === 0) return null;
   return <>
-    <section className="task-strip" aria-label="Codex 聊天任务" onMouseLeave={scheduleClose}>
+    <section className="task-strip" aria-label="聊天任务" onMouseLeave={scheduleClose}>
       {shown.map(task => <button key={task.id} type="button" className="task-button"
         aria-label={taskLabel(task, now)} onMouseEnter={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }}
         onFocus={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }} onBlur={scheduleClose}
@@ -90,7 +90,8 @@ export function TaskStatusStrip({ tasks, now, capacity, reducedMotion = false, o
       {hovered && !overflowOpen && <div className="task-details"><strong>{hovered.title}</strong><span>{taskLabel(hovered, now).slice(hovered.title.length + 3)}</span>
         {hovered.detail && <span className="task-detail-reason">{hovered.detail}</span>}
         {hovered.state === "failed" && <button type="button" onClick={() => { onDismiss(hovered); close(); }}>移除提醒</button>}
-        <small>点击圆圈打开聊天</small></div>}
+        {hovered.projectPath && <span>{hovered.projectPath}</span>}
+        <small>{hovered.projectPath ? "点击圆圈打开项目" : "点击圆圈打开聊天"}</small></div>}
       {overflowOpen && <div className="task-list">
       {hidden.map(task => <button type="button" className="task-list-entry" key={task.id} aria-label={taskLabel(task, now)}
         onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /><span>{task.title}<small>{stateLabels[task.state]}</small></span></button>)}

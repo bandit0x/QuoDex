@@ -70,20 +70,20 @@ describe("approved chat task indicators", () => {
   it("expires a previously completed chat even when its source becomes unknown", () => {
     const task = { ...success, state: "unknown" as const, expiresAtMs: now + 1_200_000 };
     const { rerender } = render(<TaskStatusStrip tasks={[task]} now={now + 1_199_999} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    expect(screen.getByRole("region", { name: "Codex 聊天任务" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "聊天任务" })).toBeInTheDocument();
     rerender(<TaskStatusStrip tasks={[task]} now={now + 1_200_000} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    expect(screen.queryByRole("region", { name: "Codex 聊天任务" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "聊天任务" })).not.toBeInTheDocument();
   });
   it("keeps details during a resize-induced leave while the native pointer remains inside", async () => {
     vi.useFakeTimers();
     const isPointerInside = vi.fn().mockResolvedValue(true);
     render(<TaskStatusStrip tasks={[success]} now={now} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} isPointerInside={isPointerInside} />);
     fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" }));
-    fireEvent.mouseLeave(screen.getByRole("region", { name: "Codex 聊天任务" }));
+    fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(170); });
     expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
     isPointerInside.mockResolvedValue(false);
-    fireEvent.mouseLeave(screen.getByRole("region", { name: "Codex 聊天任务" }));
+    fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(170); });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     vi.useRealTimers();
@@ -107,7 +107,7 @@ describe("approved chat task indicators", () => {
     const tasks = Array.from({ length: 13 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
     const onOpen = vi.fn();
     render(<TaskStatusStrip tasks={tasks} now={now} capacity={10} onOpen={onOpen} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    const strip = screen.getByRole("region", { name: "Codex 聊天任务" });
+    const strip = screen.getByRole("region", { name: "聊天任务" });
     expect(within(strip).getAllByRole("button")).toHaveLength(10);
     fireEvent.click(screen.getByRole("button", { name: "其余 4 个聊天" }));
     const popup = screen.getByRole("dialog", { name: "其余聊天" });
@@ -120,7 +120,7 @@ describe("approved chat task indicators", () => {
     const { rerender } = render(<TaskStatusStrip tasks={[success]} now={now + 1_199_999} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
     expect(screen.getByText("29m")).toBeInTheDocument();
     rerender(<TaskStatusStrip tasks={[success]} now={now + 1_200_000} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    expect(screen.queryByRole("region", { name: "Codex 聊天任务" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "聊天任务" })).not.toBeInTheDocument();
   });
 
   it("keeps a failure reminder beyond thirty minutes and lets the user dismiss it from its details", () => {

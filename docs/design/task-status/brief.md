@@ -1,10 +1,22 @@
 # v0.2.1 任务状态设计
 
-Status: Acceptance pending
+Status: Implemented
 
 分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
 
-## 当前 V6 修订：间隙减半、运行水流加粗（2026-10-02）
+## 当前 ZCode 接入（2026-10-02）
+
+状态：Implemented。用户已批准接入并测试，接受 ZCode 圆圈打开所属项目；Codex 圆圈继续打开聊天。ZCode 与 Codex 在现有任务栏混排，不按来源分组，额度来源切换独立于任务来源。保留 V6 圈尺寸、间隙、粗水流与一分钟计时。
+
+适配读取本机 ZCode 3.14.4 的 `v2/tasks-index.sqlite` 和 `cli/db/db.sqlite` 执行元数据，连接均为只读；不用任务索引中混合成功/中断的投影状态代替轮次结果。旧任务无 `turn_usage` 时仅选择末条消息的角色、结束时间、结束原因与错误类型，不读取正文。最新轮次取消移除；成功按实际结束时间保留 30 分钟；报错复用持久提醒。Windows 同一用户会话中的 ZCode 进程创建时间用于拦截退出/重启后的残留运行记录，两来源故障隔离。
+
+限制：ZCode 没有公开聊天直达协议，因此采用已确认的 `zcode://workspace/open?path=...`；普通工具 pending 无法区分排队与批准，显示未知（QDT-625），`AskUserQuestion` 显示等待。根进程存活检查不能证明单个 Agent 子进程健康；ZCode 私有实时通道和非 Windows 活跃任务兼容性未承诺。
+
+调研：选择复用 QuoDex 状态模型和界面，按 [ZCode 官方源码](https://github.com/zai-org/ZCode)适配本机版本（Apache-2.0，GitHub pushed 2026-09-29）；参考 [OpenCode](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/session/status.ts) 的每会话活动状态（MIT，pushed 2026-10-02），不套用其接口；[Claude Code](https://github.com/anthropics/claude-code) hooks 下载未完成且授权未核对，不作为依赖。源代码调研记录在忽略的 `.scratch/zcode-tasks/`。
+
+当前自动检查：前端 75 项通过，Rust 84 项通过 / 3 项默认忽略。生产构建、原生旅程及真实来源复测进行中；本节将在本轮验证后记录具体证据。
+
+## 历史 V6 修订：间隙减半、运行水流加粗（2026-10-02）
 
 修订状态：Acceptance pending。用户明确要求任务状态行与主窗间距缩短 50%、运行框线增加 100%；这是已批准 V5 风格中的精确尺寸调整。构建、测试与完整原生检查通过，独立视觉复核结论为 ship，等待用户验收。
 

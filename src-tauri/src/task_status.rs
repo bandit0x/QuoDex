@@ -22,6 +22,7 @@ pub struct TaskStatusSnapshot {
 }
 
 pub struct TaskStatusService {
+    zcode: Option<crate::zcode_tasks::ZCodeTaskService>,
     snapshot: Arc<Mutex<TaskStatusSnapshot>>,
     reminders: Mutex<Result<HashMap<String, String>, Diagnostic>>,
     reminders_path: PathBuf,
@@ -95,7 +96,9 @@ impl TaskStatusService {
             });
         let endpoint = std::env::var("QUODEX_TASK_IPC_ENDPOINT")
             .unwrap_or_else(|_| r"\\.\pipe\codex-ipc".into());
-        Self::from_paths(home, config.join("task-reminders.json"), endpoint)
+        let mut service = Self::from_paths(home, config.join("task-reminders.json"), endpoint);
+        service.zcode = Some(crate::zcode_tasks::ZCodeTaskService::from_environment());
+        service
     }
     pub fn from_paths(home: PathBuf, reminders_path: PathBuf, endpoint: String) -> Self {
         let reminders = match std::fs::read(&reminders_path) {
@@ -147,6 +150,7 @@ impl TaskStatusService {
             }
         });
         Self {
+            zcode: None,
             snapshot,
             reminders: Mutex::new(reminders),
             reminders_path,
@@ -156,6 +160,12 @@ impl TaskStatusService {
 
     pub fn read_snapshot(&self) -> TaskStatusSnapshot {
         let mut snapshot = self.snapshot.lock().expect("task snapshot lock").clone();
+        if let Some(source) = &self.zcode {
+            let extra = source.read_snapshot();
+            snapshot.tasks.extend(extra.tasks);
+            snapshot.diagnostic = snapshot.diagnostic.or(extra.diagnostic);
+            snapshot.observed_at_ms = snapshot.observed_at_ms.max(extra.observed_at_ms);
+        }
         let reminders = self.reminders.lock().expect("task reminders lock");
         snapshot.tasks.retain(|task| {
             !(matches!(task.state, TaskState::Failed | TaskState::Unknown)
@@ -175,7 +185,15 @@ impl TaskStatusService {
         if let Err(diagnostic) = &*reminders {
             snapshot.diagnostic = Some(diagnostic.clone());
         }
+        sort_tasks(&mut snapshot.tasks);
         snapshot
+    }
+
+    pub fn zcode_project_url(&self, id: &str) -> Result<tauri::Url, Diagnostic> {
+        self.zcode
+            .as_ref()
+            .ok_or_else(|| Diagnostic::new("QDT-624", "ZCode 任务来源不可用；请重新打开 QuoDex"))?
+            .project_url(id)
     }
 
     pub fn dismiss_failure(&self, id: &str, turn_id: &str) -> Result<(), Diagnostic> {
@@ -281,7 +299,13 @@ fn publish_tasks(
     snapshot
         .tasks
         .retain(|task| !expired_completion(task, now_ms()));
-    snapshot.tasks.sort_by(|a, b| {
+    sort_tasks(&mut snapshot.tasks);
+    snapshot.observed_at_ms = now_ms();
+    snapshot.diagnostic = None;
+}
+
+fn sort_tasks(tasks: &mut [ChatTask]) {
+    tasks.sort_by(|a, b| {
         let rank = |state| match state {
             TaskState::Running => 0,
             TaskState::Waiting => 1,
@@ -294,8 +318,6 @@ fn publish_tasks(
             .then_with(|| b.completed_at_ms.cmp(&a.completed_at_ms))
             .then_with(|| a.id.cmp(&b.id))
     });
-    snapshot.observed_at_ms = now_ms();
-    snapshot.diagnostic = None;
 }
 
 fn expired_completion(task: &ChatTask, now: u64) -> bool {
@@ -771,6 +793,8 @@ pub struct ChatTask {
     #[serde(default)]
     pub expires_at_ms: Option<u64>,
     pub detail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -870,6 +894,7 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
         };
         result.push(StoredChat {
             task: ChatTask {
+                project_path: None,
                 id,
                 turn_id,
                 title,

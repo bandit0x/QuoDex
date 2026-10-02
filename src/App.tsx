@@ -924,7 +924,12 @@ export function App({
   const collapsed = visibleLayout === "collapsed" && activeSnapshot !== null;
   const expanded = visibleLayout === "expanded";
 
-  const openTask = (task: ChatTask) => { void openChat(task.id).catch(() => setControlMessage("无法打开聊天；检查 Codex 桌面应用是否已安装 · QDT-611")); };
+  const openTask = (task: ChatTask) => {
+    void openChat(task.id).catch(error => {
+      const diagnostic = error as Partial<Diagnostic> | null;
+      setControlMessage(diagnostic?.message ? `${diagnostic.message} · ${diagnostic.code ?? "QDT-611"}` : "无法打开聊天或项目；确认对应桌面应用已安装 · QDT-611");
+    });
+  };
   const removeFailure = (task: ChatTask) => {
     void dismissFailure(task.id, task.turnId).then(() => taskStatus.setSnapshot(previous => ({ ...previous, tasks: previous.tasks.filter(item => item.id !== task.id || item.turnId !== task.turnId) })))
       .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
