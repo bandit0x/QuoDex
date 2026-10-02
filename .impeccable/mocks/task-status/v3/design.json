@@ -1,0 +1,32 @@
+{
+  "revision": "V3 water edge",
+  "status": "Not built",
+  "approval": "pending",
+  "productSource": "2c9e8cd (product implementation 262dc77)",
+  "logicalCircleDiameter": 20.4,
+  "logicalBorderWidth": 1.2,
+  "logicalHitTarget": [27, 28],
+  "breathSeconds": 2.8,
+  "breathOpacity": [0.76, 1],
+  "waterFlowSeconds": [5.8, 8.7],
+  "material": "Soft gradient water light confined to the existing circular edge, slight displacement texture, empty center",
+  "completed": "Green check above elapsed minutes; 29m checked at actual and enlarged design sizes",
+  "rejected": {"file": "rejected-orbit-options.html", "reason": "User found the additional orbits, scan details and rotor too elaborate"},
+  "previewEvidence": {
+    "browser": "Codex In-app Browser",
+    "screenshot": "water-preview-full.jpg",
+    "domCircleWidth": 20.390625,
+    "singleRowSlots": 10,
+    "controls": "Pause/play and reduce/restore toggles observed in browser state",
+    "scope": "Authored design mock, not the native product"
+  },
+  "references": [
+    "https://github.com/tauri-apps/window-vibrancy",
+    "https://github.com/DavidHDev/canvas-ui"
+  ],
+  "implementationNotes": [
+    "Fix the overflow-list small selector overriding circle minute typography",
+    "Keep per-chat state behavior and quota cockpit unchanged",
+    "After design approval, verify motion and minute clearance in the actual packaged native app"
+  ]
+}
