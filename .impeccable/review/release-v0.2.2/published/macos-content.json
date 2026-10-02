@@ -1,0 +1,11 @@
+{
+  "status": "Verified",
+  "scope": "CI artifact content inspection on Windows; no macOS native execution",
+  "sourceCommit": "340f74d454cc3a67622b90d8765fad0a2ff1bc53",
+  "version": "0.2.2",
+  "codexRuntimeBundled": true,
+  "codexRuntimeArchitecture": "Mach-O ARM64",
+  "nativeExecutionVerified": false,
+  "codexRuntimePresentInDmg": true,
+  "dmgEmbeddedVersion": "0.2.2"
+}

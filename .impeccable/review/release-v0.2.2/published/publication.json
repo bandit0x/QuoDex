@@ -1,0 +1,23 @@
+{
+  "status": "Verified",
+  "tag": "v0.2.2",
+  "sourceCommit": "340f74d454cc3a67622b90d8765fad0a2ff1bc53",
+  "releaseUrl": "https://github.com/bandit0x/QuoDex/releases/tag/v0.2.2",
+  "ciUrl": "https://github.com/bandit0x/QuoDex/actions/runs/37038306351",
+  "assets": [
+    {
+      "name": "QuoDex-0.2.2-win-x64-setup.exe",
+      "bytes": 300232138,
+      "sha256": "e592dbc5d8aa78896293edb8d9b8cf3fe538a09e2fcf2c97e70e36041b009ff2",
+      "githubDigest": "sha256:e592dbc5d8aa78896293edb8d9b8cf3fe538a09e2fcf2c97e70e36041b009ff2",
+      "downloadMatchesDigest": true
+    },
+    {
+      "name": "QuoDex_0.2.2_aarch64.dmg",
+      "bytes": 101480219,
+      "sha256": "f3b46ccf6df82a0aab55dd868517f5584b35d4313d1a08f1f2b5df92728bffec",
+      "githubDigest": "sha256:f3b46ccf6df82a0aab55dd868517f5584b35d4313d1a08f1f2b5df92728bffec",
+      "downloadMatchesDigest": true
+    }
+  ]
+}

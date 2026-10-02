@@ -1,0 +1,18 @@
+{
+  "version": "0.2.2",
+  "bytes": 11999744,
+  "sha256": "80ba3c41c08d027b41fa7310738f54cfaa7773a0f7f4586dfe0d36515bb1aeda",
+  "executable": "codex-credits-view.exe",
+  "bundledResources": [
+    "webview2-runtime/msedgewebview2.exe",
+    "webview2-runtime/msedge.dll",
+    "codex-runtime/bin/codex.exe"
+  ],
+  "verificationScope": "Release installer extraction; isolated native execution; existing installation untouched",
+  "sourceCommit": "340f74d454cc3a67622b90d8765fad0a2ff1bc53",
+  "webview2Version": "151.0.4129.78",
+  "nativeCheckRecords": [
+    "repair/result.json",
+    "mixed/result.json"
+  ]
+}
