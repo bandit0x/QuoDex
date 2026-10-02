@@ -6,7 +6,7 @@
 
 _Windows 11 与 macOS 上的轻量配额桌面浮窗，原名 Codex Meter。_
 
-当前版本：**0.2.1**
+当前版本：**0.2.2**
 
 ---
 
@@ -24,6 +24,7 @@ _图 1：QuoDex 正常状态；TomatoCloud 显示绿色健康路由（UK · 42 m
 - 以同等视觉层级展示 5 小时和一周剩余额度
 - Windows Codex 与 ZCode 桌面任务状态混合显示：上方单行水流呼吸、等待提示、常驻报错提醒，以及圈内绿色勾和完成分钟数；成功保留 30 分钟，超出单行容量可点击 `...` 查看。点击 Codex 圆圈打开聊天，点击 ZCode 圆圈打开所属项目；切换额度来源不影响任务显示
 - ZCode 任务只读本地执行元数据；待执行工具无法区分排队与批准时显示“状态未知”，退出 ZCode 后停止运行提示
+- 任务悬停详情和溢出列表显示“项目名：聊天标题”；Codex 优先采用保存的项目名，缺失时使用目录名。桌面最新成功或报错轮次优先于滞后的历史记录，避免完成任务误显示为未知
 - 液体高度随剩余百分比线性变化
 - 每 5 秒自动刷新，可在展开视图中手动刷新
 - 展示额度重置时间和可用完整重置次数
@@ -133,7 +134,7 @@ npm run tauri:dev        # 开发模式
 npm run package:app      # 构建 .app / .dmg
 ```
 
-输出位于 `release/macos/QuoDex.app`。打包脚本会把 `@openai/codex` 的平台原生二进制捆绑进 `QuoDex.app/Contents/MacOS/codex-runtime/bin/`（对齐 Windows 便携包；未安装 npm 依赖时跳过并告警）。安装后的应用按「捆绑的 codex-runtime → PATH → ChatGPT.app / Codex.app 内嵌 CLI → Homebrew 等常见安装位置」定位 Codex，与桌面版共享 `~/.codex` 登录态。注意 DMG 生成于运行时注入之前，不含捆绑运行时，请优先分发 `.app`。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
+输出位于 `release/macos/QuoDex.app`。打包脚本会把 `@openai/codex` 的平台原生二进制捆绑进 `QuoDex.app/Contents/MacOS/codex-runtime/bin/`（对齐 Windows 便携包；未安装 npm 依赖时跳过并告警）。安装后的应用按「捆绑的 codex-runtime → PATH → ChatGPT.app / Codex.app 内嵌 CLI → Homebrew 等常见安装位置」定位 Codex，与桌面版共享 `~/.codex` 登录态。脚本在运行时注入后重签 `.app` 并重建 DMG，因此正式 DMG 也包含捆绑运行时。开发构建默认使用测试夹具，连接真实 Codex 账号时设置 `CODEX_CREDITS_USE_LIVE=1`。macOS 版应用不进 Dock，只驻留菜单栏图标；关闭浮窗后通过菜单栏图标重新显示或退出。TomatoCloud 监测需要本机运行 TomatoCloud 客户端并启用系统 HTTPS 代理，否则面板会显示阻塞状态。
 
 ## ⚙️ 环境变量覆盖
 

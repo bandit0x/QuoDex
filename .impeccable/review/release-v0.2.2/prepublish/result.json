@@ -1,0 +1,31 @@
+{
+  "status": "Verified",
+  "executable": "D:\\bandit\\projects\\QuoDex\\QuoDex\\.scratch\\installer\\cargo-target\\release\\codex-credits-view.exe",
+  "sha256": "f0c34247545f2acd720bebd74a265b4ad84dbb1c6ce048be0b6a0cfc11395ab8",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "saved application project name qualifies native hover and accessible circle title",
+    "same chat changes from running to waiting without losing project label",
+    "new canonical completed turn wins over different interrupted persisted turn; native check and 10m shown",
+    "qualified titles and completion age remain readable in native overflow list",
+    "canonical success older than 30 minutes disappears",
+    "qualified failure reminder can be removed through native app command"
+  ],
+  "screenshots": [
+    "project-running-hover-windows.png",
+    "project-waiting-windows.png",
+    "project-completed-stale-history-windows.png",
+    "project-overflow-windows.png",
+    "project-expired-windows.png",
+    "project-failed-windows.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "Fixture does not prove live Desktop waiting requests or chat navigation."
+  ]
+}

@@ -1,0 +1,115 @@
+   Compiling codex-credits-view v0.2.2 (D:\bandit\projects\QuoDex\QuoDex\src-tauri)
+warning: linker stdout: 正在创建库 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\debug\deps\codex_credits_view_lib.dll.lib 和对象 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\debug\deps\codex_credits_view_lib.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `codex-credits-view` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.07s
+     Running unittests src\lib.rs (target\debug\deps\codex_credits_view_lib-3f6b50bc137ca3b1.exe)
+
+running 91 tests
+test preferences::tests::default_preferences_match_the_volumetric_lens_contract ... ok
+test capacity::tests::project_local_official_runtime_is_preferred_when_installed ... ok
+test preferences::tests::legacy_preferences_without_source_default_to_carousel ... ok
+test capacity::tests::carries_plan_type_and_account_identity_from_real_protocol_shape ... ok
+test capacity::tests::rejects_out_of_range_used_percent_instead_of_inventing_capacity ... ok
+test capacity::tests::sparse_update_can_refresh_plan_type_without_touching_windows ... ok
+test capacity::tests::keeps_identity_unknown_when_protocol_omits_plan_type ... ok
+test capacity::tests::sparse_update_changes_only_the_field_it_contains ... ok
+test capacity::tests::classifies_short_and_long_windows_without_clamping ... ok
+test task_status::tests::live_desktop_read_only_smoke ... ignored, requires the local Codex Desktop and existing running chat; read-only
+test tomato_cloud::tests::endpoints_can_be_overridden_and_blank_values_fall_back ... ok
+test tomato_cloud::tests::measures_route_latency_after_tls_handshake ... ok
+test tomato_cloud::tests::parses_a_protocol_specific_loopback_proxy ... ok
+test tomato_cloud::tests::parses_curl_metadata_and_normalizes_exit_country ... ok
+test tomato_cloud::tests::parses_running_processes_without_relying_on_localized_tasklist_headers ... ok
+test capacity::tests::path_resolver_returns_an_existing_codex_binary ... ok
+test tomato_cloud::tests::process_requirements_can_be_overridden_per_deployment ... ok
+test tomato_cloud::tests::rejects_disabled_proxy_and_malformed_probe_metadata ... ok
+test webview2_tests::distribution_identity_and_taskbar_contract_are_stable ... ok
+test zcode_quota::tests::balance_payload_aggregates_active_buckets_and_drops_expired_plans ... ok
+test zcode_quota::tests::balance_payload_business_error_maps_to_crv_507 ... ok
+test zcode_quota::tests::balance_payload_drops_buckets_of_expired_status_plans ... ok
+test zcode_quota::tests::balance_payload_keeps_orphan_buckets ... ok
+test capacity::tests::account_identity_stays_unknown_without_chatgpt_tokens ... ok
+test zcode_quota::tests::balance_payload_malformed_json_and_missing_data_map_to_crv_506 ... ok
+test zcode_quota::tests::balance_payload_skips_buckets_without_any_units ... ok
+test zcode_quota::tests::balance_payload_without_usable_buckets_maps_to_crv_508 ... ok
+test zcode_quota::tests::balance_payload_zero_total_yields_zero_used_percent ... ok
+test zcode_quota::tests::curl_http_failure_maps_to_crv_505 ... ok
+test zcode_quota::tests::curl_process_failure_maps_to_crv_504 ... ok
+test preferences::tests::preferences_round_trip_without_credentials_or_startup_state ... ok
+test webview2_tests::finds_only_a_complete_runtime_next_to_the_portable_executable ... ok
+test zcode_quota::tests::fixture_file_completes_the_read_snapshot_journey ... ok
+test zcode_quota::tests::fresh_weekly_window_without_reset_time_is_not_swapped_into_five_hour_slot ... ok
+test zcode_quota::tests::explicit_provider_quota_url_overrides_derived_path ... ok
+test zcode_quota::tests::config_dir_falls_back_to_versionless_zcode_dir ... ok
+test zcode_quota::tests::explicit_quota_url_wins_for_start_plan ... ok
+test capacity::tests::account_identity_follows_codex_home_before_default_location ... ok
+test zcode_quota::tests::live_read_falls_back_to_coding_when_start_probe_fails ... ok
+test zcode_quota::tests::malformed_json_maps_to_crv_506 ... ok
+test zcode_quota::tests::missing_credit_limits_maps_to_crv_508 ... ok
+test zcode_quota::tests::missing_data_maps_to_crv_506 ... ok
+test zcode_quota::tests::missing_next_reset_time_yields_window_without_reset ... ok
+test zcode_quota::tests::live_read_skips_start_probe_under_env_override ... ok
+test zcode_quota::tests::missing_quota_count_maps_to_crv_508 ... ok
+test zcode_quota::tests::non_success_payload_maps_to_crv_507_with_message ... ok
+test zcode_quota::tests::out_of_range_percentage_maps_to_crv_508 ... ok
+test zcode_quota::tests::quota_url_derives_from_provider_base_url_origin ... ok
+test zcode_quota::tests::real_gateway_start_plan_probe_is_prioritized ... ignored
+test zcode_quota::tests::parses_fixture_dual_windows_and_classifies_by_reset_time ... ok
+test zcode_quota::tests::resolve_quota_request_prefers_environment_overrides ... ok
+test zcode_quota::tests::live_read_skips_start_probe_when_user_prefers_coding_plan ... ok
+test zcode_quota::tests::live_read_prefers_start_plan_payload ... ok
+test zcode_quota::tests::resolve_quota_request_rejects_keys_unsafe_for_curl_config ... ok
+test zcode_quota::tests::resolve_quota_request_reports_missing_config ... ok
+test zcode_quota::tests::live_read_surfaces_coding_error_when_both_probes_fail ... ok
+test zcode_quota::tests::single_window_falls_into_five_hour_slot ... ok
+test zcode_quota::tests::start_plan_balance_url_derives_gateway_from_anthropic_base ... ok
+test zcode_quota::tests::start_plan_request_defaults_gateway_when_base_url_unresolvable ... ok
+test zcode_quota::tests::resolve_quota_request_reports_missing_key ... ok
+test zcode_quota::tests::resolve_quota_request_reads_enabled_coding_plan_from_config ... ok
+test zcode_quota::tests::resolve_quota_request_reads_config_from_home_fallback ... ok
+test zcode_quota::tests::successful_curl_output_returns_body_without_status_line ... ok
+test zcode_quota::tests::resolve_quota_request_reports_no_enabled_coding_plan ... ok
+test zcode_quota::tests::unused_five_hour_window_without_reset_time_parses_both_chambers ... ok
+test zcode_quota::tests::start_plan_request_skipped_without_device_mid ... ok
+test zcode_quota::tests::start_plan_request_resolved_from_config_credential_and_device_mid ... ok
+test zcode_tasks::tests::live_zcode_read_only_smoke ... ignored, requires existing local ZCode installation and task databases; read-only
+test zcode_quota::tests::start_plan_request_skipped_without_credential ... ok
+test task_status::tests::reads_actual_completion_time_from_the_last_desktop_turn ... ok
+test task_status::tests::history_resolves_saved_project_names_then_directory_names ... ok
+test task_status::tests::desktop_completion_overrides_a_different_stale_interrupted_history_turn ... ok
+test desktop_shortcut::tests::creates_and_replaces_a_shortcut_without_touching_the_real_desktop ... ok
+test capacity::tests::fixture_maps_logged_out_to_a_stable_actionable_code ... ok
+test zcode_tasks::tests::encodes_owned_project_path_and_rejects_unknown_or_deleted_task ... ok
+test zcode_tasks::tests::reads_actual_finish_time_and_ignores_cancelled_latest_turn ... ok
+test zcode_tasks::tests::pending_ordinary_tool_and_invalid_finish_are_unknown_not_success_or_execution ... ok
+test zcode_tasks::tests::active_question_waits_and_stopped_runtime_is_unknown ... ok
+test zcode_tasks::tests::reads_legacy_execution_metadata_when_turn_usage_has_no_record ... ok
+test capacity::tests::fixture_pro_account_reports_weekly_only_window_with_plan_type ... ok
+test capacity::tests::fixture_distinguishes_null_fields_from_zero ... ok
+test zcode_tasks::tests::filters_children_and_old_results_while_preserving_latest_turn_and_workspace_identity ... ok
+test capacity::tests::fixture_sparse_notification_merges_without_erasing_weekly_data ... ok
+test capacity::tests::fixture_unknown_plan_still_yields_windows_without_claiming_a_plan ... ok
+test capacity::tests::fixture_process_completes_the_real_json_rpc_shape ... ok
+test capacity::tests::fixture_reports_malformed_json_and_early_exit_separately ... ok
+test zcode_tasks::tests::read_error_invalidates_only_this_source_and_retains_deadline_then_recovers ... ok
+test task_status::tests::desktop_completion_does_not_invent_a_missing_or_invalid_end_time ... ok
+test task_status::tests::desktop_terminal_and_active_states_survive_stale_history ... ok
+test task_status::tests::refreshes_history_and_invalidates_disconnected_live_status ... ok
+test task_status::tests::reads_running_and_input_waiting_from_the_original_desktop_owner ... ok
+
+test result: ok. 88 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 2.45s
+
+     Running unittests src\main.rs (target\debug\deps\codex_credits_view-98adbffdb37cc9d8.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests codex_credits_view_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

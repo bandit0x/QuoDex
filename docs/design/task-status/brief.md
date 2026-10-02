@@ -1,10 +1,16 @@
-# v0.2.1 任务状态设计
+# 任务状态设计与验收
 
 Status: Acceptance pending
 
 当前修复分支：`fix/task-project-label-and-status`；原功能分支：`feature/v0.2.1-task-status`。本文件是任务状态的验收入口。
 
-## 当前项目冠名与状态误判修复（2026-10-03）
+## 当前 v0.2.2 发布（2026-10-03）
+
+发布状态：Implemented。用户已授权以 v0.2.2 推送到 `bandit0x/QuoDex`。本版本包含下方项目冠名和桌面终态修复；版本元数据统一为 0.2.2，中文发布说明见 [v0.2.2.md](../../releases/v0.2.2.md)。正在推送正式标签并等待双平台 CI 打包，尚未声称发布成功。
+
+本机 Windows 11 x64 / PowerShell 7.6.5 / WebView2 151.0.4129.78：76 项前端测试、88 项 Rust 测试和生产构建通过，实际 exe 版本为 0.2.2；隔离数据目录上的 6 项原生检查全部通过。[前端](../../../.impeccable/review/release-v0.2.2/prepublish/frontend-tests.log) / [Rust](../../../.impeccable/review/release-v0.2.2/prepublish/rust-tests.log) / [构建](../../../.impeccable/review/release-v0.2.2/prepublish/native-build.log) / [原生记录与截图](../../../.impeccable/review/release-v0.2.2/prepublish/result.json)。本机构建 exe SHA256：`f0c34247545f2acd720bebd74a265b4ad84dbb1c6ce048be0b6a0cfc11395ab8`；最终正式安装器须另外核对 CI 产物。
+
+## 项目冠名与状态误判修复的本机验证（2026-10-03）
 
 状态：Acceptance pending。用户确认悬停、溢出列表和可访问标题显示“项目名：聊天标题”，圆圈仅保留状态 / 分钟数。Codex 优先取应用保存的项目名，再匹配项目根目录，缺失时使用聊天目录名；ZCode 使用所属项目目录名。没有项目元数据时保留聊天标题，不自动附加版本号。本对话实际项目名为 `QuoDex`。
 
