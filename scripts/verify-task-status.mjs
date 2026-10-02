@@ -179,11 +179,11 @@ try {
     await dimensions(166);await capture("mixed-codex-quota-windows");
     await button("展开重置详情");await dimensions(196);await button("设置");await dimensions(356);
     await button("Zcode");await button("关闭设置");await dimensions(196);await button("收起重置详情");await dimensions(166);
-    await waitFor(data=>data.texts.includes("ZCode"),"ZCode quota selected");
+    await waitFor(data=>data.names.includes("ZCODE"),"ZCode quota selected");
     assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));assert(bridge("read").buttons.includes("项目任务 1 · 运行中"));
     await capture("mixed-zcode-quota-windows");checks.push("both applications mixed under both quota selections; cancellation removed; waiting question and unknown permission shown");
     await button("项目任务 2 · 已完成 · 10 分钟前","hover");await dimensions(326);await capture("project-details-windows");
-    assert(bridge("read").texts.includes("点击圆圈打开项目"));bridge("escape");await dimensions(166);
+    assert(bridge("read").names.includes("点击圆圈打开项目"));bridge("escape");await dimensions(166);
     const installed=protocol("install");projectProtocolInstalled=installed.installed;assert(projectProtocolInstalled);
     await button("项目任务 2 · 已完成 · 10 分钟前");
     let launched;for(let attempt=0;attempt<30;attempt++){try{launched=JSON.parse(await readFile(path.join(root,"project-launch.json"),"utf8"));break;}catch{await pause(150);}}

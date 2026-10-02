@@ -23,14 +23,26 @@ if ($taskRequest.op -eq 'shortcut') {
 }
 if ($taskRequest.op -eq 'background') {
   Add-Type -AssemblyName System.Windows.Forms
+  Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class QuoDexBackdrop {
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr handle,int command);
+}
+'@
   $taskForm = [System.Windows.Forms.Form]::new()
   $taskForm.FormBorderStyle = 'None'
   $taskForm.StartPosition = 'Manual'
-  $taskForm.Location = [System.Drawing.Point]::new(350,100)
-  $taskForm.Size = [System.Drawing.Size]::new(450,750)
+  $taskForm.Bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
   $taskForm.BackColor = [System.Drawing.Color]::FromArgb(19,34,47)
   $taskForm.ShowInTaskbar = $false
   $taskForm.TopMost = $true
+  # A hidden process launch can suppress the first ShowWindow call. Reveal only
+  # this test-owned form after startup, without activating another application.
+  $taskTimer = [System.Windows.Forms.Timer]::new()
+  $taskTimer.Interval = 250
+  $taskTimer.Add_Tick({ [void][QuoDexBackdrop]::ShowWindow($taskForm.Handle,4); $taskTimer.Stop() })
+  $taskTimer.Start()
   [System.Windows.Forms.Application]::Run($taskForm)
   exit
 }
