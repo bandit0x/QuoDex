@@ -1,0 +1,40 @@
+{
+  "status": "Verified",
+  "executable": "D:\\bandit\\projects\\QuoDex\\QuoDex\\release\\QuoDex-0.2.1-win-x64\\QuoDex.exe",
+  "sha256": "cf8a68cc7d05e1c2096a1a9b9f3c11abc22198ed9ab3cfac6aefb19287db6573",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "native release startup, two active chats and actual persisted ten-minute finish; 300x166 window",
+    "native running-circle pixels change across a complete pulse period; measured frame times in pulse.json",
+    "waiting, failure and unknown; actual native dismissal command",
+    "failure dismissal persists after native restart",
+    "ten slots; nine + ellipsis; four remaining native list buttons",
+    "expanded, narrow and settings native dimensions and round trip",
+    "29m visible, actual finish +30m expires and original130 height restored",
+    "cancelled chat absent",
+    "disconnect invalidates active circle",
+    "Pro quota material retains independent chat row"
+  ],
+  "screenshots": [
+    "compact-daily-windows.png",
+    "hover-windows.png",
+    "attention-windows.png",
+    "failure-details-windows.png",
+    "ten-slots-windows.png",
+    "overflow-windows.png",
+    "narrow-windows.png",
+    "settings-windows.png",
+    "age-29m-windows.png",
+    "empty-windows.png",
+    "pro-windows.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "Fixture does not prove live Desktop waiting requests or chat navigation."
+  ]
+}

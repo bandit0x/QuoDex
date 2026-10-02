@@ -1,0 +1,22 @@
+{
+  "status": "Verified",
+  "sourceCommit": "262dc77",
+  "executable": "release/QuoDex-0.2.1-win-x64/QuoDex.exe",
+  "sha256": "cf8a68cc7d05e1c2096a1a9b9f3c11abc22198ed9ab3cfac6aefb19287db6573",
+  "desktopVersion": "26.930.2377.0",
+  "appServerVersion": "0.159.0-alpha12.1",
+  "readOnlySource": {
+    "observedTasks": 4,
+    "running": 2,
+    "waiting": 0,
+    "diagnostic": null,
+    "elapsedSeconds": 18.76
+  },
+  "nativeJourney": {
+    "runningCircles": 2,
+    "differentActualChatSelected": true,
+    "currentChatRestored": true,
+    "confirmation": "Visible Desktop UI Automation Document title matched each target; no real titles or IDs persisted here."
+  },
+  "limitation": "No live waiting approval/input event was present; same-format fixture covers waiting semantics."
+}

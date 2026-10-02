@@ -1,6 +1,6 @@
 # v0.2.1 任务状态设计
 
-Status: Implemented
+Status: Acceptance pending
 
 分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
 
@@ -19,6 +19,20 @@ Status: Implemented
 用户补充确认：报错圈保留到再次运行或手动移除；没有可展示任务时收掉透明任务空间，恢复原窗口高度。
 
 当前版本为 C / V2，取代先前的“两排 + 滚动”设想。原 A/B/C 图仅作为方向选择记录，最终状态以 V2 图与以下规则为准。
+
+## 方向合同与审查依据
+
+以下五块整理已批准的 C / V2 决策，是收尾记录，不是重新选择设计方向。
+
+- **THESIS**：在原额度驾驶舱上方直接看见各聊天的运行与近期结果。
+- **OWN-WORLD**：继承 QuoDex 已有透明浮窗、玻璃驾驶舱、字体与额度内容；新增任务圈使用同一青色 / 绿色视觉语言。
+- **STORY**：扫读圆圈 → 悬停辨认聊天与原因 → 点击打开聊天；超出容量时通过 `...` 继续查看。
+- **FIRST VIEWPORT**：真实紧凑窗口以原 300 × 130 为基础，任务行增加 36 逻辑像素；详情临时增加 160，空任务恢复原高度。
+- **FORM**：上方透明单行圆圈；精确 SVG 状态符号和持续活动脉冲。属于现有界面的局部组件扩展，适用 impeccable `reference/new-work.md` 的 “Extend an existing surface” 及 “Never run the script for a local extension or a precisely specified narrow request”。因此没有运行 concept-seed，也不存在 seed key；不事后补造 seed。
+
+**QUALITY BAR**：在实际 300px 窗口里勾与分钟同时可辨；运行状态有真实连续帧证据；单行容量与 `...` 符合规则；详情完整可操作且不遮额度数字；未知不冒充成功；驾驶舱材质保持既有实现。
+
+批准图是 1536 × 1024 多场景说明板，未批准把整张板变成应用窗口。尺度以本文件的 300px 驾驶舱为准，实际圈直径 24 逻辑像素以容纳约 10 位；`.impeccable/review/hero-repro.png` 是 300 × 166 原生单场景截图。生成图的装饰比例不替代真实浮窗尺寸约束。
 
 ## V2 交互与布局规则（已批准）
 
@@ -44,10 +58,43 @@ Status: Implemented
 
 以上为演示数据设计图。运行圈的三个时间帧是同一个聊天的动画分镜，不是三个任务；静态分镜不能证明动画已经运行。批准后须在真实产物中录制或连续采集至少一个完整脉冲周期，并核对单行容量、圈内分钟数、30 分钟移除和空任务收起。
 
-## 尚待核实
+## 验收与交付证据（2026-10-02）
 
-- 等待批准/输入状态的真实旅程验证，以及桌面内部状态接口的版本兼容处理。
-- 打开对应聊天的实际跳转验证。
+产品源码版本：`262dc77`，分支 `feature/v0.2.1-task-status`。交付文件：[QuoDex.exe](../../../release/QuoDex-0.2.1-win-x64/QuoDex.exe)，相邻 runtime 目录须完整保留；[manifest.json](../../../release/QuoDex-0.2.1-win-x64/manifest.json) 记录各文件 SHA256。可执行文件 SHA256：`cf8a68cc7d05e1c2096a1a9b9f3c11abc22198ed9ab3cfac6aefb19287db6573`。
+
+验证环境：Windows x64 / NT 10.0.26200；PowerShell 7.6.5；Node 24.18.0 / npm 11.16.0；cargo 1.97.1；包内 WebView2 151.0.4129.78。任务实际来源为本机 Codex Desktop 26.930.2377.0 / app-server 0.159.0-alpha12.1。
+
+| 执行步骤 | 实际结果与证据 |
+| --- | --- |
+| `npm test` | 7 文件 / 72 项通过；最终日志 `.scratch/task-status-logs/full-frontend.log` |
+| `cargo test`（src-tauri） | 77 项通过，2 项默认忽略；本轮任务真实来源检查另行显式执行，另一项为既有 ZCode 人工检查；日志 `full-rust.log` |
+| `scripts/package-portable.ps1 -WebView2RuntimePath release/QuoDex-0.2.0-win-x64/webview2-runtime`（PowerShell 7） | `tsc`、Vite 和 Rust release 构建通过，便携目录生成；日志 `package-v021.log` |
+| `node scripts/verify-task-status.mjs`，`QUODEX_EXECUTABLE` 指向交付 exe | 使用新建数据 / 配置 / WebView 目录启动真实产物，SQLite 与命名管道采用虚构数据但走完整 Rust 读取接口；运行、等待、失败、取消、溢出、分钟、窗口与重启移除均通过；[原生记录](../../../.impeccable/review/task-status/result.json) |
+| `cargo test task_status::tests::live_desktop_read_only_smoke -- --ignored --nocapture` | 真实只读来源观察到 4 个状态，含 2 个运行；跨 18 秒刷新仍无诊断；原始聚合日志 `live-desktop.log` |
+| 原生浮窗点击另一个真实运行聊天，再点击当前聊天 | Desktop 的非隐藏 Document 标题分别匹配目标聊天与当前聊天；已恢复原聊天；私有复现 `.scratch/task-status-source/live-native.mjs`，只保存聚合结果，不将真实标识或正文提交 |
+| 单次 CSS 设计检测、独立 impeccable 审查 | 检测 `[]`；[完整视觉审查](../../../.impeccable/review/task-status/finish-review.md) 未要求修改产品视觉；唯一合同记录补项由 [verdict](../../../.impeccable/review/task-status/verdict.md) 评分 resolved，disposition: ship；此 verdict 只覆盖该项修复 |
+
+测试启动会触发既有桌面快捷方式创建行为；本轮每次启动后仅在链接仍指向测试 exe 时恢复原快捷方式。原 v0.2.0 进程未用于新版本验证。日志均位于忽略目录 `.scratch/task-status-logs/`；可复现原生脚本位于 `scripts/`，截图与审查记录已保留。
+
+### 批准设计逐项对照
+
+| 批准项 | 原生产物对照 |
+| --- | --- |
+| 上方透明单行、圈内勾与 `10m` | [日常截图](../../../.impeccable/review/task-status/compact-daily-windows.png)，300 × 166，无新增整块任务容器 |
+| 暂停 / 报错 / 未知、悬停详情与移除 | [状态截图](../../../.impeccable/review/task-status/attention-windows.png)、[报错详情](../../../.impeccable/review/task-status/failure-details-windows.png)；原生命令移除后重启不复现该提醒 |
+| 10 位、9 圈加 `...` 与其余列表 | [10 位](../../../.impeccable/review/task-status/ten-slots-windows.png)、[溢出](../../../.impeccable/review/task-status/overflow-windows.png)；13 个聊天时列表有 4 项并可滚动 |
+| 运行必须持续活动 | [原生连续帧与时序](../../../.impeccable/review/task-status/pulse.json) 覆盖 1770ms，圈内像素亮度变化；不是生成图分镜 |
+| `29m`、30 分钟移除、恢复原高度 | [29m](../../../.impeccable/review/task-status/age-29m-windows.png)、[空态](../../../.impeccable/review/task-status/empty-windows.png)；基于落盘结束时间，不重置计时，空态高度 130 |
+| 窄条、Pro、设置共存且不裁切 | [窄条](../../../.impeccable/review/task-status/narrow-windows.png)、[Pro](../../../.impeccable/review/task-status/pro-windows.png)、[设置](../../../.impeccable/review/task-status/settings-windows.png)；设置关闭后的圆圈原生边界检查通过 |
+
+以上 UI 截图使用虚构聊天与额度数据，来自交付原生 exe；部分使用真实 Windows 桌面背景，部分使用原生验证背景。真实来源与跳转检查单独执行。
+
+### 已知限制与用户验收
+
+- 本轮现场没有等待批准 / 输入的真实事件；其接口和原生等待 UI 已用同格式夹具验证，现场等待旅程待用户确认。
+- 状态通道是 Windows Desktop 内部协议，已检查版本与结构；其他版本兼容性尚不能保证。未知 / 断连显示灰圈与诊断，稍后重连。
+- 未制作安装器；交付为带固定运行时的便携目录。验收时先退出旧浮窗，再启动上述 v0.2.1 exe，避免两个版本并行显示。
+- 请实际运行两个聊天、查看任务圈与跳转，并在一个聊天等待批准 / 补充信息时核对琥珀暂停圈。用户确认“能用”前保持 `Acceptance pending`。
 
 不能将独立额度 app-server 进程的空闲状态当作桌面聊天的运行状态。
 
@@ -59,11 +106,11 @@ Status: Implemented
 
 该通道是桌面内部协议，尚不是公开稳定 API。实现必须检测消息版本、快照结构与 revision 连续性；失联、缺少 owner 或无法辨认状态时显示未知，不能使用持久化的 started 事件猜测持续运行。此次运行/空闲只读探测不等于等待状态已经验证。
 
-用户已确认 `tdd` 两个公开验证边界：任务读取接口语义，以及用户界面的溢出、分钟数、动画、移除和聊天跳转。接口与界面已接入，真实产物验证进行中。
+用户已确认 `tdd` 两个公开验证边界：任务读取接口语义，以及用户界面的溢出、分钟数、动画、移除和聊天跳转。证据与现场限制见上方验收入口。
 
 真实 Codex Desktop 26.930.2377.0 / app-server 0.159.0-alpha12.1 的只读检查已通过：观察到运行聊天，并跨过 18 秒刷新周期，未收到协议诊断。无 owner 的路由错误不带 `method`，使用请求 UUID 关联；成功响应仍核对 method。成功提醒独立保留到期时间，即使来源变未知也在原结束时间加 30 分钟移除。
 
-悬停最小复现定位到原生窗口增高时产生临时 mouseleave：160ms 后详情错误关闭。修复在关闭前核对原生鼠标坐标，并用递增序号丢弃过期查询。验收增加“窗口增高过程中，鼠标仍在任务圈或详情内时详情保持打开”。重现和红绿日志位于忽略目录 `.scratch/task-status-logs/`，最终原生截图将保存于 `.impeccable/review/task-status/`。
+悬停最小复现定位到原生窗口增高时产生临时 mouseleave：160ms 后详情错误关闭。修复在关闭前核对原生鼠标坐标，并用递增序号丢弃过期查询。验收增加“窗口增高过程中，鼠标仍在任务圈或详情内时详情保持打开”。第二个失效边界是根容器允许焦点滚动：设置关闭后圈坐标落到窗口外。改用 `overflow: clip` 并禁止焦点恢复滚动，原生坐标断言与最终截图通过。重现和红绿日志位于忽略目录 `.scratch/task-status-logs/`。
 
 ## 布局方向（C 已选定）
 
@@ -95,12 +142,12 @@ Status: Implemented
 
 ## 状态来源调研证据
 
-调查仅查看源码、版本与数据库 schema，没有读取聊天正文或真实聊天标识。
+初期 schema 调查只查看源码、版本与数据库结构。后续真实接入在本机内存中使用聊天标识和状态快照，不将真实标识、标题或正文写入提交与截图；持久化的验证证据只含聚合结果。
 
 - [Codex protocol.rs](https://github.com/openai/codex/blob/rust-v0.147.0/codex-rs/protocol/src/protocol.rs)：`task_started` / `task_complete`（兼容 `turn_started` / `turn_complete`）与 `turn_aborted` 提供开始、结束、取消语义；完成时间字段可能为空。
 - [Rollout persistence policy](https://github.com/openai/codex/blob/rust-v0.147.0/codex-rs/rollout/src/policy.rs)：开始、完成、取消事件落盘；批准与输入请求不落盘，因此历史文件不足以精确表达等待。
 - [Thread status](https://github.com/openai/codex/blob/rust-v0.147.0/codex-rs/app-server/src/thread_status.rs) 与 [turn normalization](https://github.com/openai/codex/blob/rust-v0.147.0/codex-rs/app-server/src/request_processors/thread_processor.rs#L4656)：状态属于 app-server 进程，新建进程可能把其他进程的进行中轮次读成 interrupted。
 - 本机 schema 有 turn 的状态、开始时间、完成时间和终态错误字段，未发现等待状态列。实际格式与桌面任务覆盖范围仍需实施时验证，不能只凭历史数据断言一直运行。
-- [Codex deep links](https://learn.chatgpt.com/docs/reference/commands)：公开支持 `codex://threads/<thread-id>`；本机已注册 scheme，未实测本轮跳转。
+- [Codex deep links](https://learn.chatgpt.com/docs/reference/commands)：公开支持 `codex://threads/<thread-id>`；本轮已从真实浮窗核对另一个聊天被选中并恢复当前聊天。
 
 设计稿中的等待状态是已确认产品需求，尚不是已验证能力。读取不可用、缺失终态或缺失完成时间必须呈现未知，而不是伪造成功。
