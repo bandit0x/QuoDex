@@ -858,7 +858,7 @@ export function App({
     try {
       await closeSettingsWindow(settingsPresentation);
       setSettingsPresentation(null);
-      settingsButtonRef.current?.focus();
+      settingsButtonRef.current?.focus({ preventScroll: true });
     } catch {
       setControlMessage("设置窗口未能复位 · CRV-302");
     } finally {

@@ -114,6 +114,7 @@ async function stop() {
 }
 async function dimensions(height) { return waitFor(data => data.height === height, `native height ${height}`); }
 async function capture(name) {
+  await pause(300);
   const filename = `${name}.png`; bridge("capture", { path: path.join(output, filename) }); screenshots.push(filename);
 }
 async function button(name, op = "click") { await waitFor(data => data.buttons.includes(name), name); const result=bridge(op,{name}); await writeFile(path.join(root,op==="hover"?"hover-trace.json":"click-trace.json"),JSON.stringify(result,null,2)); }
@@ -126,7 +127,18 @@ async function settingsRoundTrip() {
 const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background"})).toString("base64")],{windowsHide:true});
 try {
   setChats(["running", "running", "completed"]); await start();
-  if(process.argv.includes("--settings-only")) {
+  if(process.argv.includes("--layout-only")) {
+    await settingsRoundTrip();
+    setChats(["completed"],29);
+    await waitFor(data => data.buttons.some(name => name.endsWith("29 分钟前")), "29m after settings");
+    await pause(1000);
+    const data = bridge("read");
+    await writeFile(path.join(root,"layout-repro.json"),JSON.stringify(data,null,2));
+    await capture("age-29m-windows");
+    const task = data.buttonBounds.find(button => button.name.endsWith("29 分钟前"));
+    assert(task.y >= data.y && task.y + task.height <= data.y + data.height, "task circle must remain within the native viewport after settings closes");
+    checks.push("native task bounds after settings and source update");
+  } else if(process.argv.includes("--settings-only")) {
     await settingsRoundTrip();
     checks.push("minimal native settings round trip with task row");
   } else {
@@ -160,7 +172,11 @@ try {
   await button("恢复标准视图"); await dimensions(166);
   await settingsRoundTrip();
   checks.push("expanded, narrow and settings native dimensions and round trip");
-  setChats(["completed"],29); await waitFor(data => data.buttons.some(name => name.endsWith("29 分钟前")), "29m"); await capture("age-29m-windows");
+  setChats(["completed"],29); await waitFor(data => data.buttons.some(name => name.endsWith("29 分钟前")), "29m");
+  const aged = bridge("read");
+  const agedCircle = aged.buttonBounds.find(button => button.name.endsWith("29 分钟前"));
+  assert(agedCircle.y >= aged.y && agedCircle.y + agedCircle.height <= aged.y + aged.height, "completed task remains inside native viewport after settings");
+  await capture("age-29m-windows");
   setChats(["completed"],30); await dimensions(130); await capture("empty-windows");
   checks.push("29m visible, actual finish +30m expires and original130 height restored");
   setChats(["cancelled"]); await pause(2300); assert.equal(bridge("read").height,130);

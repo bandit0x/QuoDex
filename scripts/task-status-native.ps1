@@ -44,6 +44,7 @@ $taskRoot = [System.Windows.Automation.AutomationElement]::FromHandle($taskHandl
 $taskElements = $taskRoot.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
 $taskButtons = @($taskElements | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button })
 $taskResult = @{ width=$taskRect.Right-$taskRect.Left; height=$taskRect.Bottom-$taskRect.Top; x=$taskRect.Left; y=$taskRect.Top; buttons=@($taskButtons | ForEach-Object { $_.Current.Name }); names=@($taskElements | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+$taskResult.buttonBounds = @($taskButtons | ForEach-Object { $taskB = $_.Current.BoundingRectangle; @{ name=$_.Current.Name; x=$taskB.X; y=$taskB.Y; width=$taskB.Width; height=$taskB.Height } })
 if($taskRequest.op -in @('click','hover')) {
   $taskTarget = $taskButtons | Where-Object { $_.Current.Name -eq $taskRequest.name } | Select-Object -First 1
   if(!$taskTarget){ throw "Button not found: $($taskRequest.name)" }

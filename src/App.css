@@ -25,7 +25,8 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
-  overflow: hidden;
+  /* The scaled overlay must not become a focus-scrollable viewport. */
+  overflow: clip;
   background: transparent;
 }
 
