@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T11:24:32Z",
+  "generatedAt": "2026-10-02T11:59:57Z",
   "title": "Design System: QuoDex Task Status Extension",
   "extensions": {
     "scope": {
       "boundary": "docs/design/task-status",
       "designFile": "DESIGN.md",
       "currentStateEntry": "brief.md",
-      "sourceVersion": "499621b",
+      "sourceVersion": "58a8f16",
       "sources": [
         "src/TaskStatusStrip.tsx",
         "src/TaskStatusStrip.css",
@@ -16,9 +16,10 @@
         "src/App.tsx",
         "src/windowClient.ts"
       ],
-      "componentExamples": "独立 HTML/CSS 示例无需 React 或脚本；不代表真实 Desktop 等待事件或原生导航。运行示例只显示生产 Canvas 未绘制时的后备轮廓与 CSS 呼吸；真实 V5 形变水流须连接 src/TaskWaterFlow.tsx。当前证据统一见 brief.md。",
+      "componentExamples": "独立 HTML/CSS 示例无需 React 或脚本；不代表真实 Desktop 等待事件或原生导航。运行示例只显示生产 Canvas 未绘制时的加粗后备轮廓与 CSS 呼吸，没有真实 Canvas 循环；真实 V6 形变水流须连接 src/TaskWaterFlow.tsx。当前证据统一见 brief.md。",
       "tonalRamps": "源码未定义状态色阶；本地扩展不合成新的产品色阶。",
-      "buildVersion": "fa1655a"
+      "buildVersion": "58a8f16",
+      "review": ".impeccable/review/task-water-v6/finish-review.md"
     },
     "colorMeta": {
       "running": {
@@ -119,7 +120,7 @@
         "value": "2.8s ease-in-out infinite; opacity: 1 → .85 → 1"
       },
       {
-        "purpose": "主流与追随流的前沿宽度、拖尾、速度和相对强度持续变化，追赶时汇合、错开后分开；非固定蒙版旋转。",
+        "purpose": "主流与追随流的前沿宽度、拖尾、速度和相对强度持续变化，追赶时汇合、错开后分开；亮纹以 2 倍宽度向内扩展，外径保持 20.4 逻辑 px；非固定蒙版旋转。",
         "name": "task-water-flow",
         "value": "Canvas; asymmetric wave packets; base periods: 2.6s / 3.9s"
       },
@@ -142,6 +143,23 @@
         "height": 28
       },
       "taskRowLogicalHeight": 36,
+      "taskStripCssHeight": 64,
+      "visibleGapLogical": {
+        "compact": 7.4,
+        "expanded": 7.4,
+        "collapsed": 3.9,
+        "settingsAbove": 7.4
+      },
+      "visibleGapBoundary": "可见圈下沿到 glass-shell 上沿；不以透明按钮或行区域边界计算。",
+      "nativeRoundingTolerance": 1,
+      "taskStripTopCss": {
+        "compact": 26.8,
+        "expanded": 26.8,
+        "collapsed": 19.8,
+        "settingsAbove": 346.8
+      },
+      "taskStripTopOffset": "紧凑、展开和窄条再加 --task-popover-space；设置上方使用固定 top。",
+      "quotaAnchor": "间隙减半通过任务行下移实现；保留额度驾驶舱锚点、36 逻辑 px 任务空间与各模式原生窗口尺寸。",
       "popoverLogicalSpace": 160,
       "popoverLogicalMaxHeight": 148,
       "capacities": {
@@ -157,6 +175,7 @@
       "circleCssSize": 40.8,
       "nominalBorderLogicalSize": 1.2,
       "nominalBorderCssSize": 2.4,
+      "nominalBorderScope": "完成 SVG 轮廓及等待、报错、未知边框；不包含运行 Canvas 水光或其后备边框。",
       "buttonCssSize": {
         "height": 56,
         "width": 54
@@ -171,10 +190,14 @@
       "pause": "IntersectionObserver 不可见、document.hidden、系统或应用减少动效时停止该 Canvas 重绘；无移动流时取消共享循环。不可见或页面隐藏时暂停 Canvas 的 CSS 呼吸。",
       "reuse": "主行与 overflow 列表共用 TaskCircle / TaskWaterFlow",
       "sharedScheduler": "requestAnimationFrame; 30fps maximum paint rate",
-      "fallback": "未绘制时显示名义描边与状态内底，不使用旧旋转 SVG 弧。",
+      "fallback": "未绘制时显示加粗的运行后备边框与状态内底；该静态轮廓不代表真实 Canvas 水流循环。",
+      "fallbackBorderCssSize": 4.8,
+      "fallbackBorderLogicalSize": 2.4,
+      "edgeWidthMultiplier": 2,
+      "renderBoundary": "像素绘制边界同步向内扩展：radius > DIAMETER / 2 - 0.34 - 1.2 * EDGE_WIDTH_MULTIPLIER - 0.5 / scale；外轮廓与外径保持原值。",
       "luminousWidthLogicalRange": [
-        0.72,
-        1.2
+        1.44,
+        2.4
       ],
       "center": "深色空心区域，无内轨、准星或转子",
       "edgeInsetLogicalRange": [
@@ -212,9 +235,9 @@
       "name": "Task Circle / running",
       "kind": "button",
       "refersTo": "task-running",
-      "description": "组件演示：运行中，0.5 缩放。仅显示生产 Canvas 未绘制时的后备轮廓及 CSS 呼吸，不展示真实 V5 水流。动态形变须接 TaskWaterFlow，sidecar 不执行脚本。",
+      "description": "组件演示：运行中，0.5 缩放。仅显示生产 Canvas 未绘制时的 4.8 CSS px 后备轮廓及 CSS 呼吸，不展示真实 V6 水流。动态形变须接 TaskWaterFlow，sidecar 不执行脚本或真实 Canvas 循环。",
       "html": "<div class=\"ds-running-preview\"><button type=\"button\" class=\"ds-running-button\" aria-label=\"组件演示：运行中，后备轮廓\"><span class=\"ds-running-circle\" aria-hidden=\"true\"><canvas class=\"ds-running-flow\" width=\"41\" height=\"41\"></canvas></span></button></div>",
-      "css": ".ds-running-preview { width: 27px; height: 28px; } .ds-running-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-running-circle { position: relative; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--cyan, #50d8ff); box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-running-flow { box-sizing: border-box; display: block; width: 40.8px; height: 40.8px; border: 2.4px solid var(--cyan, #50d8ff); border-radius: 50%; background: #071723; animation: ds-task-breathe 2.8s ease-in-out infinite; } .ds-running-button:hover .ds-running-circle, .ds-running-button:focus-visible .ds-running-circle { background: rgba(13, 37, 48, .95); } .ds-running-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } @keyframes ds-task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } } .ds-running-preview.ds-reduce-motion .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } @keyframes ds-task-subtle { 0%,100% { opacity: 1; } 50% { opacity: .86; } } @media (prefers-reduced-motion: reduce) { .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } }"
+      "css": ".ds-running-preview { width: 27px; height: 28px; } .ds-running-button { width: 54px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #d9eff7; cursor: pointer; transform: scale(.5); transform-origin: top left; font-family: \"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif; } .ds-running-circle { position: relative; display: flex; width: 40.8px; height: 40.8px; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--cyan, #50d8ff); box-shadow: 0 3px 7px rgba(0, 4, 10, .4); } .ds-running-flow { box-sizing: border-box; display: block; width: 40.8px; height: 40.8px; border: 4.8px solid var(--cyan, #50d8ff); border-radius: 50%; background: #071723; animation: ds-task-breathe 2.8s ease-in-out infinite; } .ds-running-button:hover .ds-running-circle, .ds-running-button:focus-visible .ds-running-circle { background: rgba(13, 37, 48, .95); } .ds-running-button:focus-visible { outline: 2px solid var(--cyan, #50d8ff); outline-offset: 2px; } @keyframes ds-task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } } .ds-running-preview.ds-reduce-motion .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } @keyframes ds-task-subtle { 0%,100% { opacity: 1; } 50% { opacity: .86; } } @media (prefers-reduced-motion: reduce) { .ds-running-flow { animation: ds-task-subtle 2.8s ease-in-out infinite; } }"
     },
     {
       "name": "Task Circle / completed",
@@ -267,7 +290,7 @@
   ],
   "narrative": {
     "northStar": "透明额度驾驶舱",
-    "overview": "这是既有 QuoDex 界面的局部扩展，仅约束任务圆圈、溢出入口和临时详情。上方透明区域使聊天状态先进入视线，原驾驶舱的液态玻璃、额度布局、来源色与字体继续由既有实现拥有。本文件没有创建新的产品身份，也不替代根级设计系统。\n\n采用已批准的 V5 局部表达：扫读圆圈，悬停或键盘聚焦查看名称与原因，点击打开聊天，超出容量时通过 `...` 查看其余项。运行圈以轻呼吸和持续形变的边缘水光表达活动，完成勾与分钟向圈内收拢。该局部扩展继承既有世界，五块方向合同、QUALITY BAR、concept-seed 的适用依据与批准记录统一在 [brief.md](brief.md)。",
+    "overview": "这是既有 QuoDex 界面的局部扩展，仅约束任务圆圈、溢出入口和临时详情。上方透明区域使聊天状态先进入视线，原驾驶舱的液态玻璃、额度布局、来源色与字体继续由既有实现拥有。本文件没有创建新的产品身份，也不替代根级设计系统。\n\n沿用已批准的 V5 局部表达，并记录 V6 的间隙减半与运行水光加粗：扫读圆圈，悬停或键盘聚焦查看名称与原因，点击打开聊天，超出容量时通过 `...` 查看其余项。运行圈以轻呼吸和持续形变的边缘水光表达活动，完成勾与分钟向圈内收拢。该局部扩展继承既有世界，五块方向合同、QUALITY BAR、concept-seed 的适用依据与批准记录统一在 [brief.md](brief.md)。",
     "keyCharacteristics": [
       "无整块容器的透明单行，保留原驾驶舱材质。",
       "状态颜色与 SVG 符号、运行态 Canvas 水流共同表达含义。",
