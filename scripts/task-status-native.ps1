@@ -103,6 +103,12 @@ if($taskRequest.op -in @('click','hover')) {
   $taskBounds = $taskTarget.Current.BoundingRectangle
   $taskResult.target = @{x=$taskBounds.X;y=$taskBounds.Y;width=$taskBounds.Width;height=$taskBounds.Height;offscreen=$taskTarget.Current.IsOffscreen;enabled=$taskTarget.Current.IsEnabled;patterns=@($taskTarget.GetSupportedPatterns() | ForEach-Object {$_.ProgrammaticName})}
   [void][QuoDexNative]::SetForegroundWindow($taskHandle)
+  # Activation can restore the previous WebView focus and resize its popover.
+  # Let that settle before locating and entering a different task's button.
+  Start-Sleep -Milliseconds 300
+  [void][QuoDexNative]::GetWindowRect($taskHandle,[ref]$taskRect)
+  $taskBounds = $taskTarget.Current.BoundingRectangle
+  $taskResult.target = @{x=$taskBounds.X;y=$taskBounds.Y;width=$taskBounds.Width;height=$taskBounds.Height;offscreen=$taskTarget.Current.IsOffscreen;enabled=$taskTarget.Current.IsEnabled;patterns=@($taskTarget.GetSupportedPatterns() | ForEach-Object {$_.ProgrammaticName})}
   [void][QuoDexNative]::SetCursorPos($taskRect.Right+10,$taskRect.Bottom+10)
   Start-Sleep -Milliseconds 30
   [void][QuoDexNative]::SetCursorPos([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
