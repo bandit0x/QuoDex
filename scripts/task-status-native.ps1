@@ -101,7 +101,7 @@ if($taskRequest.op -in @('click','hover')) {
       [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     }
     # A resize can place a chat under the old click position; hover is tested separately.
-    [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100)
+    if ($taskRequest.movePointerAway) { [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100) }
   } else {
     $taskResult.target = @{x=$taskBounds.X;y=$taskBounds.Y;width=$taskBounds.Width;height=$taskBounds.Height}
     [void][QuoDexNative]::SetCursorPos([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))

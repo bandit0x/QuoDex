@@ -117,7 +117,7 @@ async function capture(name) {
   await pause(300);
   const filename = `${name}.png`; bridge("capture", { path: path.join(output, filename) }); screenshots.push(filename);
 }
-async function button(name, op = "click") { await waitFor(data => data.buttons.includes(name), name); const result=bridge(op,{name}); await writeFile(path.join(root,op==="hover"?"hover-trace.json":"click-trace.json"),JSON.stringify(result,null,2)); }
+async function button(name, op = "click") { await waitFor(data => data.buttons.includes(name), name); const result=bridge(op,{name,movePointerAway:op==="click" && name==="关闭设置"}); await writeFile(path.join(root,op==="hover"?"hover-trace.json":"click-trace.json"),JSON.stringify(result,null,2)); }
 async function measureCpu() {
   const before=bridge("cpu"), started=Date.now(); await pause(6000); const after=bridge("cpu");
   return {cpuSeconds:after.cpuSeconds-before.cpuSeconds,wallSeconds:(Date.now()-started)/1000,processesBefore:before.processCount,processesAfter:after.processCount,scope:"owned app and descendants, including quota animation and backend; not isolated renderer cost"};
