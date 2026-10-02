@@ -1,0 +1,12 @@
+{
+  "status": "Verified",
+  "currentChatFound": true,
+  "currentChatProjectPrefixMatches": true,
+  "currentChatState": "运行中",
+  "width": 300,
+  "height": 166,
+  "running": 3,
+  "waiting": 0,
+  "visibleUnknown": 0,
+  "diagnosticCodes": []
+}

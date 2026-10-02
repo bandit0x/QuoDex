@@ -2,7 +2,32 @@
 
 Status: Acceptance pending
 
-分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
+当前修复分支：`fix/task-project-label-and-status`；原功能分支：`feature/v0.2.1-task-status`。本文件是任务状态的验收入口。
+
+## 当前项目冠名与状态误判修复（2026-10-03）
+
+状态：Acceptance pending。用户确认悬停、溢出列表和可访问标题显示“项目名：聊天标题”，圆圈仅保留状态 / 分钟数。Codex 优先取应用保存的项目名，再匹配项目根目录，缺失时使用聊天目录名；ZCode 使用所属项目目录名。没有项目元数据时保留聊天标题，不自动附加版本号。本对话实际项目名为 `QuoDex`。
+
+源码：`76e5b925ff3a326ddf72bc8acd136dbb81e5728a`，仅本地提交。生产 exe：[QuoDex-0.2.1-local-task-fix.exe](../../../release/QuoDex-0.2.1-local-task-fix.exe)，SHA256 `61061a57c856470723da1732edf5c4a0bee09338cfec9fcbe5689ed74db950d2`。该文件用于替换已安装目录内的 exe，依赖相邻 runtime，不是独立便携包。正常用户安装目录中的程序已替换并经桌面快捷方式启动；版本仍为 0.2.1，GitHub 正式标签和安装包未变。旧 exe 保存在忽略目录 `.scratch/task-status-repair/previous-installed.exe`，可回滚。
+
+根因：真实只读探测发现桌面当前轮次与 SQLite 的旧中断轮次不同。原代码在桌面 idle 时只接受与数据库同一轮次的终态，导致较新的已完成轮次被显示为未知。修复优先使用可信桌面终态及开始时间 + duration；真实运行探测仍由 active / flags / requests 判断，未用旧数据库记录猜测持续运行。缺失、溢出或未来时间保留 QDT-608；成功超过 30 分钟隐藏，失败保留，取消移除。[官方 duration 定义](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/protocol.rs)和[历史终态投影](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/thread_history.rs)支持该时间计算。
+
+环境：Windows 11 x64 / PowerShell 7.6.5 / Node 24.18.0 / cargo 1.97.1 / 固定 WebView2 151.0.4129.78 / Codex Desktop 26.930.2377.0。检查使用生产 exe、新配置、新 SQLite、独立 WebView 数据目录、真实窗口与鼠标；提交中的聊天和项目均为虚构数据。
+
+| 执行步骤 | 实际结果与证据 |
+| --- | --- |
+| `npm.cmd test` / `npm.cmd run build` | 76 项前端测试通过，生产构建通过；[测试](../../../.impeccable/review/task-status-repair/frontend-tests.log) / [构建](../../../.impeccable/review/task-status-repair/frontend-build.log) |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | 88 项通过，3 项现场测试默认忽略；含不同轮次终态、过期、运行 / 等待 / 取消、无效时间、项目名称与旧 schema 回归；[日志](../../../.impeccable/review/task-status-repair/rust-tests-final.log) |
+| `cargo test live_desktop_read_only_smoke -- --ignored --nocapture` | 显式运行通过；跨 18 秒刷新观察到真实运行聊天，无诊断；[日志](../../../.impeccable/review/task-status-repair/live-desktop.log) |
+| `npm.cmd run tauri:build -- --no-bundle --config .scratch/installer/tauri.installer.conf.json` | release 生产 exe 构建通过；[日志](../../../.impeccable/review/task-status-repair/native-build.log) |
+| `node scripts/verify-task-status.mjs --repair-only` | 6 项原生检查通过；冠名、运行转等待、旧中断历史与新完成轮次、分钟数、溢出、过期和移除；[记录](../../../.impeccable/review/task-status-repair/labels/result.json) |
+| `node scripts/verify-task-status.mjs --mixed-only` | 8 项混合来源检查通过；包含 ZCode 冠名、两种额度视图、项目 URI、移除、来源隔离和恢复；[记录](../../../.impeccable/review/task-status-repair/mixed/result.json) |
+| `node scripts/verify-task-status.mjs` | 原有 13 项桌面回归通过，含水流像素运动、减少动效、窄条、设置切换和过期；[记录](../../../.impeccable/review/task-status-repair/baseline/result.json) |
+| 正常用户桌面快捷方式启动 + 当前聊天只读 / UIA 对照 | 安装 exe 哈希相同，6 个 WebView2 子进程使用安装目录内 runtime；本对话冠名匹配，状态运行中，3 个可见运行圈、0 个未知圈；[运行时](../../../.impeccable/review/task-status-repair/installed-runtime.json) / [当前聊天聚合结果](../../../.impeccable/review/task-status-repair/installed-current-chat.json) |
+
+与批准 V6 的逐项对照：[悬停](../../../.impeccable/review/task-status-repair/labels/project-running-hover-windows.png)显示项目冠名，运行圈保留原水流；[成功](../../../.impeccable/review/task-status-repair/labels/project-completed-stale-history-windows.png)仍为绿色勾和 `10m`，无文字碰边；[失败](../../../.impeccable/review/task-status-repair/labels/project-failed-windows.png)保留可移除提醒及诊断；[溢出](../../../.impeccable/review/task-status-repair/labels/project-overflow-windows.png)仍是九圈加省略号，项目标题换行且显示结束分钟数；[窄条](../../../.impeccable/review/task-status-repair/baseline/narrow-windows.png)与原尺寸一致。圈尺寸、粗边、水流和驾驶舱间隙未修改，生产截图与原生坐标 / 动效断言通过。
+
+限制：真实当前聊天的运行已核对；等待 / 完成切换使用桌面协议夹具复测，没有声称观察到本对话在本轮回复结束后的真实终态。ZCode 活跃与项目跳转仍采用原有夹具验证边界，macOS 未现场验证。首次原生启动探针指定 Codex 虚拟化 AppData runtime 时空白，使用生产产物相邻 runtime 后全部通过；正常用户安装启动已另核对。更新时的偏好文件字节比较失败，复测确认透明度、动效、来源、套餐均未改变，只有既有任务区展开逻辑在重启时令 y 上移 36px；已恢复复测前的位置，重启偏移尚未修复，[记录](../../../.impeccable/review/task-status-repair/preferences-restart.json)。原始复现及真实标题只留本机忽略目录。
 
 ## 当前 v0.2.1 正式发布与本机安装（2026-10-02）
 

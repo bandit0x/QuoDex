@@ -1,0 +1,35 @@
+{
+  "status": "Verified",
+  "executable": "D:\\bandit\\projects\\QuoDex\\QuoDex\\.scratch\\installer\\cargo-target\\release\\codex-credits-view.exe",
+  "sha256": "61061a57c856470723da1732edf5c4a0bee09338cfec9fcbe5689ed74db950d2",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "both applications mixed under both quota selections; cancellation removed; waiting question and unknown permission shown",
+    "real native circle click reaches OS protocol handler with correctly encoded owned project path; handler restored",
+    "ZCode failure reminder dismisses through shared command and stays dismissed across restart",
+    "mixed 13 chats use nine circles plus ellipsis; all remaining ZCode entries accessible",
+    "Codex disconnect never invalidates ZCode execution",
+    "ZCode source failure invalidates only its source and recovers",
+    "existing ZCode kept running; stale journal predating surviving runtime stops water animation",
+    "expired ZCode success restores original cockpit height"
+  ],
+  "screenshots": [
+    "mixed-codex-quota-windows.png",
+    "mixed-zcode-quota-windows.png",
+    "project-details-windows.png",
+    "mixed-overflow-windows.png",
+    "codex-disconnected-zcode-running-windows.png",
+    "mixed-empty-windows.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn.",
+    "Project click reaches a temporary OS protocol capture handler; the original registered handler is restored. This does not prove a real ZCode project window opened.",
+    "Ordinary pending tools remain unknown because the persisted format cannot distinguish queuing from approval."
+  ]
+}
