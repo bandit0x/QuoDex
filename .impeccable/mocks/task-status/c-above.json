@@ -1,7 +1,9 @@
 {
   "id": "c-above",
   "image": "c-above.png",
-  "approved": false,
+  "approved": true,
+  "approvalScope": "layout-only",
+  "implementationApproved": false,
   "type": "ui-design-concept",
   "tool": "image_gen.imagegen",
   "sampleData": true,
