@@ -26,6 +26,10 @@ if ([string]::IsNullOrWhiteSpace($WebView2RuntimePath)) {
         Select-Object -First 1 -ExpandProperty FullName
 }
 
+if (-not [string]::IsNullOrWhiteSpace($WebView2RuntimePath)) {
+    $WebView2RuntimePath = [System.IO.Path]::GetFullPath($WebView2RuntimePath)
+}
+
 if (-not (Test-Path -LiteralPath $codexRuntime -PathType Leaf)) {
     throw "Pinned official Codex runtime not found. Run npm.cmd install first."
 }
