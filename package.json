@@ -14,7 +14,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "package:app": "bash scripts/package-app.sh",
-    "package:installer": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-installer.ps1"
+    "package:installer": "pwsh.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-installer.ps1"
   },
   "dependencies": {
     "@openai/codex": "0.147.0",
