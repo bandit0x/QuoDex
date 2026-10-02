@@ -1,5 +1,5 @@
 {
-  "revision": "V4 visible water edge",
+  "revision": "V5 deforming water edge",
   "status": "Not built",
   "approval": "pending",
   "productSource": "2c9e8cd (product implementation 262dc77)",
@@ -9,20 +9,24 @@
   "breathSeconds": 2.8,
   "breathOpacity": [0.85, 1],
   "waterFlowSeconds": [2.6, 3.9],
-  "material": "Broad pale water crest, long cyan tail, darker gap and following ripple confined to the existing edge; empty center",
+  "material": "Time-varying asymmetric wave packets that catch up, merge and separate; evolving crest width, tail length, angular velocity and radial contour; empty center",
+  "renderer": "Small Canvas 2D raster drawing driven by one shared requestAnimationFrame loop, capped at 30 paints/second and DPR 2; no new dependency; hidden/reduced/paused states stop the canvas loop",
+  "nominalWidthRange": [0.72, 1.2],
+  "contourRetreatRange": [0, 0.34],
   "completed": "Green check above elapsed minutes; 29m checked at actual and enlarged design sizes",
   "rejected": {"file": "rejected-orbit-options.html", "reason": "User found the additional orbits, scan details and rotor too elaborate"},
   "previousWaterRevision": {"commit": "155b0a7", "screenshot": "water-preview-full.jpg", "approval": "rejected", "reason": "Flow almost invisible at actual size; weak contrast and slow movement"},
+  "previousVisibleWaterRevision": {"commit": "246357a", "recording": "water-v4-motion.gif", "approval": "rejected", "reason": "Visibility improved but fixed mask still too rigid"},
   "previewEvidence": {
     "browser": "Codex In-app Browser",
-    "screenshot": "water-v4-preview.jpg",
-    "recording": "water-v4-motion.gif",
-    "sourceFrames": 200,
-    "captureSpanMs": 5717,
+    "screenshot": "water-v5-preview.jpg",
+    "recording": "water-v5-motion.gif",
+    "sourceFrames": 225,
+    "captureSpanMs": 7199,
     "recordingMethod": "CUA browser screenshots with captured timestamps; GIF frames sampled at about 80ms intervals without accelerating motion",
     "domCircleWidth": 20.390625,
     "singleRowSlots": 10,
-    "controls": "Pause/play and reduce/restore controls retained from V3",
+    "controls": "Pause/play observed in browser state; reduce/restore updated to stop the canvas loop",
     "scope": "Authored design mock, not the native product"
   },
   "references": [
@@ -31,6 +35,7 @@
   ],
   "implementationNotes": [
     "Fix the overflow-list small selector overriding circle minute typography",
+    "Use stable per-chat phase seeds when integrating the wave renderer; measure cost in the actual native app",
     "Keep per-chat state behavior and quota cockpit unchanged",
     "After design approval, verify motion and minute clearance in the actual packaged native app"
   ]

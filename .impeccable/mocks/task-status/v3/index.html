@@ -1,45 +1,81 @@
 <!doctype html>
 <html lang="zh-CN">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuoDex · 水流边缘重做</title>
+<title>QuoDex · 会变形的水流边缘</title>
 <style>
 :root{font-family:"Segoe UI Variable","Segoe UI",sans-serif;color:#edfaff;background:#0a1722;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;padding:24px;max-width:620px;margin-inline:auto}h1{font-size:23px;font-weight:650;margin:0 0 10px}h2{font-size:16px;margin:20px 0 10px}p{margin:0;color:#b9d9e7;font-size:13px;line-height:1.7}a{color:#86d5e7}.toolbar{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}button{font:inherit;font-size:12px;padding:7px 12px;border:1px solid #355668;border-radius:6px;background:#173340;color:#edfaff;cursor:pointer}button:focus-visible{outline:2px solid #50d8ff;outline-offset:3px}
-.scene{width:300px;margin-inline:auto;background:#13222f}.row{height:36px;display:flex;align-items:center;justify-content:center;gap:0}.slot{width:27px;height:28px;display:grid;place-items:center;flex-shrink:0}.scene img{display:block;width:300px;height:130px}.mark{width:20.4px;height:20.4px;display:block;flex-shrink:0}.scale{text-align:center;font-size:12px;margin-top:8px}.water{position:relative;border:1.2px solid #163e4e;border-radius:50%;background:#071723;box-shadow:0 1.5px 3.5px #0006;animation:breathe 2.8s ease-in-out infinite}
-.water:before,.water:after{content:"";position:absolute;inset:-1.2px;border-radius:50%;pointer-events:none;mask:radial-gradient(farthest-side,transparent calc(100% - 1.2px),#000 calc(100% - 1.15px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.2px),#000 calc(100% - 1.15px))}
-.water:before{background:conic-gradient(from 0deg,#246079 0deg,#309eb7 35deg,#48d4e4 66deg,#91fff4 100deg,#eafffb 120deg,#f5fffd 155deg,#b8fff8 174deg,#5ee7ec 192deg,#184758 222deg,#184758 306deg,#246079 360deg);animation:flow 2.6s linear infinite;filter:url(#water-ripple)}
-.water:after{background:conic-gradient(from 180deg,transparent 0deg,#50daeb00 50deg,#50daeb65 92deg,#dcfffcca 116deg,#68e2ea80 138deg,transparent 168deg,transparent 360deg);opacity:.8;animation:flow 3.9s linear infinite,surface 2.1s ease-in-out infinite}
-.slot:nth-child(even) .water:before{animation-delay:-.85s}.slot:nth-child(even) .water:after{animation-delay:-1.35s,-.6s}
-svg.mark{fill:none;stroke-linecap:round;stroke-linejoin:round}.success circle{fill:#071723;stroke:#65edb8;stroke-width:2.4}.success path{stroke:#65edb8;stroke-width:2.8}.success text{fill:#65edb8;font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}.magnified{display:flex;gap:36px;align-items:center;justify-content:center;padding:22px;background:#13222f;border-radius:8px}.magnified .mark{width:64px;height:64px}.magnified .water{border-width:3.76px}.magnified .water:before,.magnified .water:after{inset:-3.76px;mask:radial-gradient(farthest-side,transparent calc(100% - 3.76px),#000 calc(100% - 3.6px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.76px),#000 calc(100% - 3.6px))}.light{display:flex;gap:14px;justify-content:center;background:#d8e6ee;padding:16px;border-radius:8px}
-@keyframes breathe{0%,100%{opacity:1;box-shadow:0 1.5px 3.5px #0006,0 0 2px #50d8ff30}50%{opacity:.85;box-shadow:0 1.5px 3.5px #0006,0 0 1px #50d8ff10}}@keyframes flow{to{transform:rotate(360deg)}}@keyframes surface{0%,100%{opacity:.6}50%{opacity:.95}}@keyframes gentle{0%,100%{opacity:1}50%{opacity:.86}}
-.reduced .water{animation:gentle 2.8s ease-in-out infinite}.reduced .water:before,.reduced .water:after{animation:none;filter:none}.paused .water,.paused .water:before,.paused .water:after{animation-play-state:paused!important}
-@media(prefers-reduced-motion:reduce){.water{animation:gentle 2.8s ease-in-out infinite}.water:before,.water:after{animation:none;filter:none}}
+.scene{width:300px;margin-inline:auto;background:#13222f}.row{height:36px;display:flex;align-items:center;justify-content:center;gap:0}.slot{width:27px;height:28px;display:grid;place-items:center;flex-shrink:0}.scene img{display:block;width:300px;height:130px}.mark{width:20.4px;height:20.4px;display:block;flex-shrink:0}.scale{text-align:center;font-size:12px;margin-top:8px}.water{position:relative;border-radius:50%;box-shadow:0 1.5px 3.5px #0006;animation:breathe 2.8s ease-in-out infinite}.water canvas{display:block;width:100%;height:100%}
+svg.mark{fill:none;stroke-linecap:round;stroke-linejoin:round}.success circle{fill:#071723;stroke:#65edb8;stroke-width:2.4}.success path{stroke:#65edb8;stroke-width:2.8}.success text{fill:#65edb8;font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}.magnified{display:flex;gap:36px;align-items:center;justify-content:center;padding:22px;background:#13222f;border-radius:8px}.magnified .mark{width:64px;height:64px}.light{display:flex;gap:14px;justify-content:center;background:#d8e6ee;padding:16px;border-radius:8px}
+@keyframes breathe{0%,100%{opacity:1;box-shadow:0 1.5px 3.5px #0006,0 0 2px #50d8ff30}50%{opacity:.85;box-shadow:0 1.5px 3.5px #0006,0 0 1px #50d8ff10}}@keyframes gentle{0%,100%{opacity:1}50%{opacity:.86}}
+.reduced .water{animation:gentle 2.8s ease-in-out infinite}.paused .water{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.water{animation:gentle 2.8s ease-in-out infinite}}
 @media(max-width:400px){body{padding:20px 0}h1,h2,p,.toolbar,.magnified,.light{margin-left:16px;margin-right:16px}.scene .row{margin-inline:0}}
 </style>
-<svg id="material" width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="water-ripple" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency=".11 .08" numOctaves="1" seed="4" result="surface"/><feDisplacementMap in="SourceGraphic" in2="surface" scale=".18" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
-<h1>水流边缘 · 重做预览</h1>
-<p>明亮波峰带着青色长尾沿边缘流淌，叠加一道追随的水纹，柔和呼吸。</p>
+<h1>水流边缘 · 灵动版</h1>
+<p>波峰会伸缩、追赶、汇合再分开；水纹宽窄与轮廓持续变化，配合柔和呼吸。</p>
 <div class="toolbar"><button id="motion">暂停动效</button><button id="reduce" aria-pressed="false">查看减少动效</button></div>
 <h2>实际尺寸 · 两个运行，一个完成</h2>
 <div class="scene"><div class="row" id="daily"></div><img src="/cockpit.png" alt="现有 QuoDex 驾驶舱截图"></div>
-<p class="scale">直径 20.4px · 边框 1.2px · 主水流 2.6 秒一周</p>
+<p class="scale">直径 20.4px · 基准边框 1.2px · 水光随流动变形</p>
 <h2>放大看水光与时间留白</h2><div class="magnified" id="detail"></div>
 <p style="margin-top:10px">勾与分钟向圆心收拢，使用 29m 检查较宽数字；以上大圈仅为细节放大。</p>
 <h2>一行十个状态</h2><div class="scene"><div class="row" id="ten"></div></div>
 <h2>浅色桌面</h2><div class="light" id="light"></div>
 <p style="margin-top:20px">设计预览，尚未写入应用。下方驾驶舱取自已有原生截图，动效与状态为演示。</p>
-<p style="margin-top:10px;font-size:11px">沿用 <a href="https://github.com/tauri-apps/window-vibrancy">透明浮窗</a> 材质；参考 <a href="https://github.com/DavidHDev/canvas-ui">Canvas UI Ripple</a> 的柔和水光，自行使用 CSS / SVG 绘制。</p>
+<p style="margin-top:10px;font-size:11px">沿用 <a href="https://github.com/tauri-apps/window-vibrancy">透明浮窗</a> 材质；参考 <a href="https://github.com/DavidHDev/canvas-ui">Canvas UI Ripple</a> 的柔和水光，自行使用 Canvas / CSS / SVG 绘制。</p>
 <script>
-const water=()=>'<span class="mark water" role="img" aria-label="运行中：呼吸与水流边缘"></span>';
+const water=()=>'<span class="mark water" role="img" aria-label="运行中：呼吸与变形水流"><canvas aria-hidden="true"></canvas></span>';
 const success=(time='10m')=>`<svg class="mark success" viewBox="0 0 40.8 40.8" role="img" aria-label="完成于 ${time}"><circle cx="20.4" cy="20.4" r="19.2"/><path d="m5 12 4 4 10-10" transform="translate(10.8 3.5) scale(.8)"/><text x="20.4" y="29.8" text-anchor="middle">${time}</text></svg>`;
 const slots=marks=>marks.map(mark=>`<span class="slot">${mark}</span>`).join('');
 document.querySelector('#daily').innerHTML=slots([water(),water(),success()]);
 document.querySelector('#detail').innerHTML=water()+success('29m');
 document.querySelector('#ten').innerHTML=slots([water(),water(),...['0m','1m','4m','8m','10m','16m','20m','29m'].map(success)]);
 document.querySelector('#light').innerHTML=water()+water()+success('29m');
-let paused=false;
-document.querySelector('#motion').onclick=event=>{paused=!paused;document.body.classList.toggle('paused',paused);event.currentTarget.textContent=paused?'播放动效':'暂停动效';};
-document.querySelector('#reduce').onclick=event=>{const reduced=document.body.classList.toggle('reduced');event.currentTarget.setAttribute('aria-pressed',String(reduced));event.currentTarget.textContent=reduced?'恢复完整动效':'查看减少动效';};
-document.addEventListener('visibilitychange',()=>document.body.classList.toggle('paused',paused||document.hidden));
+// One small shared loop; each light ribbon is redrawn from a changing wave field.
+const TAU=Math.PI*2, media=matchMedia('(prefers-reduced-motion: reduce)');
+const streams=[...document.querySelectorAll('.water canvas')].map((canvas,index)=>({canvas,ctx:canvas.getContext('2d'),seed:index*.87,pixels:0}));
+function packet(angle,phase,front,tail){const delta=Math.atan2(Math.sin(angle-phase),Math.cos(angle-phase));return Math.exp(-.5*(delta/(delta>0?front:tail))**2);}
+function sample(angle,time,seed){
+ const t=time+seed;
+ const phaseA=TAU*t/2.6+.32*Math.sin(t*1.7);
+ const phaseB=TAU*t/3.9+2.3+.4*Math.sin(t*1.13+seed);
+ const a=packet(angle,phaseA,.38+.12*Math.sin(t*1.9),1.13+.32*Math.sin(t*1.07));
+ const b=packet(angle,phaseB,.32+.13*Math.cos(t*1.37),.88+.26*Math.sin(t*1.61))*(.7+.2*Math.sin(t*.91));
+ const energy=1-(1-a)*(1-b);
+ const ripple=.5*Math.sin(angle*3-t*2.1+Math.sin(angle+t*.83))+.5*Math.sin(angle*5+t*1.7);
+ const outer=10.2-.17*(1+ripple);
+ const width=.72+.48*energy;
+ return {outer,inner:outer-width,energy};
+}
+function color(energy){const base=[36,91,114],cyan=[72,217,231],white=[240,255,250];const [a,b,t]=energy<.45?[base,cyan,energy/.45]:[cyan,white,((energy-.45)/.55)**.65];return a.map((v,i)=>v+(b[i]-v)*t);}
+const clamp=value=>Math.max(0,Math.min(1,value));
+function draw(time){
+ for(const stream of streams){
+  const {canvas,ctx,seed}=stream;
+  const pixels=Math.ceil(canvas.getBoundingClientRect().width*Math.min(devicePixelRatio,2));
+  const scale=pixels/20.4;
+  if(stream.pixels!==pixels){
+   stream.pixels=pixels;canvas.width=canvas.height=pixels;stream.image=ctx.createImageData(pixels,pixels);stream.coords=[];
+   for(let y=0;y<pixels;y++)for(let x=0;x<pixels;x++){const dx=(x+.5)/scale-10.2,dy=(y+.5)/scale-10.2;stream.coords.push({radius:Math.hypot(dx,dy),angle:Math.atan2(dy,dx)});}
+  }
+  const data=stream.image.data;
+  for(let i=0;i<stream.coords.length;i++){
+   const {radius,angle}=stream.coords[i],coverage=clamp((10.2-radius)*scale+.5),rim=clamp((radius-9)*scale+.5);
+   const base=[7+29*rim,23+68*rim,35+79*rim];let light=base,opacity=0;
+   if(coverage&&radius>8.2){const wave=sample(angle,time,seed);opacity=clamp((wave.outer-radius)*scale+.5)*clamp((radius-wave.inner)*scale+.5);light=color(wave.energy);}
+   for(let channel=0;channel<3;channel++)data[i*4+channel]=Math.round(base[channel]+(light[channel]-base[channel])*opacity);
+   data[i*4+3]=Math.round(255*coverage);
+  }
+  ctx.putImageData(stream.image,0,0);
+ }
+}
+let paused=false,reduced=false,frame=0,lastTime=0,paintTime=0,flowTime=0;
+function animate(now){frame=0;flowTime+=(now-lastTime)/1000;lastTime=now;if(now-paintTime>=1000/30){draw(flowTime);paintTime=now;}frame=requestAnimationFrame(animate);}
+function syncMotion(){cancelAnimationFrame(frame);frame=0;document.body.classList.toggle('paused',paused||document.hidden);if(!paused&&!reduced&&!media.matches&&!document.hidden){lastTime=performance.now();frame=requestAnimationFrame(animate);}}
+draw(0);syncMotion();
+document.querySelector('#motion').onclick=event=>{paused=!paused;event.currentTarget.textContent=paused?'播放动效':'暂停动效';syncMotion();};
+document.querySelector('#reduce').onclick=event=>{reduced=!reduced;document.body.classList.toggle('reduced',reduced);event.currentTarget.setAttribute('aria-pressed',String(reduced));event.currentTarget.textContent=reduced?'恢复完整动效':'查看减少动效';syncMotion();};
+document.addEventListener('visibilitychange',syncMotion);media.addEventListener('change',syncMotion);
 </script>
 </html>
