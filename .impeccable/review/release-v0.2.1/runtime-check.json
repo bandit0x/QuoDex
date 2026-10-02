@@ -1,0 +1,12 @@
+{
+  "status": "Verified",
+  "version": "0.2.1",
+  "executable": "%LOCALAPPDATA%\\QuoDex\\codex-credits-view.exe",
+  "sha256": "6e2a15466bb7cfbe1251430ae35a72b9b7ebf6a1307f777450fcc703104fb78c",
+  "rootProcesses": 1,
+  "webviewProcesses": 6,
+  "runtime": "%LOCALAPPDATA%\\QuoDex\\webview2-runtime\\msedgewebview2.exe",
+  "bundledRuntimeUsed": true,
+  "desktopShortcutMatches": true,
+  "codexRuntimePresent": true
+}

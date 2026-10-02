@@ -1,0 +1,8 @@
+{
+  "preferencesPreserved": true,
+  "environment": "Unpackaged PowerShell 7 process, outside Codex MSIX filesystem and registry virtualization",
+  "version": "0.2.1",
+  "executableExists": true,
+  "installerSha256": "f7b683dd594ccdc0409048fdd2efabc39c2a6b3aa590e4782a13b15d58c77ef5",
+  "exitCode": 0
+}

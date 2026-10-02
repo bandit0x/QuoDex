@@ -4,6 +4,26 @@ Status: Acceptance pending
 
 分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
 
+## v0.2.1 安装与发布验证（2026-10-02）
+
+本机安装与启动状态：Verified；功能仍待用户实际使用验收。安装包构建来源 `678d510`，原生验证脚本 `732f7f2`。Windows 11 x64 / PowerShell 7.6.5，固定 WebView2 151.0.4129.78。安装产物为 `release/QuoDex-0.2.1-win-x64-setup.exe`，300331600 bytes，SHA256 `f7b683dd594ccdc0409048fdd2efabc39c2a6b3aa590e4782a13b15d58c77ef5`；安装后的 exe SHA256 `6e2a15466bb7cfbe1251430ae35a72b9b7ebf6a1307f777450fcc703104fb78c`。CI 产物的字节哈希可能不同，不将同版本包声称为同一字节产物。
+
+| 执行步骤 | 实际结果与证据 |
+| --- | --- |
+| PowerShell 7 执行 `scripts/package-installer.ps1 -WebView2RuntimePath release/QuoDex-0.2.1-win-x64/webview2-runtime` | TypeScript / Vite / Rust release / NSIS 构建通过；运行时作为相邻资源打包，避免 Tauri `fixedRuntime` 把开发机绝对路径带到运行时 |
+| 在 Codex MSIX 外的普通 PowerShell 7 进程执行安装器 `/S` | 用户目录安装、卸载登记版本 0.2.1；安装前后偏好文件哈希一致，[install-result.json](../../../.impeccable/review/release-v0.2.1/install-result.json) |
+| 设置交付 exe 与隔离数据目录，运行 `node scripts/verify-task-status.mjs --mixed-only` | 8 项原生旅程通过，[native-result.json](../../../.impeccable/review/release-v0.2.1/native-result.json)：混排、额度切换、项目 URI、失败移除及重启、溢出、两来源故障隔离及恢复、运行旧记录拦截、成功过期 |
+| 普通桌面快捷方式启动安装版，检查窗口与子进程 | 驾驶舱可见、2 个运行任务；6 个 WebView2 子进程均使用安装目录内运行时，Codex CLI 文件存在，[startup-summary.json](../../../.impeccable/review/release-v0.2.1/startup-summary.json) / [runtime-check.json](../../../.impeccable/review/release-v0.2.1/runtime-check.json) |
+| `cargo test live_ -- --ignored --nocapture` | 两项现场只读测试通过：Codex 4 个记录 / 2 个运行，ZCode 1 个报错 / 无运行；无诊断，[live-readonly.log](../../../.impeccable/review/release-v0.2.1/live-readonly.log) |
+| 核对旧版清单、进程，再移出旧应用目录 | 0.2.0 的 260 文件哈希全部匹配、无额外文件、无进程。永久删除被自动审批拒绝，改为归档 `.scratch/retired-apps/QuoDex-0.2.0-win-x64`；快捷方式指向新安装版，不删除用户配置，[old-package-check.json](../../../.impeccable/review/release-v0.2.1/old-package-check.json) / [old-removal.json](../../../.impeccable/review/release-v0.2.1/old-removal.json) |
+| GitHub `main` 来源 `678d510` 的 CI | Windows / macOS 类型检查、前端测试、生产构建与 Rust 测试通过：[run 37017148404](https://github.com/bandit0x/QuoDex/actions/runs/37017148404)。该运行不包含 tag 打包与发布 |
+
+安装版截图对照：沿用批准的 V6，任务为同一透明单行、标准间隙与粗水流；[ZCode 额度混排](../../../.impeccable/review/release-v0.2.1/mixed-zcode-quota-windows.png) 保留绿色勾与 `10m`；[溢出](../../../.impeccable/review/release-v0.2.1/mixed-overflow-windows.png) 为九圈加省略号，[详情](../../../.impeccable/review/release-v0.2.1/project-details-windows.png) 和[空任务](../../../.impeccable/review/release-v0.2.1/mixed-empty-windows.png) 通过原生尺寸断言。截图使用虚构任务；真实用户窗口截图只保留在忽略目录。原渲染代码未改，运动及窄条证据见下方完整回归记录。
+
+安装排查记录：首次生成器相对路径以 `src-tauri` 为基准导致打包失败；改为绝对输入后实际运行发现 Tauri 使用开发目录，改成映射相邻资源并由应用选择运行时。Codex MSIX 启动的安装器会虚拟化 AppData 与卸载登记，外部进程证明原位置不可访问后重新在普通用户进程安装；桌面快捷方式与外部注册检查通过。原生移除测试曾在详情窗口展开时提前取点击坐标；改为等待最终高度与移除结果，未降低产品断言。复现日志留在 `.scratch/release-v0.2.1/`。
+
+测试保留用户正在运行的真实 ZCode 进程，通过把虚构执行记录设置为早于该进程创建来验证重启残留不继续动画。没有声称真实 ZCode 活动轮次或项目窗口跳转已通过；macOS 本轮只由 CI 编译和测试，现场边界仍见下方。
+
 ## 当前 ZCode 接入（2026-10-02）
 
 状态：Acceptance pending。用户已批准接入并测试，接受 ZCode 圆圈打开所属项目；Codex 圆圈继续打开聊天。ZCode 与 Codex 在现有任务栏混排，不按来源分组，额度来源切换独立于任务来源。保留 V6 圈尺寸、间隙、粗水流与完成分钟数。
@@ -217,7 +237,7 @@ V2 批准图是 1536 × 1024 多场景说明板，尺度以本文件的 300px �
 
 - 本轮现场没有等待批准 / 输入的真实事件；其接口和原生等待 UI 已用同格式夹具验证，现场等待旅程待用户确认。
 - 状态通道是 Windows Desktop 内部协议，已检查版本与结构；其他版本兼容性尚不能保证。未知 / 断连显示灰圈与诊断，稍后重连。
-- 未制作安装器；交付为带固定运行时的便携目录。验收时先退出旧浮窗，再启动上述 v0.2.1 exe，避免两个版本并行显示。
+- 初次交付为带固定运行时的便携目录；后续已制作并安装 v0.2.1 安装器，当前产物与安装验证见本文件顶部。
 - 请实际运行两个聊天、查看任务圈与跳转，并在一个聊天等待批准 / 补充信息时核对琥珀暂停圈。用户确认“能用”前保持 `Acceptance pending`。
 
 不能将独立额度 app-server 进程的空闲状态当作桌面聊天的运行状态。
