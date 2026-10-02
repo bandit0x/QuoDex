@@ -4,9 +4,25 @@ Status: Acceptance pending
 
 分支：`feature/v0.2.1-task-status`。本文件是本轮设计状态入口。
 
-## v0.2.1 安装与发布验证（2026-10-02）
+## 当前 v0.2.1 正式发布与本机安装（2026-10-02）
 
-本机安装与启动状态：Verified；功能仍待用户实际使用验收。安装包构建来源 `678d510`，原生验证脚本 `732f7f2`。Windows 11 x64 / PowerShell 7.6.5，固定 WebView2 151.0.4129.78。安装产物为 `release/QuoDex-0.2.1-win-x64-setup.exe`，300331600 bytes，SHA256 `f7b683dd594ccdc0409048fdd2efabc39c2a6b3aa590e4782a13b15d58c77ef5`；安装后的 exe SHA256 `6e2a15466bb7cfbe1251430ae35a72b9b7ebf6a1307f777450fcc703104fb78c`。CI 产物的字节哈希可能不同，不将同版本包声称为同一字节产物。
+发布、安装和指定环境检查：Verified；功能使用验收仍为 Acceptance pending。源码标签 `v0.2.1` 指向 `0bdf0c603c7c065841724d4e6430f89ecb4ea86f`，已推送 `main`。正式 [GitHub Release](https://github.com/bandit0x/QuoDex/releases/tag/v0.2.1) 含 Windows x64 安装器与 macOS arm64 DMG，并已写入中文发布说明。[标签 CI](https://github.com/bandit0x/QuoDex/actions/runs/37019826766) 的两个测试任务、两个打包任务和发布任务全部成功。
+
+本机最终安装的是从正式 Release 下载的 Windows 包，300303110 bytes，SHA256 `47c6968ad8b6475dca05d09c5f3b526cbb86e10f8ef1a4c50f29119085076799`，与 GitHub asset digest 完全匹配；安装后的 exe SHA256 `9266080a0068e993077d913dc94e7881bf021b53e4b004ad4a73590b56d04f55`。发布资产与下载核对见 [publication.json](../../../.impeccable/review/release-v0.2.1/published/publication.json)，安装退出码 0、偏好文件未变见 [published-install-result.json](../../../.impeccable/review/release-v0.2.1/published/published-install-result.json)。
+
+Windows 11 x64 / PowerShell 7.6.5 / 固定 WebView2 151.0.4129.78 上，使用隔离 SQLite、命名管道和虚构任务运行安装后的真实 exe，`node scripts/verify-task-status.mjs --mixed-only` 的 8 项原生检查全部通过；脚本 `732f7f2`，原生桥最终修订 `b1a1fb7`。检查包括额度切换时混排、取消、等待、未知、项目 URI、报错移除与重启、溢出、故障隔离恢复、重启残留拦截和 30 分钟过期，详见 [native-result.json](../../../.impeccable/review/release-v0.2.1/published/native-result.json)。
+
+最终从普通桌面快捷方式启动，版本 0.2.1，驾驶舱与 4 个任务 / 2 个运行圈可见；6 个 WebView2 子进程全部使用 `%LOCALAPPDATA%\QuoDex\webview2-runtime`，相邻 Codex CLI 存在：[启动记录](../../../.impeccable/review/release-v0.2.1/published/published-startup-summary.json) / [运行时记录](../../../.impeccable/review/release-v0.2.1/published/runtime-check.json)。用户真实标题未进入提交。
+
+正式包截图与批准的 V6 对照：[ZCode 额度混排](../../../.impeccable/review/release-v0.2.1/published/mixed-zcode-quota-windows.png) 保持透明单行、粗水流和圈内勾 / `10m`；[溢出](../../../.impeccable/review/release-v0.2.1/published/mixed-overflow-windows.png) 为九圈加省略号；[项目详情](../../../.impeccable/review/release-v0.2.1/published/project-details-windows.png) 与[空任务高度](../../../.impeccable/review/release-v0.2.1/published/mixed-empty-windows.png) 通过原生断言。渲染代码未改，动效与窄条的完整证据沿用下方已验证记录。截图数据为虚构夹具。
+
+补充复测曾出现鼠标已移到报错圈、详情仍保留先前完成任务的情况；保存失败截图后，在激活窗口后等待 300ms 并重新读取按钮坐标，诊断脚本与移除探针后的正式脚本均通过全部 8 项检查。修订只在测试桥，未修改发布产品、注入 UI 状态或删除断言。复现留在忽略目录 `.scratch/release-v0.2.1/`。
+
+旧 0.2.0 应用已停止、快捷方式已替换；纯应用目录核对后移出 `release`，归档到 `.scratch/retired-apps/QuoDex-0.2.0-win-x64`。永久删除被自动审批拒绝，归档副本仍在磁盘，用户配置未删除。macOS 只完成 CI 构建测试，真实 ZCode 活动 / 等待与项目窗口跳转仍待用户使用验收；不得扩大为所有平台与真实状态旅程均已验证。
+
+## 发布前安装包验证记录（2026-10-02）
+
+以下是正式 CI 包发布前的本地安装验证，当前最终安装包见上方。本地安装包构建来源 `678d510`，原生验证脚本 `732f7f2`。Windows 11 x64 / PowerShell 7.6.5，固定 WebView2 151.0.4129.78。安装产物为 `release/QuoDex-0.2.1-win-x64-setup.exe`，300331600 bytes，SHA256 `f7b683dd594ccdc0409048fdd2efabc39c2a6b3aa590e4782a13b15d58c77ef5`；当时安装的 exe SHA256 `6e2a15466bb7cfbe1251430ae35a72b9b7ebf6a1307f777450fcc703104fb78c`。
 
 | 执行步骤 | 实际结果与证据 |
 | --- | --- |

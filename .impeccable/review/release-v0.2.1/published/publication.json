@@ -1,0 +1,10 @@
+{
+  "tag": "v0.2.1",
+  "releaseUrl": "https://github.com/bandit0x/QuoDex/releases/tag/v0.2.1",
+  "sourceCommit": "0bdf0c603c7c065841724d4e6430f89ecb4ea86f",
+  "ciConclusion": "success",
+  "ciUrl": "https://github.com/bandit0x/QuoDex/actions/runs/37019826766",
+  "downloadMatchesGitHubDigest": true,
+  "installerSha256": "47c6968ad8b6475dca05d09c5f3b526cbb86e10f8ef1a4c50f29119085076799",
+  "installerBytes": 300303110
+}
