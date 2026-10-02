@@ -1,7 +1,7 @@
 {
   "revision": "V5 deforming water edge",
-  "status": "Not built",
-  "approval": "pending",
+  "status": "Implemented",
+  "approval": "approved by user on 2026-10-02; native implementation awaiting verification",
   "productSource": "2c9e8cd (product implementation 262dc77)",
   "logicalCircleDiameter": 20.4,
   "logicalBorderWidth": 1.2,

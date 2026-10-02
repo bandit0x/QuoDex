@@ -30,31 +30,34 @@
 .task-circle {
   position: relative;
   display: flex;
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
+  flex: 0 0 40.8px;
+  width: 40.8px;
+  height: 40.8px;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  border: 2px solid currentColor;
+  border: 2.4px solid currentColor;
   border-radius: 50%;
   background: rgba(3, 15, 22, .75);
   color: var(--cyan);
   box-shadow: 0 3px 7px rgba(0, 4, 10, .4);
 }
-.task-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.task-circle--completed { color: #65edb8; gap: 0; }
-.task-circle--completed svg { width: 24px; height: 21px; }
-.task-circle--completed small { font-size: 17px; line-height: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.task-circle svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.task-circle--completed { color: #65edb8; border: 0; background: transparent; }
+.task-circle--completed svg { width: 40.8px; height: 40.8px; }
+.task-circle--completed circle { fill: #071723; stroke-width: 2.4; }
+.task-circle--completed path { stroke-width: 2.8; }
+.task-circle--completed text { fill: currentColor; stroke: none; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .task-circle--waiting { color: #ffd27a; }
 .task-circle--failed { color: #ff897e; }
 .task-circle--unknown { color: #c4d6e1; border-style: dashed; }
-.task-circle--running { animation: task-breathe 1.4s ease-in-out infinite; }
-.task-circle svg.task-running-arc { position: absolute; inset: -2px; width: 48px; height: 48px; stroke-width: 3.5; animation: task-orbit 3s linear infinite; }
+.task-circle--running { border: 0; background: transparent; }
+.task-water-flow { display: block; width: 40.8px; height: 40.8px; border-radius: 50%; animation: task-breathe 2.8s ease-in-out infinite; }
+.task-water-flow:not([data-flow-ready="true"]) { border: 2.4px solid #50d8ff; background: #071723; }
 .task-button:hover .task-circle,
 .task-button:focus-visible .task-circle { background: rgba(13, 37, 48, .95); }
-.task-overflow-button { font-size: 30px; line-height: 1; letter-spacing: 1px; background: rgba(3, 15, 22, .75); width: 48px; height: 48px; flex-basis: 48px; margin: 0 3px; }
-.task-overflow-button--active { animation: task-breathe 1.4s ease-in-out infinite; }
+.task-overflow-indicator { display: grid; place-items: center; width: 40.8px; height: 40.8px; border-radius: 50%; font-size: 25.5px; line-height: 1; letter-spacing: 1px; background: rgba(3, 15, 22, .75); }
+.task-overflow-button--active .task-overflow-indicator { animation: task-breathe 2.8s ease-in-out infinite; }
 .task-popover {
   position: absolute;
   z-index: 26;
@@ -83,7 +86,7 @@
 .task-list-entry { display: flex; gap: 18px; align-items: center; padding: 8px 2px; width: 100%; border: 0; border-radius: 8px; text-align: left; color: #edfaff; background: transparent; }
 .task-list-entry:hover { background: #183543; }
 .task-list-entry > span:last-child { min-width: 0; overflow-wrap: anywhere; }
-.task-list-entry small { display: block; font-size: 18px; line-height: 1.4; color: #b9d9e7; }
+.task-list-entry > span:last-child > small { display: block; font-size: 18px; line-height: 1.4; color: #b9d9e7; }
 .task-source-diagnostic { position: absolute; z-index: 22; top: calc(22px + var(--task-popover-space, 0px)); left: 28px; right: 28px; font-size: 20px; text-align: center; color: #ffd5ce; }
 .app-frame--has-tasks { padding-top: calc(22px + 72px + var(--task-popover-space, 0px)); }
 .app-frame--collapsed.app-frame--has-tasks { padding-top: calc(8px + 72px + var(--task-popover-space, 0px)); }
@@ -91,9 +94,11 @@
 .app-frame--settings-below.app-frame--has-tasks { padding-bottom: 338px; }
 .app-frame--compact.app-frame--settings-below.app-frame--has-tasks .settings-popover { top: 344px; }
 .app-frame--expanded.app-frame--settings-below.app-frame--has-tasks .settings-popover { top: 404px; }
-@keyframes task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-@keyframes task-orbit { to { transform: rotate(360deg); } }
-.reduce-motion .task-circle--running,
-.reduce-motion .task-overflow-button--active { animation: task-breathe-subtle 1.4s ease-in-out infinite !important; }
-.reduce-motion .task-circle svg.task-running-arc { animation: none !important; }
-@keyframes task-breathe-subtle { 0%,100% { opacity: 1; } 50% { opacity: .78; } }
+@keyframes task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } }
+.task-water-flow[data-flow-reduced="true"],
+.reduce-motion .task-overflow-button--active .task-overflow-indicator { animation: task-breathe-subtle 2.8s ease-in-out infinite !important; }
+.task-water-flow[data-flow-paused="true"] { animation-play-state: paused !important; }
+@keyframes task-breathe-subtle { 0%,100% { opacity: 1; } 50% { opacity: .86; } }
+@media (prefers-reduced-motion: reduce) {
+  .task-water-flow, .task-overflow-button--active .task-overflow-indicator { animation: task-breathe-subtle 2.8s ease-in-out infinite !important; }
+}

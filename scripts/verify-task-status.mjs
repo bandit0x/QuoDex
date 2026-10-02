@@ -8,7 +8,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
 const executable = path.resolve(process.env.QUODEX_EXECUTABLE || "src-tauri/target/release/codex-credits-view.exe");
-const output = path.resolve(".impeccable/review/task-status");
+const output = path.resolve(process.env.QUODEX_TASK_REVIEW_DIR || ".impeccable/review/task-status");
 await mkdir(output, { recursive: true });
 await mkdir(".scratch", { recursive: true });
 const root = await mkdtemp(path.resolve(".scratch/task-status-native-"));
@@ -125,6 +125,8 @@ async function settingsRoundTrip() {
   await button("收起重置详情"); await dimensions(166);
 }
 const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background"})).toString("base64")],{windowsHide:true});
+const shortcutBackup = path.join(root,"original-QuoDex.lnk");
+const shortcut = bridge("shortcut",{action:"save",backup:shortcutBackup});
 try {
   setChats(["running", "running", "completed"]); await start();
   if(process.argv.includes("--layout-only")) {
@@ -146,10 +148,10 @@ try {
   assert.equal(bridge("read").buttons.filter(name => name.endsWith("运行中")).length,2);
   await dimensions(166); await capture("compact-daily-windows");
   checks.push("native release startup, two active chats and actual persisted ten-minute finish; 300x166 window");
-  const pulse=bridge("pulse",{name:"整理项目文档 · 运行中",path:output}).pulse;
+  const pulse=bridge("pulse",{name:"整理项目文档 · 运行中",path:output,samples:61,saveAll:true}).pulse;
   assert(Math.max(...pulse.map(frame=>frame.greenMean))-Math.min(...pulse.map(frame=>frame.greenMean))>1);
   await writeFile(path.join(output,"pulse.json"),JSON.stringify(pulse,null,2));
-  checks.push("native running-circle pixels change across a complete pulse period; measured frame times in pulse.json");
+  checks.push("native water pixels change across multiple 2.8-second breaths and changing waves; measured frame times in pulse.json and flow frames");
   await button("整理项目文档 · 运行中", "hover"); await dimensions(326); await capture("hover-windows");
   bridge("escape"); await dimensions(166);
   setChats(["waiting", "failed", "unknown"]);
@@ -167,6 +169,11 @@ try {
   assert.equal(bridge("read").buttons.filter(name => name.includes("已完成 ·")).length,13);
   bridge("escape"); await dimensions(166);
   checks.push("ten slots; nine + ellipsis; four remaining native list buttons");
+  setChats(Array(13).fill("completed"),29); await button("其余 4 个聊天"); await dimensions(326); await capture("overflow-29m-windows");
+  bridge("escape"); await dimensions(166);
+  setChats(["completed"],0); await waitFor(data=>data.buttons.some(name=>name.endsWith("0 分钟前")),"0m"); await capture("age-0m-windows");
+  setChats(Array(10).fill("running")); await waitFor(data=>data.buttons.filter(name=>name.endsWith("运行中")).length===10,"ten running circles"); await capture("ten-running-windows");
+  checks.push("0m and overflow29m native layouts; ten simultaneous water circles");
   await button("展开重置详情"); await dimensions(196);
   await button("收起为窄条"); await dimensions(84); await capture("narrow-windows");
   await button("恢复标准视图"); await dimensions(166);
@@ -193,5 +200,5 @@ try {
   const result = {status:"Verified",executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),environment:"Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",checks,screenshots,errors,methods:[...methods],limitations:["Fixture does not prove live Desktop waiting requests or chat navigation."]};
   await writeFile(path.join(output,"result.json"),JSON.stringify(result,null,2)); console.log(JSON.stringify(result));
 } finally {
-  await stop(); background.kill(); for(const socket of connections)socket.destroy(); await new Promise(resolve=>server.close(resolve)); state.close();history.close();
+  await stop(); bridge("shortcut",{action:"restore",backup:shortcutBackup,existed:shortcut.exists,executable}); background.kill(); for(const socket of connections)socket.destroy(); await new Promise(resolve=>server.close(resolve)); state.close();history.close();
 }

@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import "./TaskStatusStrip.css";
 import type { ChatTask } from "./taskStatusTypes";
 import { isOverlayTaskPointerInside } from "./windowClient";
+import { TaskWaterFlow } from "./TaskWaterFlow";
 
 interface TaskStatusStripProps {
   tasks: ChatTask[];
   now: number;
   capacity: number;
+  reducedMotion?: boolean;
   onOpen: (task: ChatTask) => void;
   onDismiss: (task: ChatTask) => void;
   onPopoverChange: (open: boolean) => void;
@@ -26,11 +28,11 @@ export function visibleChatTasks(tasks: ChatTask[], now: number): ChatTask[] {
   });
 }
 
-function TaskCircle({ task, now }: { task: ChatTask; now: number }) {
+function TaskCircle({ task, now, reducedMotion }: { task: ChatTask; now: number; reducedMotion: boolean }) {
   const minutes = task.completedAtMs === null ? null : Math.max(0, Math.floor((now - task.completedAtMs) / 60_000));
   return <span className={`task-circle task-circle--${task.state}`} aria-hidden="true">
-    {task.state === "completed" && <><svg data-check viewBox="0 0 24 24"><path d="m5 12 4 4 10-10" /></svg><small>{minutes}m</small></>}
-    {task.state === "running" && <svg className="task-running-arc" viewBox="0 0 48 48"><path d="M24 3a21 21 0 0 1 21 21" /></svg>}
+    {task.state === "completed" && <svg data-check viewBox="0 0 40.8 40.8"><circle cx="20.4" cy="20.4" r="19.2" /><path d="m5 12 4 4 10-10" transform="translate(10.8 3.5) scale(.8)" /><text x="20.4" y="29.8" textAnchor="middle">{minutes}m</text></svg>}
+    {task.state === "running" && <TaskWaterFlow chatId={task.id} reducedMotion={reducedMotion} />}
     {task.state === "waiting" && <svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></svg>}
     {task.state === "failed" && <svg viewBox="0 0 24 24"><path d="M12 4v10m0 4v2" /></svg>}
     {task.state === "unknown" && <svg viewBox="0 0 24 24"><path d="M8 8a4 4 0 1 1 7 3c-2 1-3 2-3 4m0 3v2" /></svg>}
@@ -41,7 +43,7 @@ function taskLabel(task: ChatTask, now: number): string {
   return `${task.title} · ${stateLabels[task.state]}${task.state === "completed" && task.completedAtMs !== null ? ` · ${Math.max(0, Math.floor((now - task.completedAtMs) / 60_000))} 分钟前` : ""}`;
 }
 
-export function TaskStatusStrip({ tasks, now, capacity, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
+export function TaskStatusStrip({ tasks, now, capacity, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const closeTimer = useRef<number | null>(null);
@@ -80,9 +82,9 @@ export function TaskStatusStrip({ tasks, now, capacity, onOpen, onDismiss, onPop
       {shown.map(task => <button key={task.id} type="button" className="task-button"
         aria-label={taskLabel(task, now)} onMouseEnter={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }}
         onFocus={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }} onBlur={scheduleClose}
-        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} /></button>)}
+        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /></button>)}
       {hidden.length > 0 && <button type="button" className={`task-button task-overflow-button${hidden.some(task => task.state === "running") ? " task-overflow-button--active" : ""}`} aria-label={`其余 ${hidden.length} 个聊天`}
-        aria-expanded={overflowOpen} onMouseEnter={() => { cancelClose(); setHoverId(null); }} onClick={() => { cancelClose(); setHoverId(null); setOverflowOpen(!overflowOpen); }}>...</button>}
+        aria-expanded={overflowOpen} onMouseEnter={() => { cancelClose(); setHoverId(null); }} onClick={() => { cancelClose(); setHoverId(null); setOverflowOpen(!overflowOpen); }}><span className="task-overflow-indicator">...</span></button>}
     </section>
     {isOpen && <aside className="task-popover" role="dialog" aria-label={overflowOpen ? "其余聊天" : "聊天详情"} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
       {hovered && !overflowOpen && <div className="task-details"><strong>{hovered.title}</strong><span>{taskLabel(hovered, now).slice(hovered.title.length + 3)}</span>
@@ -91,7 +93,7 @@ export function TaskStatusStrip({ tasks, now, capacity, onOpen, onDismiss, onPop
         <small>点击圆圈打开聊天</small></div>}
       {overflowOpen && <div className="task-list">
       {hidden.map(task => <button type="button" className="task-list-entry" key={task.id} aria-label={taskLabel(task, now)}
-        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} /><span>{task.title}<small>{stateLabels[task.state]}</small></span></button>)}
+        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /><span>{task.title}<small>{stateLabels[task.state]}</small></span></button>)}
       </div>}
     </aside>}
   </>;

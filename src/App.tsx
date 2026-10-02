@@ -959,7 +959,7 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
-      <TaskStatusStrip key={settingsOpen ? "settings" : "tasks"} tasks={tasks} now={taskStatus.now} capacity={visibleLayout === "collapsed" ? 9 : 10} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={setTaskPopoverOpen} />
+      <TaskStatusStrip key={settingsOpen ? "settings" : "tasks"} tasks={tasks} now={taskStatus.now} capacity={visibleLayout === "collapsed" ? 9 : 10} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={setTaskPopoverOpen} />
       {tasks.length === 0 && taskStatus.snapshot.diagnostic && <span className="task-source-diagnostic" role="status" title={taskStatus.snapshot.diagnostic.message}>{taskStatus.snapshot.diagnostic.code === "QDT-600" ? "正在读取任务" : "任务状态不可用"} · {taskStatus.snapshot.diagnostic.code}</span>}
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell

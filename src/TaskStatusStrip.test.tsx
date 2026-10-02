@@ -6,6 +6,56 @@ const now = 1_800_000_000_000;
 const success = { id: "chat-1", turnId: "turn-1", title: "整理文档", state: "completed" as const, completedAtMs: now - 600_000, detail: null };
 
 describe("approved chat task indicators", () => {
+  it("paints changing water pixels while running and freezes spatial motion for reduced motion", () => {
+    const frames: Uint8ClampedArray[] = [];
+    const context = {
+      createImageData: (width: number, height: number) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }),
+      putImageData: (image: ImageData) => frames.push(image.data.slice()),
+    };
+    const contextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    const boundsSpy = vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 20.4 } as DOMRect);
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextId = 0;
+    const requestSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { callbacks.set(++nextId, callback); return nextId; });
+    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(id => { callbacks.delete(id); });
+    const props = { now, capacity: 10, onOpen: vi.fn(), onDismiss: vi.fn(), onPopoverChange: vi.fn() };
+    const running = { ...success, state: "running" as const, completedAtMs: null };
+    const { rerender, unmount } = render(<TaskStatusStrip {...props} tasks={[running]} />);
+    try {
+      expect(frames).toHaveLength(1);
+      expect(callbacks.size).toBe(1);
+      const initial = frames[0];
+      act(() => {
+        const callback = [...callbacks.values()][0]; callbacks.clear();
+        callback(performance.now() + 250);
+      });
+      expect(frames[frames.length - 1]).not.toEqual(initial);
+      rerender(<TaskStatusStrip {...props} tasks={[running]} reducedMotion />);
+      expect(callbacks.size).toBe(0);
+      const stationary = frames[frames.length - 1];
+      rerender(<TaskStatusStrip {...props} tasks={[running]} reducedMotion />);
+      expect(frames[frames.length - 1]).toEqual(stationary);
+      rerender(<TaskStatusStrip {...props} tasks={[running]} reducedMotion={false} />);
+      expect(callbacks.size).toBe(1);
+      unmount();
+      expect(callbacks.size).toBe(0);
+    } finally {
+      unmount(); contextSpy.mockRestore(); boundsSpy.mockRestore(); requestSpy.mockRestore(); cancelSpy.mockRestore();
+    }
+  });
+  it("replaces running water motion with the completed check and time when that chat finishes", () => {
+    const running = { ...success, state: "running" as const, completedAtMs: null };
+    const props = { now, capacity: 10, onOpen: vi.fn(), onDismiss: vi.fn(), onPopoverChange: vi.fn() };
+    const { rerender } = render(<TaskStatusStrip {...props} tasks={[running]} />);
+    const button = screen.getByRole("button", { name: "整理文档 · 运行中" });
+    expect(button.querySelector("canvas")).not.toBeNull();
+    expect(within(button).queryByText("10m")).toBeNull();
+    rerender(<TaskStatusStrip {...props} tasks={[success]} />);
+    const completed = screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" });
+    expect(completed.querySelector("canvas")).toBeNull();
+    expect(within(completed).getByText("10m")).toBeInTheDocument();
+    expect(completed.querySelector("svg[data-check]")).not.toBeNull();
+  });
   it("expires a previously completed chat even when its source becomes unknown", () => {
     const task = { ...success, state: "unknown" as const, expiresAtMs: now + 1_200_000 };
     const { rerender } = render(<TaskStatusStrip tasks={[task]} now={now + 1_199_999} capacity={10} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);

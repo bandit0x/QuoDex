@@ -3,6 +3,22 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required' }
 $taskRequest = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($RequestBase64)) | ConvertFrom-Json
+if ($taskRequest.op -eq 'shortcut') {
+  $taskShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'QuoDex.lnk'
+  if ($taskRequest.action -eq 'save') {
+    $taskShortcutExists = Test-Path -LiteralPath $taskShortcutPath
+    if ($taskShortcutExists) { Copy-Item -LiteralPath $taskShortcutPath -Destination $taskRequest.backup }
+    @{ exists=$taskShortcutExists } | ConvertTo-Json -Compress
+  } elseif (Test-Path -LiteralPath $taskShortcutPath) {
+    $taskShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($taskShortcutPath)
+    if ($taskShortcut.TargetPath -eq $taskRequest.executable) {
+      if ($taskRequest.existed) { Copy-Item -LiteralPath $taskRequest.backup -Destination $taskShortcutPath -Force }
+      else { Remove-Item -LiteralPath $taskShortcutPath }
+    }
+    @{ restored=$true } | ConvertTo-Json -Compress
+  } else { @{ restored=$false } | ConvertTo-Json -Compress }
+  exit
+}
 if ($taskRequest.op -eq 'background') {
   Add-Type -AssemblyName System.Windows.Forms
   $taskForm = [System.Windows.Forms.Form]::new()
@@ -85,6 +101,11 @@ if($taskRequest.op -eq 'escape') {
   [QuoDexNative]::keybd_event(27,0,2,[UIntPtr]::Zero)
   [void][QuoDexNative]::SetCursorPos($taskRect.Right+10,$taskRect.Bottom+10)
 }
+if($taskRequest.op -eq 'toggle') {
+  $taskTarget = $taskElements | Where-Object { $_.Current.Name -eq $taskRequest.name -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::CheckBox } | Select-Object -First 1
+  if(!$taskTarget){ throw "Checkbox not found: $($taskRequest.name)" }
+  $taskTarget.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+}
 if($taskRequest.op -eq 'capture') {
   $taskBitmap = [System.Drawing.Bitmap]::new($taskResult.width,$taskResult.height)
   try {
@@ -97,7 +118,8 @@ if($taskRequest.op -eq 'pulse') {
   $taskTarget = $taskButtons | Where-Object { $_.Current.Name -eq $taskRequest.name } | Select-Object -First 1
   $taskBounds = $taskTarget.Current.BoundingRectangle
   $taskClock = [Diagnostics.Stopwatch]::StartNew()
-  $taskResult.pulse = @(0..14 | ForEach-Object {
+  $taskSampleCount = if ($taskRequest.samples) { [int]$taskRequest.samples } else { 15 }
+  $taskResult.pulse = @(0..($taskSampleCount-1) | ForEach-Object {
     $taskFrame = $_
     $taskBitmap = [System.Drawing.Bitmap]::new($taskResult.width,$taskResult.height)
     try {
@@ -108,6 +130,7 @@ if($taskRequest.op -eq 'pulse') {
         $taskGreen += $taskBitmap.GetPixel([int]($taskBounds.X-$taskRect.Left)+$taskX,[int]($taskBounds.Y-$taskRect.Top)+$taskY).G
       } }
       if($taskFrame -in @(0,7,14)) { $taskBitmap.Save((Join-Path $taskRequest.path "pulse-$taskFrame.png"),[System.Drawing.Imaging.ImageFormat]::Png) }
+      if($taskRequest.saveAll) { $taskBitmap.Save((Join-Path $taskRequest.path ("flow-{0:D3}.png" -f $taskFrame)),[System.Drawing.Imaging.ImageFormat]::Png) }
       @{ elapsedMs=$taskClock.ElapsedMilliseconds; greenMean=$taskGreen/($taskBounds.Width*$taskBounds.Height) }
     } finally { $taskBitmap.Dispose() }
     Start-Sleep -Milliseconds 100
