@@ -46,7 +46,7 @@ const emit = (socket, chat) => send(socket, {
   params: { hostId: "local", conversationId: chat.id, change: { type: "snapshot", revision: ++revision,
     conversationState: { id: chat.id, title: chat.title, requests: [], turns: [],
       threadRuntimeStatus: { type: ["running", "waiting", "unknown"].includes(chat.status) ? "active" : "idle", activeFlags: chat.status === "waiting" ? ["waitingOnUserInput"] : chat.status === "unknown" ? ["unsupportedFlag"] : [] },
-      turnHistory: { kind: "canonical", history: { entitiesByKey: { latest: { turnId: chat.turnId, status: ["running", "waiting"].includes(chat.status) ? "inProgress" : chat.status === "cancelled" ? "interrupted" : chat.status, turnStartedAtMs: chat.started * 1000 } }, islands: [] } },
+      turnHistory: { kind: "canonical", history: { entitiesByKey: { latest: { turnId: chat.turnId, status: ["running", "waiting"].includes(chat.status) ? "inProgress" : chat.status === "cancelled" ? "interrupted" : chat.status, turnStartedAtMs: chat.started * 1000, durationMs: ["completed","failed"].includes(chat.status) ? (chat.ended-chat.started)*1000 : null } }, islands: [] } },
     },
   } },
 });
@@ -79,7 +79,7 @@ function setChats(statuses, age = 10) {
   chats = statuses.map((status, index) => {
     const id = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
     const ended = seconds - age * 60;
-    const chat = { id, title: ["整理项目文档", "修复窗口布局", "更新发布说明"][index] || `示例聊天 ${index + 1}`, turnId: `turn-${index}`, status, started: ended - 60 };
+    const chat = { id, title: ["整理项目文档", "修复窗口布局", "更新发布说明"][index] || `示例聊天 ${index + 1}`, turnId: `turn-${index}`, status, started: ended - 60, ended };
     state.prepare("INSERT INTO threads VALUES(?,?,'vscode','Codex Desktop',0,?)").run(id, chat.title, seconds);
     history.prepare("INSERT INTO thread_turns VALUES(?,?,?,?,?,?,1)").run(id, chat.turnId, status === "cancelled" ? "interrupted" : status, chat.started, ["completed", "failed"].includes(status) ? ended : null, status === "failed" ? JSON.stringify({ message: "示例网络超时；请打开聊天重试" }) : null);
     return chat;
@@ -174,42 +174,72 @@ try {
   let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
   assert(ready?.visible,"native test backdrop is visible before capturing windows");
   setChats(["running", "running", "completed"]); await start();
-  if(process.argv.includes("--mixed-only")) {
+  if(process.argv.includes("--repair-only")) {
+    await stop();
+    await writeFile(path.join(home,".codex-global-state.json"),JSON.stringify({
+      "thread-project-assignments":Object.fromEntries(Array.from({length:13},(_,i)=>[`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`,{projectKind:"local",projectId:"example"}])),
+      "local-projects":{example:{name:"QuoDex-v0.2.1",rootPaths:["D:/fictional/QuoDex"]}}
+    }));
+    setChats(["running"]); await start();
+    await button("QuoDex-v0.2.1：整理项目文档 · 运行中","hover"); await dimensions(326);
+    assert(bridge("read").names.includes("QuoDex-v0.2.1：整理项目文档"));
+    await capture("project-running-hover-windows"); bridge("escape");
+    checks.push("saved application project name qualifies native hover and accessible circle title");
+    setChats(["waiting"]);
+    await waitFor(data=>data.buttons.includes("QuoDex-v0.2.1：整理项目文档 · 等待你操作"),"waiting after active");
+    await capture("project-waiting-windows");
+    checks.push("same chat changes from running to waiting without losing project label");
+    await stop(); setChats(["completed"]);
+    history.exec("UPDATE thread_turns SET turn_id='old-turn',status='interrupted',started_at=1,completed_at=2;");
+    await start();
+    await button("QuoDex-v0.2.1：整理项目文档 · 已完成 · 10 分钟前","hover"); await dimensions(326);
+    await capture("project-completed-stale-history-windows"); bridge("escape");
+    checks.push("new canonical completed turn wins over different interrupted persisted turn; native check and 10m shown");
+    setChats(Array(13).fill("completed"));
+    await button("其余 4 个聊天"); await dimensions(326); await capture("project-overflow-windows");
+    assert(bridge("read").buttons.includes("QuoDex-v0.2.1：示例聊天 13 · 已完成 · 10 分钟前"));
+    bridge("escape"); checks.push("qualified titles and completion age remain readable in native overflow list");
+    setChats(["completed"],31); await dimensions(130);
+    await capture("project-expired-windows"); checks.push("canonical success older than 30 minutes disappears");
+    setChats(["failed"]); await button("QuoDex-v0.2.1：整理项目文档 · 执行报错","hover"); await dimensions(326);
+    await capture("project-failed-windows"); await button("移除提醒"); bridge("escape"); await dimensions(130);
+    checks.push("qualified failure reminder can be removed through native app command");
+  } else if(process.argv.includes("--mixed-only")) {
     // OS-shaped runtime fixture; never claim this is a real ZCode execution.
     const runtimeExe=path.join(root,"ZCode.exe");await copyFile(process.execPath,runtimeExe);
     zcodeRuntime=spawn(runtimeExe,["-e","setInterval(()=>{},1000)"],{windowsHide:true});await pause(250);
     setChats(["running","completed"]);await setZcodeChats(["running","completed","waiting","failed","permission","cancelled"]);
-    await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中")&&data.buttons.includes("项目任务 3 · 等待你操作"),"mixed source tasks");
+    await waitFor(data=>data.buttons.includes("示例 项目 1：项目任务 1 · 运行中")&&data.buttons.includes("示例 项目 3：项目任务 3 · 等待你操作"),"mixed source tasks");
     assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));
-    assert(!bridge("read").buttons.some(name=>name.startsWith("项目任务 6")));
+    assert(!bridge("read").buttons.some(name=>name.startsWith("示例 项目 6：项目任务 6")));
     await dimensions(166);await capture("mixed-codex-quota-windows");
     await button("展开重置详情");await dimensions(196);await button("设置");await dimensions(356);
     await button("Zcode");await button("关闭设置");await dimensions(196);await button("收起重置详情");await dimensions(166);
     await waitFor(data=>data.names.includes("ZCODE"),"ZCode quota selected");
-    assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));assert(bridge("read").buttons.includes("项目任务 1 · 运行中"));
+    assert(bridge("read").buttons.includes("整理项目文档 · 运行中"));assert(bridge("read").buttons.includes("示例 项目 1：项目任务 1 · 运行中"));
     await capture("mixed-zcode-quota-windows");checks.push("both applications mixed under both quota selections; cancellation removed; waiting question and unknown permission shown");
-    await button("项目任务 2 · 已完成 · 10 分钟前","hover");await dimensions(326);await capture("project-details-windows");
+    await button("示例 项目 2：项目任务 2 · 已完成 · 10 分钟前","hover");await dimensions(326);await capture("project-details-windows");
     assert(bridge("read").names.includes("点击圆圈打开项目"));bridge("escape");await dimensions(166);
     const installed=protocol("install");projectProtocolInstalled=installed.installed;assert(projectProtocolInstalled);
-    await button("项目任务 2 · 已完成 · 10 分钟前");
+    await button("示例 项目 2：项目任务 2 · 已完成 · 10 分钟前");
     let launched;for(let attempt=0;attempt<30;attempt++){try{launched=JSON.parse(await readFile(path.join(root,"project-launch.json"),"utf8"));break;}catch{await pause(150);}}
     assert(launched,"native project dispatch delivered");const url=new URL(launched.url);assert.equal(url.protocol,"zcode:");assert.equal(url.hostname,"workspace");assert.equal(url.searchParams.get("path"),path.join(root,"示例 项目 2"));
     await writeFile(path.join(output,"project-dispatch.json"),JSON.stringify({protocol:url.protocol,host:url.hostname,path:url.pathname,ownedProjectDecodedCorrectly:true},null,2));
     assert(protocol("restore").restored);projectProtocolInstalled=false;checks.push("real native circle click reaches OS protocol handler with correctly encoded owned project path; handler restored");
-    await button("项目任务 4 · 执行报错","hover");await dimensions(326);await button("移除提醒");bridge("escape");await waitFor(data=>!data.buttons.includes("项目任务 4 · 执行报错"),"failure reminder removed");
-    await stop();await start();assert(!bridge("read").buttons.includes("项目任务 4 · 执行报错"));checks.push("ZCode failure reminder dismisses through shared command and stays dismissed across restart");
+    await button("示例 项目 4：项目任务 4 · 执行报错","hover");await dimensions(326);await button("移除提醒");bridge("escape");await waitFor(data=>!data.buttons.includes("示例 项目 4：项目任务 4 · 执行报错"),"failure reminder removed");
+    await stop();await start();assert(!bridge("read").buttons.includes("示例 项目 4：项目任务 4 · 执行报错"));checks.push("ZCode failure reminder dismisses through shared command and stays dismissed across restart");
     setChats(Array(5).fill("running"));await setZcodeChats(Array(8).fill("completed"));await button("其余 4 个聊天");await dimensions(326);await capture("mixed-overflow-windows");
     assert.equal(bridge("read").buttons.filter(name=>name.includes("分钟前")).length,8);bridge("escape");checks.push("mixed 13 chats use nine circles plus ellipsis; all remaining ZCode entries accessible");
-    setChats(["running"]);await setZcodeChats(["running"]);await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode running before Codex loss");for(const socket of connections)socket.destroy();
-    await waitFor(data=>!data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("项目任务 1 · 运行中"),"Codex failure isolated");await capture("codex-disconnected-zcode-running-windows");checks.push("Codex disconnect never invalidates ZCode execution");
-    zcodeAgent.exec("ALTER TABLE turn_usage RENAME TO unavailable;");await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"ZCode schema loss unknown");zcodeAgent.exec("ALTER TABLE unavailable RENAME TO turn_usage;");await waitFor(data=>data.buttons.includes("项目任务 1 · 运行中"),"ZCode recovers");checks.push("ZCode source failure invalidates only its source and recovers");
+    setChats(["running"]);await setZcodeChats(["running"]);await waitFor(data=>data.buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"ZCode running before Codex loss");for(const socket of connections)socket.destroy();
+    await waitFor(data=>!data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"Codex failure isolated");await capture("codex-disconnected-zcode-running-windows");checks.push("Codex disconnect never invalidates ZCode execution");
+    zcodeAgent.exec("ALTER TABLE turn_usage RENAME TO unavailable;");await waitFor(data=>data.buttons.includes("示例 项目 1：项目任务 1 · 状态未知"),"ZCode schema loss unknown");zcodeAgent.exec("ALTER TABLE unavailable RENAME TO turn_usage;");await waitFor(data=>data.buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"ZCode recovers");checks.push("ZCode source failure invalidates only its source and recovers");
     zcodeRuntime.kill();await new Promise(resolve=>zcodeRuntime.once("exit",resolve));zcodeRuntime=null;
     const survivingZcode=Number(execFileSync(pwsh,["-NoProfile","-Command","@(Get-Process -Name ZCode -ErrorAction SilentlyContinue).Count"],{encoding:"utf8",windowsHide:true}).trim());
     if(survivingZcode>0) {
-      assert(bridge("read").buttons.includes("项目任务 1 · 运行中"),"surviving real runtime still validates a current journal");
+      assert(bridge("read").buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"surviving real runtime still validates a current journal");
       zcodeAgent.exec("UPDATE turn_usage SET started_at=0;");
     }
-    await waitFor(data=>data.buttons.includes("项目任务 1 · 状态未知"),"stopped or restarted ZCode runtime unknown");
+    await waitFor(data=>data.buttons.includes("示例 项目 1：项目任务 1 · 状态未知"),"stopped or restarted ZCode runtime unknown");
     checks.push(survivingZcode>0 ? "existing ZCode kept running; stale journal predating surviving runtime stops water animation" : "OS runtime disappearance stops ZCode water animation");
     setChats([]);await setZcodeChats(["completed"],30);await dimensions(130);await capture("mixed-empty-windows");checks.push("expired ZCode success restores original cockpit height");
   } else if(process.argv.includes("--layout-only")) {

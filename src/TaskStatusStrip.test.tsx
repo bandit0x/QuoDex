@@ -6,6 +6,23 @@ const now = 1_800_000_000_000;
 const success = { id: "chat-1", turnId: "turn-1", title: "整理文档", state: "completed" as const, completedAtMs: now - 600_000, detail: null };
 
 describe("approved chat task indicators", () => {
+  it("qualifies hover and overflow titles without changing circle content or chat identity", () => {
+    const tasks = Array.from({ length: 3 }, (_, i) => ({ ...success, id: `project-chat-${i}`, projectName: "QuoDex-v0.2.1", title: `任务状态显示 ${i}` }));
+    const onOpen = vi.fn();
+    render(<TaskStatusStrip tasks={tasks} now={now} capacity={2} onOpen={onOpen} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
+    const circle = screen.getByRole("button", { name: "QuoDex-v0.2.1：任务状态显示 0 · 已完成 · 10 分钟前" });
+    expect(within(circle).getByText("10m")).toBeInTheDocument();
+    expect(within(circle).queryByText(/QuoDex/)).toBeNull();
+    fireEvent.mouseEnter(circle);
+    const details = screen.getByRole("dialog", { name: "聊天详情" });
+    expect(within(details).getByText("QuoDex-v0.2.1：任务状态显示 0")).toBeInTheDocument();
+    expect(within(details).getByText("已完成 · 10 分钟前")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "其余 2 个聊天" }));
+    const overflow = screen.getByRole("dialog", { name: "其余聊天" });
+    expect(within(overflow).getByText("QuoDex-v0.2.1：任务状态显示 2")).toBeInTheDocument();
+    fireEvent.click(within(overflow).getByRole("button", { name: "QuoDex-v0.2.1：任务状态显示 2 · 已完成 · 10 分钟前" }));
+    expect(onOpen).toHaveBeenCalledWith(tasks[2]);
+  });
   it("paints changing water pixels while running and freezes spatial motion for reduced motion", () => {
     const frames: Uint8ClampedArray[] = [];
     const context = {

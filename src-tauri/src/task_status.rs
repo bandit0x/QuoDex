@@ -748,9 +748,48 @@ async fn observe_desktop(
                             _ => None,
                         };
                         let stored = &candidates[id].task;
+                        if let Some(turn) = latest_turn.filter(|turn| {
+                            state["threadRuntimeStatus"]["type"] == "idle"
+                                && matches!(turn["status"].as_str(), Some("completed" | "failed"))
+                        }) {
+                            // Desktop can own a newer turn than the persisted history projection.
+                            task.state = if turn["status"] == "failed" {
+                                TaskState::Failed
+                            } else {
+                                TaskState::Completed
+                            };
+                            task.completed_at_ms = turn["turnStartedAtMs"]
+                                .as_u64()
+                                .zip(turn["durationMs"].as_u64())
+                                .and_then(|(started, duration)| started.checked_add(duration))
+                                .filter(|ended| *ended <= now_ms());
+                            task.expires_at_ms = if task.state == TaskState::Completed {
+                                task.completed_at_ms
+                                    .and_then(|ended| ended.checked_add(1_800_000))
+                            } else {
+                                None
+                            };
+                            task.detail = if task.state == TaskState::Failed {
+                                Some(format!(
+                                    "{} · QDT-610",
+                                    turn["error"]["message"]
+                                        .as_str()
+                                        .map(|message| message
+                                            .chars()
+                                            .take(240)
+                                            .collect::<String>())
+                                        .unwrap_or_else(
+                                            || "本轮执行失败；打开聊天查看原因并重试".into()
+                                        )
+                                ))
+                            } else {
+                                None
+                            };
+                        }
                         if state["threadRuntimeStatus"]["type"] == "idle"
                             && task.turn_id == stored.turn_id
                             && matches!(stored.state, TaskState::Completed | TaskState::Failed)
+                            && task.completed_at_ms.is_none()
                         {
                             task.state = stored.state;
                             task.completed_at_ms = stored.completed_at_ms;
@@ -795,6 +834,8 @@ pub struct ChatTask {
     pub detail: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -804,6 +845,59 @@ pub struct StoredChat {
     pub updated_at: i64,
     pub cancelled: bool,
     pub desktop_origin: bool,
+}
+
+pub(crate) fn directory_name(path: &str) -> Option<String> {
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.trim().is_empty() && !name.ends_with(':'))
+        .map(str::to_owned)
+}
+
+fn project_name(metadata: &Value, id: &str, cwd: Option<&str>) -> Option<String> {
+    let projects = &metadata["local-projects"];
+    let assignment = &metadata["thread-project-assignments"][id];
+    let saved = |project: &Value| {
+        project["name"]
+            .as_str()
+            .filter(|name| !name.trim().is_empty())
+            .map(str::to_owned)
+    };
+    if assignment["projectKind"] == "local" {
+        if let Some(name) = assignment["projectId"]
+            .as_str()
+            .and_then(|id| saved(&projects[id]))
+        {
+            return Some(name);
+        }
+    }
+    let cwd = cwd?;
+    let normalize = |path: &str| path.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    let normalized = normalize(cwd);
+    let mut matched: Option<(usize, String)> = None;
+    if let Some(projects) = projects.as_object() {
+        for project in projects.values() {
+            let (Some(name), Some(roots)) = (saved(project), project["rootPaths"].as_array())
+            else {
+                continue;
+            };
+            for root in roots.iter().filter_map(Value::as_str) {
+                let root = normalize(root);
+                if !root.is_empty()
+                    && (normalized == root || normalized.starts_with(&(root.clone() + "/")))
+                    && matched
+                        .as_ref()
+                        .is_none_or(|(length, _)| root.len() > *length)
+                {
+                    matched = Some((root.len(), name.clone()));
+                }
+            }
+        }
+    }
+    matched
+        .map(|(_, name)| name)
+        .or_else(|| directory_name(cwd))
 }
 
 /// Only thread/turn metadata is read. Connections cannot create or write Codex files.
@@ -851,8 +945,23 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
         latest.insert(id, (turn, status, started, completed, error));
     }
     // Imported CLI chats can be owned by Desktop now; only an actual owner proves live scope.
-    let mut candidates = state.prepare("SELECT id,title,updated_at,COALESCE(source='vscode' AND originator='Codex Desktop',0) FROM threads
-      WHERE id NOT IN(SELECT child_thread_id FROM thread_spawn_edges) ORDER BY updated_at DESC,id ASC").map_err(|_| schema_error())?;
+    let has_cwd = state
+        .prepare("PRAGMA table_info(threads)")
+        .map_err(|_| schema_error())?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|_| schema_error())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| schema_error())?
+        .iter()
+        .any(|name| name == "cwd");
+    // Older metadata schemas have no cwd. Missing display labels must not break status reading.
+    let query = format!("SELECT id,title,updated_at,COALESCE(source='vscode' AND originator='Codex Desktop',0),{} FROM threads
+      WHERE id NOT IN(SELECT child_thread_id FROM thread_spawn_edges) ORDER BY updated_at DESC,id ASC", if has_cwd { "cwd" } else { "NULL" });
+    let mut candidates = state.prepare(&query).map_err(|_| schema_error())?;
+    let metadata = std::fs::read(home.join(".codex-global-state.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .unwrap_or(Value::Null);
     let rows = candidates
         .query_map([], |row| {
             Ok((
@@ -860,12 +969,13 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
                 row.get::<_, String>(1)?,
                 row.get::<_, i64>(2)?,
                 row.get::<_, bool>(3)?,
+                row.get::<_, Option<String>>(4)?,
             ))
         })
         .map_err(|_| schema_error())?;
     let mut result = Vec::new();
     for row in rows {
-        let (id, title, updated_at, desktop_origin) = row.map_err(|_| schema_error())?;
+        let (id, title, updated_at, desktop_origin, cwd) = row.map_err(|_| schema_error())?;
         let (turn_id, status, started, completed, error) = latest.remove(&id).unwrap_or_default();
         let completed_at_ms = completed
             .and_then(|seconds| u64::try_from(seconds).ok())
@@ -895,6 +1005,7 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
         result.push(StoredChat {
             task: ChatTask {
                 project_path: None,
+                project_name: project_name(&metadata, &id, cwd.as_deref()),
                 id,
                 turn_id,
                 title,
@@ -923,6 +1034,60 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
 mod tests {
     use super::*;
     use rusqlite::Connection;
+
+    #[test]
+    fn history_resolves_saved_project_names_then_directory_names() {
+        let root = std::env::temp_dir().join(format!("quodex-project-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let db = Connection::open(root.join("state_5.sqlite")).unwrap();
+        db.execute_batch("CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,updated_at INTEGER,cwd TEXT); CREATE TABLE thread_spawn_edges(child_thread_id TEXT);
+          INSERT INTO threads VALUES('assigned','任务状态显示','vscode','Codex Desktop',1,'D:/worktrees/copy');
+          INSERT INTO threads VALUES('rooted','嵌套任务','vscode','Codex Desktop',1,'D:/projects/quodex/src');
+          INSERT INTO threads VALUES('fallback','目录任务','vscode','Codex Desktop',1,'D:\\projects\\临时项目\\');
+          INSERT INTO threads VALUES('absent','无目录任务','vscode','Codex Desktop',1,NULL);").unwrap();
+        let history = Connection::open(root.join("thread_history_1.sqlite")).unwrap();
+        history.execute_batch("CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_json TEXT,rollout_ordinal INTEGER);").unwrap();
+        std::fs::write(root.join(".codex-global-state.json"), json!({
+            "thread-project-assignments":{"assigned":{"projectKind":"local","projectId":"demo"}},
+            "local-projects":{"demo":{"name":"QuoDex-v0.2.1","rootPaths":["D:/projects/QuoDex"]}}
+        }).to_string()).unwrap();
+        let tasks = read_task_history(&root).unwrap();
+        let name = |id: &str| {
+            tasks
+                .iter()
+                .find(|chat| chat.task.id == id)
+                .unwrap()
+                .task
+                .project_name
+                .as_deref()
+        };
+        assert_eq!(name("assigned"), Some("QuoDex-v0.2.1"));
+        assert_eq!(name("rooted"), Some("QuoDex-v0.2.1"));
+        assert_eq!(name("fallback"), Some("临时项目"));
+        assert_eq!(name("absent"), None);
+        std::fs::write(root.join(".codex-global-state.json"), "invalid").unwrap();
+        assert_eq!(
+            read_task_history(&root)
+                .unwrap()
+                .iter()
+                .find(|chat| chat.task.id == "rooted")
+                .unwrap()
+                .task
+                .project_name
+                .as_deref(),
+            Some("src")
+        );
+        drop(db);
+        drop(history);
+        for name in [
+            "state_5.sqlite",
+            "thread_history_1.sqlite",
+            ".codex-global-state.json",
+        ] {
+            std::fs::remove_file(root.join(name)).unwrap();
+        }
+        std::fs::remove_dir(root).unwrap();
+    }
 
     #[cfg(windows)]
     #[tokio::test]
@@ -1322,5 +1487,146 @@ mod tests {
             std::fs::remove_file(root.join(file)).unwrap();
         }
         std::fs::remove_dir(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn desktop_completion_overrides_a_different_stale_interrupted_history_turn() {
+        let ended = now_ms() - 600_000;
+        let snapshot = desktop_snapshot(json!({"turnId":"actual-turn","status":"completed","turnStartedAtMs":ended-60_000,"durationMs":60_000}), "idle", json!([])).await;
+        assert_eq!(snapshot.tasks[0].turn_id, "actual-turn");
+        assert_eq!(snapshot.tasks[0].state, TaskState::Completed);
+        assert_eq!(snapshot.tasks[0].completed_at_ms, Some(ended));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn desktop_terminal_and_active_states_survive_stale_history() {
+        let ended = now_ms() - 1_800_001;
+        let expired = desktop_snapshot(json!({"turnId":"actual-turn","status":"completed","turnStartedAtMs":ended-60_000,"durationMs":60_000}), "idle", json!([])).await;
+        assert!(expired.tasks.is_empty());
+        let failed = desktop_snapshot(
+            json!({"turnId":"actual-turn","status":"failed","error":{"message":"连接超时"}}),
+            "idle",
+            json!([]),
+        )
+        .await;
+        assert_eq!(failed.tasks[0].state, TaskState::Failed);
+        assert_eq!(
+            failed.tasks[0].detail.as_deref(),
+            Some("连接超时 · QDT-610")
+        );
+        assert_eq!(failed.tasks[0].expires_at_ms, None);
+        let cancelled = desktop_snapshot(
+            json!({"turnId":"actual-turn","status":"interrupted"}),
+            "idle",
+            json!([]),
+        )
+        .await;
+        assert!(cancelled.tasks.is_empty());
+        for (flags, expected) in [
+            (json!([]), TaskState::Running),
+            (json!(["waitingOnUserInput"]), TaskState::Waiting),
+            (json!(["waitingOnApproval"]), TaskState::Waiting),
+        ] {
+            let active = desktop_snapshot(
+                json!({"turnId":"actual-turn","status":"inProgress"}),
+                "active",
+                flags,
+            )
+            .await;
+            assert_eq!(active.tasks[0].state, expected);
+            assert_eq!(active.tasks[0].completed_at_ms, None);
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn desktop_completion_does_not_invent_a_missing_or_invalid_end_time() {
+        for turn in [
+            json!({"turnId":"actual-turn","status":"completed","finalAssistantStartedAtMs":now_ms()}),
+            json!({"turnId":"actual-turn","status":"completed","turnStartedAtMs":now_ms()+60_000,"durationMs":10}),
+            json!({"turnId":"actual-turn","status":"completed","turnStartedAtMs":u64::MAX,"durationMs":10}),
+        ] {
+            let snapshot = desktop_snapshot(turn, "idle", json!([])).await;
+            assert_eq!(snapshot.tasks[0].completed_at_ms, None);
+            assert_eq!(snapshot.tasks[0].expires_at_ms, None);
+        }
+    }
+
+    #[cfg(windows)]
+    async fn desktop_snapshot(turn: Value, runtime: &str, flags: Value) -> TaskStatusSnapshot {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::windows::named_pipe::ServerOptions,
+        };
+        let root = std::env::temp_dir().join(format!("quodex-terminal-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let state = Connection::open(root.join("state_5.sqlite")).unwrap();
+        state.execute_batch("CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,archived INTEGER,updated_at INTEGER); CREATE TABLE thread_spawn_edges(child_thread_id TEXT); INSERT INTO threads VALUES('sample-chat','任务状态显示','vscode','Codex Desktop',0,1800000000);").unwrap();
+        let history = Connection::open(root.join("thread_history_1.sqlite")).unwrap();
+        history.execute_batch("CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_json TEXT,rollout_ordinal INTEGER); INSERT INTO thread_turns VALUES('sample-chat','stale-turn','interrupted',1,2,NULL,1);").unwrap();
+        drop(state);
+        drop(history);
+        let runtime = runtime.to_owned();
+        let endpoint = format!(r"\\.\pipe\quodex-terminal-{}", uuid::Uuid::new_v4());
+        let server = ServerOptions::new()
+            .first_pipe_instance(true)
+            .create(&endpoint)
+            .unwrap();
+        let owner = tokio::spawn(async move {
+            server.connect().await.unwrap();
+            let mut pipe = server;
+            loop {
+                let Ok(length) = pipe.read_u32_le().await else {
+                    break;
+                };
+                let mut bytes = vec![0; length as usize];
+                if pipe.read_exact(&mut bytes).await.is_err() {
+                    break;
+                }
+                let message: Value = serde_json::from_slice(&bytes).unwrap();
+                let reply = match message["method"].as_str() {
+                    Some("initialize") => {
+                        json!({"type":"response","requestId":message["requestId"],"method":"initialize","resultType":"success","result":{"clientId":"sample-observer"}})
+                    }
+                    Some("thread-owner-discovery") => {
+                        json!({"type":"response","requestId":message["requestId"],"method":"thread-owner-discovery","resultType":"success","handledByClientId":"sample-owner"})
+                    }
+                    Some("thread-stream-following-changed")
+                        if message["params"]["following"] == true =>
+                    {
+                        json!({"type":"broadcast","method":"thread-stream-state-changed","version":11,"sourceClientId":"sample-owner","targetClientIds":["sample-observer"],"params":{"hostId":"local","conversationId":"sample-chat","change":{"type":"snapshot","revision":1,"conversationState":{"id":"sample-chat","title":"任务状态显示","requests":[],"threadRuntimeStatus":{"type":runtime,"activeFlags":flags},"turnHistory":{"kind":"canonical","history":{"entitiesByKey":{"latest":turn}}}}}}})
+                    }
+                    _ => continue,
+                };
+                let bytes = serde_json::to_vec(&reply).unwrap();
+                if pipe.write_u32_le(bytes.len() as u32).await.is_err()
+                    || pipe.write_all(&bytes).await.is_err()
+                {
+                    break;
+                }
+            }
+        });
+        let service =
+            TaskStatusService::from_paths(root.clone(), root.join("reminders.json"), endpoint);
+        let snapshot = tokio::time::timeout(Duration::from_secs(4), async {
+            loop {
+                let snapshot = service.read_snapshot();
+                if snapshot.diagnostic.is_none() {
+                    break snapshot;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        drop(service);
+        owner.await.unwrap();
+        for name in ["state_5.sqlite", "thread_history_1.sqlite"] {
+            std::fs::remove_file(root.join(name)).unwrap();
+        }
+        std::fs::remove_dir(root).unwrap();
+        snapshot
     }
 }

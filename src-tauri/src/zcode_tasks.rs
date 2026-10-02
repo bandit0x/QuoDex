@@ -325,6 +325,7 @@ pub fn read_zcode_tasks(
                 }
                 _ => None,
             },
+            project_name: crate::task_status::directory_name(&path),
             project_path: Some(path),
         });
     }
