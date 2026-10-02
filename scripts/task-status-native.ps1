@@ -87,19 +87,11 @@ if($taskRequest.op -in @('click','hover')) {
   Start-Sleep -Milliseconds 30
   [void][QuoDexNative]::SetCursorPos([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
   if($taskRequest.op -eq 'click') {
-    $taskInvoke = $null
-    $taskExpand = $null
-    if($taskTarget.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$taskInvoke)) { $taskResult.action='invoke'; $taskInvoke.Invoke() }
-    elseif($taskTarget.TryGetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern,[ref]$taskExpand)) {
-      $taskResult.action='expand-collapse'
-      if($taskExpand.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Expanded) { $taskExpand.Collapse() } else { $taskExpand.Expand() }
-    }
-    else {
-      $taskResult.action='mouse'
-      Start-Sleep -Milliseconds 70
-      [QuoDexNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
-      [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
-    }
+    # WebView's aria-expanded pattern can change without delivering React's click event.
+    $taskResult.action='mouse'
+    Start-Sleep -Milliseconds 70
+    [QuoDexNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+    [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     # A resize can place a chat under the old click position; hover is tested separately.
     if ($taskRequest.movePointerAway) { [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100) }
   } else {
