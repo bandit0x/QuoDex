@@ -1,0 +1,99 @@
+.task-strip {
+  position: absolute;
+  z-index: 22;
+  top: calc(12px + var(--task-popover-space, 0px));
+  left: 28px;
+  right: 28px;
+  height: 64px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+}
+.app-frame--collapsed .task-strip { left: 10px; right: 10px; }
+.app-frame--settings-above .task-strip { top: 332px; }
+.app-frame--settings-above .task-strip,
+.app-frame--settings-below .task-strip { pointer-events: none; }
+.task-button {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #d9eff7;
+  background: transparent;
+  cursor: pointer;
+}
+.task-circle {
+  position: relative;
+  display: flex;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: rgba(3, 15, 22, .75);
+  color: var(--cyan);
+  box-shadow: 0 3px 7px rgba(0, 4, 10, .4);
+}
+.task-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.task-circle--completed { color: #65edb8; gap: 0; }
+.task-circle--completed svg { width: 24px; height: 21px; }
+.task-circle--completed small { font-size: 17px; line-height: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.task-circle--waiting { color: #ffd27a; }
+.task-circle--failed { color: #ff897e; }
+.task-circle--unknown { color: #c4d6e1; border-style: dashed; }
+.task-circle--running { animation: task-breathe 1.4s ease-in-out infinite; }
+.task-circle svg.task-running-arc { position: absolute; inset: -2px; width: 48px; height: 48px; stroke-width: 3.5; animation: task-orbit 3s linear infinite; }
+.task-button:hover .task-circle,
+.task-button:focus-visible .task-circle { background: rgba(13, 37, 48, .95); }
+.task-overflow-button { font-size: 30px; line-height: 1; letter-spacing: 1px; background: rgba(3, 15, 22, .75); width: 48px; height: 48px; flex-basis: 48px; margin: 0 3px; }
+.task-overflow-button--active { animation: task-breathe 1.4s ease-in-out infinite; }
+.task-popover {
+  position: absolute;
+  z-index: 26;
+  left: 28px;
+  right: 28px;
+  bottom: calc(100% - var(--task-popover-space, 320px) + 4px);
+  max-height: 296px;
+  overflow: auto;
+  padding: 16px 20px;
+  border-radius: 18px;
+  color: #edfaff;
+  background: rgba(7, 19, 30, .98);
+  box-shadow: 0 8px 18px rgba(0, 5, 12, .5);
+  scrollbar-width: thin;
+  scrollbar-color: #70a4b7 #07131e;
+  font-size: 22px;
+  user-select: text;
+  cursor: default;
+}
+.task-details { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.task-details strong { font-size: 24px; }
+.task-details small { font-size: 20px; color: #b9d9e7; }
+.task-detail-reason { color: #ffd5ce; }
+.task-details button { padding: 8px 16px; border: 0; border-radius: 8px; background: #204555; color: #edfaff; justify-self: start; }
+.task-list { display: grid; gap: 4px; }
+.task-list-entry { display: flex; gap: 18px; align-items: center; padding: 8px 2px; width: 100%; border: 0; border-radius: 8px; text-align: left; color: #edfaff; background: transparent; }
+.task-list-entry:hover { background: #183543; }
+.task-list-entry > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.task-list-entry small { display: block; font-size: 18px; line-height: 1.4; color: #b9d9e7; }
+.task-source-diagnostic { position: absolute; z-index: 22; top: calc(22px + var(--task-popover-space, 0px)); left: 28px; right: 28px; font-size: 20px; text-align: center; color: #ffd5ce; }
+.app-frame--has-tasks { padding-top: calc(22px + 72px + var(--task-popover-space, 0px)); }
+.app-frame--collapsed.app-frame--has-tasks { padding-top: calc(8px + 72px + var(--task-popover-space, 0px)); }
+.app-frame--settings-above.app-frame--has-tasks { padding-top: 414px; }
+.app-frame--settings-below.app-frame--has-tasks { padding-bottom: 338px; }
+.app-frame--compact.app-frame--settings-below.app-frame--has-tasks .settings-popover { top: 344px; }
+.app-frame--expanded.app-frame--settings-below.app-frame--has-tasks .settings-popover { top: 404px; }
+@keyframes task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes task-orbit { to { transform: rotate(360deg); } }
+.reduce-motion .task-circle--running,
+.reduce-motion .task-overflow-button--active { animation: task-breathe-subtle 1.4s ease-in-out infinite !important; }
+.reduce-motion .task-circle svg.task-running-arc { animation: none !important; }
+@keyframes task-breathe-subtle { 0%,100% { opacity: 1; } 50% { opacity: .78; } }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "QuoDex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "io.github.bandit.codexmeter",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -20,7 +20,7 @@
         "minWidth": 260,
         "minHeight": 48,
         "maxWidth": 340,
-        "maxHeight": 320,
+        "maxHeight": 540,
         "center": true,
         "transparent": true,
         "decorations": false,

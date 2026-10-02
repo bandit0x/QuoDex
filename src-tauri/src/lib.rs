@@ -3,11 +3,13 @@ mod capacity;
 mod desktop_shortcut;
 mod platform;
 mod preferences;
+mod task_status;
 mod tomato_cloud;
 mod zcode_quota;
 
 use capacity::{CapacityService, CapacitySnapshot, Diagnostic};
 use preferences::{restore_window_position, DisplayPreferences, PreferencesStore};
+use task_status::{TaskStatusService, TaskStatusSnapshot};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -108,6 +110,32 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
 }
 
 #[tauri::command]
+fn read_task_status(service: State<'_, TaskStatusService>) -> TaskStatusSnapshot {
+    service.read_snapshot()
+}
+
+#[tauri::command]
+fn dismiss_task_failure(
+    service: State<'_, TaskStatusService>,
+    id: String,
+    turn_id: String,
+) -> Result<(), Diagnostic> {
+    service.dismiss_failure(&id, &turn_id)
+}
+
+#[tauri::command]
+fn open_codex_chat(id: String) -> Result<(), Diagnostic> {
+    let id = uuid::Uuid::parse_str(&id)
+        .map_err(|_| Diagnostic::new("QDT-611", "聊天标识无效；请等待状态刷新后重试"))?;
+    open::that(format!("codex://threads/{id}")).map_err(|_| {
+        Diagnostic::new(
+            "QDT-611",
+            "无法打开 Codex 聊天；请确认 Codex 桌面应用已安装并注册链接",
+        )
+    })
+}
+
+#[tauri::command]
 async fn read_capacity_snapshot(
     service: State<'_, CapacityService>,
 ) -> Result<CapacitySnapshot, Diagnostic> {
@@ -194,6 +222,7 @@ pub fn run() {
                 eprintln!("failed to create the QuoDex desktop shortcut: {error}");
             }
             let store = PreferencesStore::new(app.handle());
+            app.manage(TaskStatusService::from_environment(app.handle()));
             if let Some(window) = app.get_webview_window("main") {
                 restore_window_position(&window, &store);
             }
@@ -214,6 +243,9 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            read_task_status,
+            dismiss_task_failure,
+            open_codex_chat,
             read_capacity_snapshot,
             read_tomato_connection,
             read_zcode_quota_snapshot,

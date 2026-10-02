@@ -11,6 +11,8 @@ import type {
 } from "./capacityTypes";
 
 const inertPreferences = {
+  loadTaskStatus: async () => ({ tasks: [], observedAtMs: Date.now(), diagnostic: null }),
+  setTaskSpace: async () => undefined,
   loadPreferences: async () => ({ opacity: 0.92, reducedMotion: false, x: null, y: null }),
   savePreferences: async () => undefined,
   enableClickThrough: async () => undefined,

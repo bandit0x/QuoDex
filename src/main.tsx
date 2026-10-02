@@ -153,6 +153,8 @@ const fixtureEnabled = fixtureName !== null && visualFixtureNames.has(fixtureNam
 
 const fixtureProps: React.ComponentProps<typeof App> = fixtureEnabled
   ? {
+      loadTaskStatus: async () => ({ tasks: [], observedAtMs: Date.now(), diagnostic: null }),
+      setTaskSpace: async () => undefined,
       initialLayout: fixtureLayout,
       loadSnapshot: createFixtureLoader(fixtureName),
       loadZcodeSnapshot: createZcodeFixtureLoader(fixtureName),

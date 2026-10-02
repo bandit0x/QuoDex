@@ -36,6 +36,8 @@ const loadSnapshot = async () => {
 };
 const preferences: DisplayPreferences = {opacity:.92,reducedMotion:true,x:null,y:null,source:"codex"};
 createRoot(root).render(<App
+  loadTaskStatus={async()=>({tasks:[],observedAtMs:Date.now(),diagnostic:null})}
+  setTaskSpace={async()=>{}}
   initialLayout={layout}
   codexPresentation={{mode:query.get("mode") === "dual" ? "dual" : "pro-weekly",weeklyLow:state === "low"}}
   motionSessionSeed={.64}

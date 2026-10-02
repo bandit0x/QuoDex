@@ -1,4 +1,5 @@
-import { currentMonitor, getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
+import { currentMonitor, cursorPosition, getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
+import { isTauri } from "@tauri-apps/api/core";
 
 export type OverlayLayout = "collapsed" | "compact" | "expanded";
 
@@ -9,6 +10,24 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
 };
 
 export const SETTINGS_WINDOW_EXTRA_HEIGHT = 160;
+export const TASK_ROW_HEIGHT = 36;
+export const TASK_POPOVER_HEIGHT = 160;
+
+export async function isOverlayTaskPointerInside(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const appWindow = getCurrentWindow();
+  const [cursor, origin, scale] = await Promise.all([cursorPosition(), appWindow.innerPosition(), appWindow.scaleFactor()]);
+  const target = document.elementFromPoint((cursor.x - origin.x) / scale, (cursor.y - origin.y) / scale);
+  return target?.closest(".task-strip,.task-popover") !== null && target !== null;
+}
+let taskWindowSpace = 0;
+let resizeQueue: Promise<unknown> = Promise.resolve();
+
+function serializeWindowChange<T>(change: () => Promise<T>): Promise<T> {
+  const result = resizeQueue.then(change, change);
+  resizeQueue = result.catch(() => undefined);
+  return result;
+}
 
 export interface OverlayPosition {
   x: number;
@@ -30,6 +49,7 @@ export interface SettingsWindowPresentation {
   restore: {
     layout: OverlayLayout;
     position: OverlayPosition;
+    taskSpace?: number;
   };
 }
 
@@ -37,9 +57,11 @@ export function planSettingsWindowPresentation(
   layout: OverlayLayout,
   position: OverlayPosition,
   workArea: OverlayWorkArea,
+  taskSpace = 0,
 ): SettingsWindowPresentation {
   const baseLayout = layout === "collapsed" ? "compact" : layout;
-  const baseSize = overlayLayoutSizes[baseLayout];
+  const originalSize = overlayLayoutSizes[baseLayout];
+  const baseSize = { ...originalSize, height: originalSize.height + taskSpace };
   const workAreaRight = workArea.left + workArea.width;
   const workAreaBottom = workArea.top + workArea.height;
   const spaceAbove = position.y - workArea.top;
@@ -64,13 +86,36 @@ export function planSettingsWindowPresentation(
       width: baseSize.width,
       height: baseSize.height + SETTINGS_WINDOW_EXTRA_HEIGHT,
     },
-    restore: { layout, position },
+    restore: { layout, position, ...(taskSpace > 0 ? { taskSpace } : {}) },
   };
 }
 
 export async function setOverlayWindowLayout(layout: OverlayLayout): Promise<void> {
   const { width, height } = overlayLayoutSizes[layout];
-  await getCurrentWindow().setSize(new LogicalSize(width, height));
+  await serializeWindowChange(() => getCurrentWindow().setSize(new LogicalSize(width, height + taskWindowSpace)));
+}
+
+export function planTaskWindowPresentation(layout: OverlayLayout, position: OverlayPosition, area: OverlayWorkArea, previousSpace: number, nextSpace: number, baseHeight = overlayLayoutSizes[layout].height) {
+  const size = { width: overlayLayoutSizes[layout].width, height: baseHeight + nextSpace };
+  return { size, position: { x: Math.max(area.left, Math.min(area.left + area.width - size.width, position.x)), y: Math.max(area.top, Math.min(area.top + area.height - size.height, position.y + previousSpace - nextSpace)) } };
+}
+
+export function setOverlayTaskSpace(layout: OverlayLayout, nextSpace: number): Promise<void> {
+  return serializeWindowChange(async () => {
+    if (nextSpace === taskWindowSpace) return;
+    const appWindow = getCurrentWindow();
+    const [position, area, physicalSize, scale] = await Promise.all([getOverlayWindowPosition(), getOverlayWorkArea(), appWindow.innerSize(), appWindow.scaleFactor()]);
+    const size = physicalSize.toLogical(scale);
+    const plan = planTaskWindowPresentation(layout, position, area, taskWindowSpace, nextSpace, size.height - taskWindowSpace);
+    try {
+      await appWindow.setPosition(new LogicalPosition(plan.position.x, plan.position.y));
+      await appWindow.setSize(new LogicalSize(plan.size.width, plan.size.height));
+      taskWindowSpace = nextSpace;
+    } catch (error) {
+      await Promise.allSettled([appWindow.setPosition(new LogicalPosition(position.x, position.y)), appWindow.setSize(new LogicalSize(size.width, size.height))]);
+      throw error;
+    }
+  });
 }
 
 export async function getOverlayWindowPosition(): Promise<OverlayPosition> {
@@ -108,6 +153,7 @@ export async function getOverlayWorkArea(): Promise<OverlayWorkArea> {
 export async function openOverlaySettings(
   layout: OverlayLayout,
 ): Promise<SettingsWindowPresentation> {
+  return serializeWindowChange(async () => {
   const appWindow = getCurrentWindow();
   const [physicalPosition, scaleFactor] = await Promise.all([
     appWindow.outerPosition(),
@@ -115,7 +161,7 @@ export async function openOverlaySettings(
   ]);
   const position = physicalPosition.toLogical(scaleFactor);
   const workArea = await getOverlayWorkArea();
-  const presentation = planSettingsWindowPresentation(layout, position, workArea);
+  const presentation = planSettingsWindowPresentation(layout, position, workArea, taskWindowSpace);
 
   try {
     await appWindow.setPosition(new LogicalPosition(
@@ -130,21 +176,24 @@ export async function openOverlaySettings(
   } catch (error) {
     const restoreSize = overlayLayoutSizes[layout];
     await Promise.allSettled([
-      appWindow.setSize(new LogicalSize(restoreSize.width, restoreSize.height)),
+      appWindow.setSize(new LogicalSize(restoreSize.width, restoreSize.height + taskWindowSpace)),
       appWindow.setPosition(new LogicalPosition(position.x, position.y)),
     ]);
     throw error;
   }
+  });
 }
 
 export async function closeOverlaySettings(
   presentation: SettingsWindowPresentation,
 ): Promise<void> {
+  return serializeWindowChange(async () => {
   const appWindow = getCurrentWindow();
   const restoreSize = overlayLayoutSizes[presentation.restore.layout];
-  await appWindow.setSize(new LogicalSize(restoreSize.width, restoreSize.height));
+  await appWindow.setSize(new LogicalSize(restoreSize.width, restoreSize.height + taskWindowSpace));
   await appWindow.setPosition(new LogicalPosition(
     presentation.restore.position.x,
-    presentation.restore.position.y,
+    presentation.restore.position.y + (presentation.restore.taskSpace ?? 0) - taskWindowSpace,
   ));
+  });
 }

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
+import { TaskStatusStrip, visibleChatTasks } from "./TaskStatusStrip";
+import { useTaskStatus } from "./useTaskStatus";
+import { readTaskStatus, openTaskChat, dismissTaskFailure } from "./taskStatusClient";
+import type { ChatTask, TaskStatusSnapshot } from "./taskStatusTypes";
 import { FluidReservoir } from "./FluidReservoir";
 import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
@@ -37,6 +41,9 @@ import {
   openOverlaySettings,
   setOverlayWindowLayout,
   setOverlayWindowPosition,
+  setOverlayTaskSpace,
+  TASK_ROW_HEIGHT,
+  TASK_POPOVER_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -48,6 +55,10 @@ export type ZcodeSnapshotLoader = (preferredPlan: ZCodePlanPreference) => Promis
 export type TomatoConnectionLoader = () => Promise<TomatoConnectionSnapshot>;
 
 interface AppProps {
+  loadTaskStatus?: () => Promise<TaskStatusSnapshot>;
+  openChat?: (id: string) => Promise<void>;
+  dismissFailure?: (id: string, turnId: string) => Promise<void>;
+  setTaskSpace?: (layout: OverlayLayout, space: number) => Promise<void>;
   codexPresentation?: CodexPresentation;
   initialLayout?: OverlayLayout;
   loadSnapshot?: CapacityLoader;
@@ -493,6 +504,10 @@ function freshnessText(
 }
 
 export function App({
+  loadTaskStatus = readTaskStatus,
+  openChat = openTaskChat,
+  dismissFailure = dismissTaskFailure,
+  setTaskSpace = setOverlayTaskSpace,
   codexPresentation,
   initialLayout = "compact",
   loadSnapshot = readCapacitySnapshot,
@@ -509,10 +524,19 @@ export function App({
   quitApp = quitApplication,
   motionSessionSeed,
 }: AppProps) {
+  const taskStatus = useTaskStatus(loadTaskStatus);
+  const [taskPopoverOpen, setTaskPopoverOpen] = useState(false);
+  const tasks = visibleChatTasks(taskStatus.snapshot.tasks, taskStatus.now);
+  const hasTaskArea = tasks.length > 0 || taskStatus.snapshot.diagnostic !== null;
+  const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT + (taskPopoverOpen ? TASK_POPOVER_HEIGHT : 0) : 0;
   const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
   const [settingsPresentation, setSettingsPresentation] = useState<SettingsWindowPresentation | null>(null);
+  useEffect(() => {
+    if (taskStatus.snapshot.observedAtMs === 0) return;
+    void setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace).catch(() => setControlMessage("任务区域无法调整；请重新打开 QuoDex · QDT-612"));
+  }, [taskSpace, setTaskSpace, layoutMode, settingsPresentation?.baseLayout, taskStatus.snapshot.observedAtMs === 0]);
   const [preferences, setPreferences] = useState(defaultPreferences);
   const zcodePlanPreference = preferences.zcodePlan ?? "start";
   const loadZcodeSnapshotWithPlan = useCallback(
@@ -900,6 +924,12 @@ export function App({
   const collapsed = visibleLayout === "collapsed" && activeSnapshot !== null;
   const expanded = visibleLayout === "expanded";
 
+  const openTask = (task: ChatTask) => { void openChat(task.id).catch(() => setControlMessage("无法打开聊天；检查 Codex 桌面应用是否已安装 · QDT-611")); };
+  const removeFailure = (task: ChatTask) => {
+    void dismissFailure(task.id, task.turnId).then(() => taskStatus.setSnapshot(previous => ({ ...previous, tasks: previous.tasks.filter(item => item.id !== task.id || item.turnId !== task.turnId) })))
+      .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
+  };
+
   const detailActions = (
     <div className="detail-actions">
       <button type="button" onClick={() => void refreshAll()} disabled={activeSlot.isRefreshing}>
@@ -918,8 +948,8 @@ export function App({
 
   return (
     <main
-      className={`app-frame app-frame--${visibleLayout}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
-      style={{ "--surface-opacity": preferences.opacity } as React.CSSProperties}
+      className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
+      style={{ "--surface-opacity": preferences.opacity, "--task-popover-space": `${taskPopoverOpen ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
       onContextMenu={(event) => {
         event.preventDefault();
         void toggleSettings();
@@ -929,6 +959,8 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
+      <TaskStatusStrip key={settingsOpen ? "settings" : "tasks"} tasks={tasks} now={taskStatus.now} capacity={visibleLayout === "collapsed" ? 9 : 10} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={setTaskPopoverOpen} />
+      {tasks.length === 0 && taskStatus.snapshot.diagnostic && <span className="task-source-diagnostic" role="status" title={taskStatus.snapshot.diagnostic.message}>{taskStatus.snapshot.diagnostic.code === "QDT-600" ? "正在读取任务" : "任务状态不可用"} · {taskStatus.snapshot.diagnostic.code}</span>}
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
