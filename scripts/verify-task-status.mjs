@@ -196,7 +196,7 @@ try {
     assert(launched,"native project dispatch delivered");const url=new URL(launched.url);assert.equal(url.protocol,"zcode:");assert.equal(url.hostname,"workspace");assert.equal(url.searchParams.get("path"),path.join(root,"示例 项目 2"));
     await writeFile(path.join(output,"project-dispatch.json"),JSON.stringify({protocol:url.protocol,host:url.hostname,path:url.pathname,ownedProjectDecodedCorrectly:true},null,2));
     assert(protocol("restore").restored);projectProtocolInstalled=false;checks.push("real native circle click reaches OS protocol handler with correctly encoded owned project path; handler restored");
-    await button("项目任务 4 · 执行报错","hover");await button("移除提醒");bridge("escape");await pause(1300);assert(!bridge("read").buttons.includes("项目任务 4 · 执行报错"));
+    await button("项目任务 4 · 执行报错","hover");await dimensions(326);await button("移除提醒");bridge("escape");await waitFor(data=>!data.buttons.includes("项目任务 4 · 执行报错"),"failure reminder removed");
     await stop();await start();assert(!bridge("read").buttons.includes("项目任务 4 · 执行报错"));checks.push("ZCode failure reminder dismisses through shared command and stays dismissed across restart");
     setChats(Array(5).fill("running"));await setZcodeChats(Array(8).fill("completed"));await button("其余 4 个聊天");await dimensions(326);await capture("mixed-overflow-windows");
     assert.equal(bridge("read").buttons.filter(name=>name.includes("分钟前")).length,8);bridge("escape");checks.push("mixed 13 chats use nine circles plus ellipsis; all remaining ZCode entries accessible");
