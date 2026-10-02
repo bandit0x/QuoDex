@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const DIAMETER = 20.4;
+const EDGE_WIDTH_MULTIPLIER = 2;
 const TAU = Math.PI * 2;
 const FRAME_INTERVAL = 1000 / 30;
 
@@ -53,7 +54,7 @@ function waveAt(angle: number, time: number, seed: number) {
   const energy = 1 - (1 - a) * (1 - b);
   const ripple = 0.5 * Math.sin(angle * 3 - t * 2.1 + Math.sin(angle + t * 0.83)) + 0.5 * Math.sin(angle * 5 + t * 1.7);
   const outer = DIAMETER / 2 - 0.17 * (1 + ripple);
-  return { outer, inner: outer - 0.72 - 0.48 * energy, energy };
+  return { outer, inner: outer - EDGE_WIDTH_MULTIPLIER * (0.72 + 0.48 * energy), energy };
 }
 
 function preparePixels(stream: Stream): number {
@@ -82,7 +83,7 @@ function paint(stream: Stream): void {
   for (let index = 0; index < stream.coordinates.length; index++) {
     const pixel = stream.coordinates[index];
     let red = pixel.red, green = pixel.green, blue = pixel.blue;
-    if (pixel.coverage && pixel.radius > 8.2) {
+    if (pixel.coverage && pixel.radius > DIAMETER / 2 - 0.34 - 1.2 * EDGE_WIDTH_MULTIPLIER - 0.5 / scale) {
       const wave = waveAt(pixel.angle, flowTime, stream.seed);
       const opacity = clamp((wave.outer - pixel.radius) * scale + 0.5) * clamp((pixel.radius - wave.inner) * scale + 0.5);
       let lightRed: number, lightGreen: number, lightBlue: number;

@@ -25,6 +25,17 @@ describe("approved chat task indicators", () => {
       expect(frames).toHaveLength(1);
       expect(callbacks.size).toBe(1);
       const initial = frames[0];
+      // The doubled rim reaches into the 7.3–8.1px annulus; the previous thin rim did not.
+      const size = Math.sqrt(initial.length / 4);
+      const innerHighlights = [...initial].filter((_, index) => {
+        if (index % 4 !== 1) return false;
+        const pixel = Math.floor(index / 4);
+        const dx = (pixel % size + 0.5) / size * 20.4 - 10.2;
+        const dy = (Math.floor(pixel / size) + 0.5) / size * 20.4 - 10.2;
+        const radius = Math.hypot(dx, dy);
+        return radius >= 7.3 && radius <= 8.1;
+      });
+      expect(Math.max(...innerHighlights)).toBeGreaterThan(100);
       act(() => {
         const callback = [...callbacks.values()][0]; callbacks.clear();
         callback(performance.now() + 250);

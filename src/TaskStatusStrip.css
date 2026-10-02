@@ -1,7 +1,7 @@
 .task-strip {
   position: absolute;
   z-index: 22;
-  top: calc(12px + var(--task-popover-space, 0px));
+  top: calc(26.8px + var(--task-popover-space, 0px));
   left: 28px;
   right: 28px;
   height: 64px;
@@ -10,8 +10,8 @@
   align-items: center;
   justify-content: center;
 }
-.app-frame--collapsed .task-strip { left: 10px; right: 10px; }
-.app-frame--settings-above .task-strip { top: 332px; }
+.app-frame--collapsed .task-strip { left: 10px; right: 10px; top: calc(19.8px + var(--task-popover-space, 0px)); }
+.app-frame--settings-above .task-strip { top: 346.8px; }
 .app-frame--settings-above .task-strip,
 .app-frame--settings-below .task-strip { pointer-events: none; }
 .task-button {
@@ -53,7 +53,7 @@
 .task-circle--unknown { color: #c4d6e1; border-style: dashed; }
 .task-circle--running { border: 0; background: transparent; }
 .task-water-flow { display: block; width: 40.8px; height: 40.8px; border-radius: 50%; animation: task-breathe 2.8s ease-in-out infinite; }
-.task-water-flow:not([data-flow-ready="true"]) { border: 2.4px solid #50d8ff; background: #071723; }
+.task-water-flow:not([data-flow-ready="true"]) { border: 4.8px solid #50d8ff; background: #071723; }
 .task-button:hover .task-circle,
 .task-button:focus-visible .task-circle { background: rgba(13, 37, 48, .95); }
 .task-overflow-indicator { display: grid; place-items: center; width: 40.8px; height: 40.8px; border-radius: 50%; font-size: 25.5px; line-height: 1; letter-spacing: 1px; background: rgba(3, 15, 22, .75); }

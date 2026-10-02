@@ -156,6 +156,12 @@ try {
   await waitFor(data => data.buttons.some(name => name.endsWith("10 分钟前")), "10m completed circle");
   assert.equal(bridge("read").buttons.filter(name => name.endsWith("运行中")).length,2);
   await dimensions(166); await capture("compact-daily-windows");
+  const taskLayout = bridge("read");
+  const firstRunning = taskLayout.buttonBounds.find(button=>button.name.endsWith("运行中"));
+  const circleCenterY = firstRunning.y-taskLayout.y+firstRunning.height/2;
+  const visibleGap = 47-circleCenterY-20.4/2;
+  assert(Math.abs(visibleGap-7.4)<1,"visible task-to-cockpit gap must be half the previous 14.8px gap");
+  await writeFile(path.join(output,"layout-metrics.json"),JSON.stringify({circleCenterY,quotaShellTop:47,visibleCircleDiameter:20.4,visibleGap,targetGap:7.4,previousGap:14.8,nativeRoundingTolerance:1},null,2));
   checks.push("native release startup, two active chats and actual persisted ten-minute finish; 300x166 window");
   const pulse=bridge("pulse",{name:"整理项目文档 · 运行中",path:output,samples:61,saveAll:true}).pulse;
   await writeFile(path.join(root,"motion-boundary.json"),JSON.stringify(bridge("read"),null,2));
@@ -197,6 +203,11 @@ try {
   checks.push("0m and overflow29m native layouts; ten simultaneous water circles");
   await button("展开重置详情"); await dimensions(196);
   await button("收起为窄条"); await dimensions(84); await capture("narrow-windows");
+  const narrowLayout = bridge("read");
+  const firstNarrow = narrowLayout.buttonBounds.find(button=>button.name.includes("已完成 ·"));
+  const narrowGap = 40-(firstNarrow.y-narrowLayout.y+firstNarrow.height/2)-20.4/2;
+  assert(Math.abs(narrowGap-3.9)<1,"narrow task-to-cockpit gap must be half the previous 7.8px gap");
+  checks.push("visible task-to-cockpit gap halved in compact and narrow layouts, measured from native hit-target centers");
   await button("恢复标准视图"); await dimensions(166);
   await settingsRoundTrip();
   checks.push("expanded, narrow and settings native dimensions and round trip");
