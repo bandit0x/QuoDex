@@ -8,7 +8,7 @@ it("adds the approved task strip to the cockpit and removes its native space whe
   const loadTaskStatus = async () => ({ tasks, observedAtMs: Date.now(), diagnostic: null });
   const props = {
     loadSnapshot: async () => ({ sourceState: "healthy" as const, planType: null, accountId: null, fiveHour: null, weekly: null, fullResetCredits: null, observedAtMs: Date.now() }),
-    loadZcodeSnapshot: async () => ({ sourceState: "healthy" as const, fiveHour: null, weekly: null, planLevel: null, planKind: "coding_plan" as const, observedAtMs: Date.now() }),
+    loadZcodeSnapshot: async () => ({ sourceState: "healthy" as const, fiveHour: null, weekly: null, planLevel: null, planKind: "coding_plan" as const, resetCredits: null, resetCreditsDiagnostic: null, observedAtMs: Date.now() }),
     loadTomatoConnection: async () => ({ state: "healthy" as const, countryCode: "UK", latencyMs: 42, observedAtMs: Date.now(), diagnostic: null }),
     loadPreferences: async () => ({ opacity: .92, reducedMotion: false, x: null, y: null, source: "codex" as const }),
     setWindowLayout: async () => undefined,

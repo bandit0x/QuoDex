@@ -51,6 +51,11 @@ const visualZcodeFixture: ZCodeQuotaSnapshot = {
   },
   planLevel: "pro",
   planKind: "coding_plan",
+  resetCredits: {
+    fiveHour: { availableCount: 6, nearestExpiryAt: 1_800_432_000 },
+    weekly: { availableCount: 5, nearestExpiryAt: 1_800_604_800 },
+  },
+  resetCreditsDiagnostic: null,
   observedAtMs: Date.now(),
 };
 
@@ -68,6 +73,8 @@ const visualZcodeTrialFixture: ZCodeQuotaSnapshot = {
   weekly: null,
   planLevel: "Start",
   planKind: "start_plan",
+  resetCredits: null,
+  resetCreditsDiagnostic: null,
   observedAtMs: Date.now(),
 };
 

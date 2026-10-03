@@ -1,4 +1,5 @@
 use crate::capacity::{Diagnostic, SourceState};
+use crate::zcode_resets::{parse_reset_payload, read_reset_credits, ZCodeResetCredits};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -14,7 +15,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(15);
 /// curl --config 经 stdin 传头时引号/换行是注入边界，所有外部提供的头值都要过这道护栏
 fn curl_config_safe(value: &str) -> bool {
-    !value.contains('"') && !value.contains('\n')
+    !value.contains(['"', '\\', '\n', '\r'])
 }
 const QUOTA_PATH: &str = "/api/monitor/usage/quota/limit";
 /// 体验套餐余额路径，拼接在 zcode-plan 网关根（baseURL 去掉 `/anthropic`）之后
@@ -23,7 +24,8 @@ const BALANCE_PATH: &str = "/billing/balance";
 const DEFAULT_ZCODE_PLAN_GATEWAY: &str = "https://zcode.z.ai/api/v1/zcode-plan";
 /// 个人套餐调试用的显式 env 覆盖键；出现任一即固定个人套餐语义
 const ENV_API_KEY_KEYS: [&str; 2] = ["ZCODE_BIGMODEL_USAGE_API_KEY", "BIGMODEL_USAGE_API_KEY"];
-const ENV_QUOTA_URL_KEYS: [&str; 2] = ["ZCODE_BIGMODEL_USAGE_QUOTA_URL", "BIGMODEL_USAGE_QUOTA_URL"];
+const ENV_QUOTA_URL_KEYS: [&str; 2] =
+    ["ZCODE_BIGMODEL_USAGE_QUOTA_URL", "BIGMODEL_USAGE_QUOTA_URL"];
 
 /// config.json 中参与额度探测的套餐形态：coding-plan 为个人套餐，start-plan 为
 /// ZCode 发放的体验套餐（Start Plan）。体验套餐可用时优先于个人套餐显示。
@@ -50,6 +52,8 @@ pub struct ZCodeQuotaSnapshot {
     pub weekly: Option<ZCodeQuotaWindow>,
     pub plan_level: Option<String>,
     pub plan_kind: Option<String>,
+    pub reset_credits: Option<ZCodeResetCredits>,
+    pub reset_credits_diagnostic: Option<Diagnostic>,
     pub observed_at_ms: u64,
 }
 
@@ -238,12 +242,15 @@ impl TelemetryState {
 #[derive(Debug)]
 pub struct ZCodeQuotaService {
     fixture_path: Option<PathBuf>,
+    reset_fixture_path: Option<PathBuf>,
 }
 
 impl ZCodeQuotaService {
     pub fn from_environment() -> Self {
         Self {
             fixture_path: env::var_os("CODEX_CREDITS_ZCODE_QUOTA_RESPONSE_FILE").map(PathBuf::from),
+            reset_fixture_path: env::var_os("CODEX_CREDITS_ZCODE_RESET_RESPONSE_FILE")
+                .map(PathBuf::from),
         }
     }
 
@@ -251,6 +258,7 @@ impl ZCodeQuotaService {
     fn from_fixture_path(path: PathBuf) -> Self {
         Self {
             fixture_path: Some(path),
+            reset_fixture_path: None,
         }
     }
 
@@ -264,7 +272,14 @@ impl ZCodeQuotaService {
                     .with_detail(error.to_string())
             })?;
             // fixture 路径保持个人套餐（监控端点）解析语义，体验套餐由单元测试覆盖
-            return parse_quota_payload(&raw);
+            let mut snapshot = parse_quota_payload(&raw)?;
+            if let Some(reset_path) = &self.reset_fixture_path {
+                let cards = fs::read_to_string(reset_path)
+                    .map_err(|_| Diagnostic::new("CRV-524", "ZCode 重置卡 fixture 无法读取"))
+                    .and_then(|raw| parse_reset_payload(&raw, now_ms()));
+                attach_reset_credits(&mut snapshot, cards);
+            }
+            return Ok(snapshot);
         }
 
         read_live(env_lookup, prefer_start, |request| {
@@ -285,7 +300,7 @@ async fn read_live<F, Fut, L>(
     fetch: F,
 ) -> Result<ZCodeQuotaSnapshot, Diagnostic>
 where
-    L: Fn(&str) -> Option<String>,
+    L: Fn(&str) -> Option<String> + Sync,
     F: Fn(QuotaRequest) -> Fut,
     Fut: std::future::Future<Output = Result<String, Diagnostic>> + Send,
 {
@@ -301,8 +316,24 @@ where
     }
 
     let request = resolve_quota_request(&lookup)?;
+    let quota_api_key = request.api_key.clone();
     let body = fetch(request).await?;
-    parse_quota_payload(&body)
+    let mut snapshot = parse_quota_payload(&body)?;
+    attach_reset_credits(
+        &mut snapshot,
+        read_reset_credits(&lookup, &quota_api_key, now_ms()).await,
+    );
+    Ok(snapshot)
+}
+
+fn attach_reset_credits(
+    snapshot: &mut ZCodeQuotaSnapshot,
+    cards: Result<ZCodeResetCredits, Diagnostic>,
+) {
+    match cards {
+        Ok(cards) => snapshot.reset_credits = Some(cards),
+        Err(diagnostic) => snapshot.reset_credits_diagnostic = Some(diagnostic),
+    }
 }
 
 fn has_env_override(lookup: &dyn Fn(&str) -> Option<String>) -> bool {
@@ -367,7 +398,7 @@ fn resolve_quota_request(
 
 /// 解析顺序：显式环境变量 > `$HOME/.zcode/v2`（当前布局）> `$HOME/.zcode`
 /// （兜底 ZCode 目录结构迁移，例如移除版本子目录）。
-fn zcode_config_candidates(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<PathBuf> {
+pub(crate) fn zcode_config_candidates(lookup: &dyn Fn(&str) -> Option<String>) -> Vec<PathBuf> {
     if let Some(dir) = lookup("CODEX_CREDITS_ZCODE_CONFIG_DIR") {
         return vec![PathBuf::from(dir)];
     }
@@ -474,7 +505,10 @@ fn resolve_start_plan_request(lookup: &dyn Fn(&str) -> Option<String>) -> Option
     let explicit_quota_url = entry.options.quota_url.trim();
     let url = if explicit_quota_url.is_empty() {
         start_plan_balance_url(&entry.options.base_url).unwrap_or_else(|| {
-            format!("{DEFAULT_ZCODE_PLAN_GATEWAY}{BALANCE_PATH}?app_version={}", env!("CARGO_PKG_VERSION"))
+            format!(
+                "{DEFAULT_ZCODE_PLAN_GATEWAY}{BALANCE_PATH}?app_version={}",
+                env!("CARGO_PKG_VERSION")
+            )
         })
     } else {
         explicit_quota_url.to_owned()
@@ -488,9 +522,9 @@ fn resolve_start_plan_request(lookup: &dyn Fn(&str) -> Option<String>) -> Option
 }
 
 fn read_device_mid(lookup: &dyn Fn(&str) -> Option<String>) -> Option<String> {
-    let raw = zcode_config_candidates(lookup).iter().find_map(|dir| {
-        fs::read_to_string(dir.join("telemetry-state.json")).ok()
-    })?;
+    let raw = zcode_config_candidates(lookup)
+        .iter()
+        .find_map(|dir| fs::read_to_string(dir.join("telemetry-state.json")).ok())?;
     let state: TelemetryState = serde_json::from_str(&raw).ok()?;
     state.sanitized_device_mid()
 }
@@ -535,8 +569,30 @@ fn zcode_network_failure(detail: impl Into<String>) -> Diagnostic {
 }
 
 async fn fetch_quota_body(request: QuotaRequest) -> Result<String, Diagnostic> {
+    let mut headers = vec![("Authorization", request.api_key.as_str())];
+    if let Some(device_mid) = request.device_mid.as_deref() {
+        headers.push(("X-Device-Mid", device_mid));
+    }
+    fetch_read_only_body(&request.url, &headers).await
+}
+
+pub(crate) async fn fetch_read_only_body(
+    url: &str,
+    headers: &[(&str, &str)],
+) -> Result<String, Diagnostic> {
+    if headers
+        .iter()
+        .any(|(name, value)| !curl_config_safe(name) || !curl_config_safe(value))
+    {
+        return Err(Diagnostic::new(
+            "CRV-503",
+            "ZCode 请求头含有无法安全传递的字符",
+        ));
+    }
     let mut command = Command::new(crate::platform::curl_executable());
     command.args([
+        "--request",
+        "GET",
         "--silent",
         "--show-error",
         "--output",
@@ -552,7 +608,7 @@ async fn fetch_quota_body(request: QuotaRequest) -> Result<String, Diagnostic> {
         "--config",
         "-",
     ]);
-    command.arg(&request.url);
+    command.arg(url);
     command
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -564,13 +620,16 @@ async fn fetch_quota_body(request: QuotaRequest) -> Result<String, Diagnostic> {
     let mut child = command
         .spawn()
         .map_err(|error| zcode_network_failure(error.to_string()))?;
-    // Authorization / X-Device-Mid 头经 stdin 配置传入，key 不进入进程命令行
-    let mut stdin_config = format!("header = \"Authorization: {}\"\n", request.api_key);
-    if let Some(device_mid) = &request.device_mid {
-        stdin_config.push_str(&format!("header = \"X-Device-Mid: {device_mid}\"\n"));
-    }
+    // Credentials are supplied over stdin, never exposed in process arguments.
+    let stdin_config: String = headers
+        .iter()
+        .map(|(name, value)| format!("header = \"{name}: {value}\"\n"))
+        .collect();
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(stdin_config.as_bytes()).await;
+        stdin
+            .write_all(stdin_config.as_bytes())
+            .await
+            .map_err(|_| zcode_network_failure("请求头写入失败"))?;
         drop(stdin);
     }
     let output = timeout(COMMAND_TIMEOUT, child.wait_with_output())
@@ -659,6 +718,8 @@ fn parse_quota_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
             .map(|level| level.trim().to_owned())
             .filter(|level| !level.is_empty()),
         plan_kind: Some(PlanKind::Coding.snapshot_kind().to_owned()),
+        reset_credits: None,
+        reset_credits_diagnostic: None,
         observed_at_ms: now_ms(),
     })
 }
@@ -667,16 +728,14 @@ fn parse_quota_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
 /// 过期归一化与孤儿桶保留规则镜像 ZCode `normalizeStartPlanExpiry`。
 fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     let payload: BalanceResponse = serde_json::from_str(raw).map_err(|error| {
-        Diagnostic::new("CRV-506", "ZCode 体验套餐余额响应无法解析")
-            .with_detail(error.to_string())
+        Diagnostic::new("CRV-506", "ZCode 体验套餐余额响应无法解析").with_detail(error.to_string())
     })?;
     // 网关以 code==0 为成功标志（实测响应不含 success 字段）
     if payload.code != Some(0) {
         let message = payload
             .msg
             .unwrap_or_else(|| "体验套餐余额服务未返回成功状态".to_owned());
-        return Err(Diagnostic::new("CRV-507", "ZCode 体验套餐配额查询失败")
-            .with_detail(message));
+        return Err(Diagnostic::new("CRV-507", "ZCode 体验套餐配额查询失败").with_detail(message));
     }
     let data = payload
         .data
@@ -727,7 +786,10 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     for bucket in &kept_buckets {
         let total_units = bucket.total_units.as_ref().and_then(BalanceNumber::value);
         let used_units = bucket.used_units.as_ref().and_then(BalanceNumber::value);
-        let remaining_units = bucket.remaining_units.as_ref().and_then(BalanceNumber::value);
+        let remaining_units = bucket
+            .remaining_units
+            .as_ref()
+            .and_then(BalanceNumber::value);
         if total_units.is_none() && used_units.is_none() && remaining_units.is_none() {
             continue;
         }
@@ -735,7 +797,9 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
         total += total_units.unwrap_or(0.0);
         used += used_units.unwrap_or(0.0);
         remaining += remaining_units.unwrap_or(0.0);
-        if let Some(expires_at) = bucket.expires_at.filter(|value| value.is_finite() && *value > 0.0)
+        if let Some(expires_at) = bucket
+            .expires_at
+            .filter(|value| value.is_finite() && *value > 0.0)
         {
             earliest_expiry = Some(match earliest_expiry {
                 Some(current) => current.min(expires_at),
@@ -771,6 +835,8 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
         weekly: None,
         plan_level: Some("Start".to_owned()),
         plan_kind: Some(PlanKind::Start.snapshot_kind().to_owned()),
+        reset_credits: None,
+        reset_credits_diagnostic: None,
         observed_at_ms: now_ms(),
     })
 }
@@ -1225,8 +1291,7 @@ mod tests {
     fn start_plan_request_resolved_from_config_credential_and_device_mid() {
         let dir = write_temp_config(&multi_plan_config());
         write_telemetry(&dir, "device-uuid-1");
-        let request =
-            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
+        let request = resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
         assert_eq!(request.kind, PlanKind::Start);
         assert_eq!(request.api_key, "start-jwt");
         assert_eq!(request.device_mid.as_deref(), Some("device-uuid-1"));
@@ -1265,8 +1330,7 @@ mod tests {
             serde_json::json!("not a url");
         let dir = write_temp_config(&config);
         write_telemetry(&dir, "device-uuid-1");
-        let request =
-            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
+        let request = resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
         assert_eq!(
             request.url,
             format!(
@@ -1284,8 +1348,7 @@ mod tests {
             serde_json::json!("https://quota.example.test/balance");
         let dir = write_temp_config(&config);
         write_telemetry(&dir, "device-uuid-1");
-        let request =
-            resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
+        let request = resolve_start_plan_request(&config_dir_lookup(&dir)).expect("resolve start");
         assert_eq!(request.url, "https://quota.example.test/balance");
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1301,9 +1364,8 @@ mod tests {
     }
 
     /// 按探测顺序出队预设响应的 fetch 桩，同时记录实际探测的套餐类型
-    type FetchBody = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<String, Diagnostic>> + Send>,
-    >;
+    type FetchBody =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, Diagnostic>> + Send>>;
 
     fn fetch_from_queue(
         seen: std::rc::Rc<std::cell::RefCell<Vec<PlanKind>>>,
@@ -1329,9 +1391,13 @@ mod tests {
         let results = std::rc::Rc::new(std::cell::RefCell::new(
             [Ok(start_plan_payload())].into_iter().collect(),
         ));
-        let snapshot = read_live(config_dir_lookup(&dir), true, fetch_from_queue(seen.clone(), results))
-            .await
-            .expect("snapshot");
+        let snapshot = read_live(
+            config_dir_lookup(&dir),
+            true,
+            fetch_from_queue(seen.clone(), results),
+        )
+        .await
+        .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("start_plan"));
         assert_eq!(*seen.borrow(), vec![PlanKind::Start]);
         let _ = fs::remove_dir_all(&dir);
@@ -1350,9 +1416,13 @@ mod tests {
             .into_iter()
             .collect(),
         ));
-        let snapshot = read_live(config_dir_lookup(&dir), true, fetch_from_queue(seen.clone(), results))
-            .await
-            .expect("snapshot");
+        let snapshot = read_live(
+            config_dir_lookup(&dir),
+            true,
+            fetch_from_queue(seen.clone(), results),
+        )
+        .await
+        .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
         assert_eq!(*seen.borrow(), vec![PlanKind::Start, PlanKind::Coding]);
         let _ = fs::remove_dir_all(&dir);
@@ -1373,7 +1443,10 @@ mod tests {
         let error = read_live(
             config_dir_lookup(&dir),
             true,
-            fetch_from_queue(std::rc::Rc::new(std::cell::RefCell::new(Vec::new())), results),
+            fetch_from_queue(
+                std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
+                results,
+            ),
         )
         .await
         .expect_err("expect failure");
@@ -1417,9 +1490,13 @@ mod tests {
             [Ok(coding_payload())].into_iter().collect(),
         ));
         // 用户显式选择仅个人套餐：即使体验套餐凭证齐备也不探测，队列里只有个人套餐响应
-        let snapshot = read_live(config_dir_lookup(&dir), false, fetch_from_queue(seen.clone(), results))
-            .await
-            .expect("snapshot");
+        let snapshot = read_live(
+            config_dir_lookup(&dir),
+            false,
+            fetch_from_queue(seen.clone(), results),
+        )
+        .await
+        .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
         assert_eq!(*seen.borrow(), vec![PlanKind::Coding]);
         let _ = fs::remove_dir_all(&dir);
@@ -1428,7 +1505,10 @@ mod tests {
     #[test]
     fn start_plan_balance_url_derives_gateway_from_anthropic_base() {
         let balance = |path: &str| {
-            format!("https://zcode.z.ai{path}?app_version={}", env!("CARGO_PKG_VERSION"))
+            format!(
+                "https://zcode.z.ai{path}?app_version={}",
+                env!("CARGO_PKG_VERSION")
+            )
         };
         assert_eq!(
             start_plan_balance_url("https://zcode.z.ai/api/v1/zcode-plan/anthropic").as_deref(),
@@ -1544,7 +1624,9 @@ mod tests {
             "CRV-506"
         );
         assert_eq!(
-            parse_balance_payload(r#"{"code":0}"#).expect_err("failure").code,
+            parse_balance_payload(r#"{"code":0}"#)
+                .expect_err("failure")
+                .code,
             "CRV-506"
         );
     }
@@ -1557,6 +1639,45 @@ mod tests {
         assert!(snapshot.weekly.is_some());
         assert_eq!(snapshot.plan_level.as_deref(), Some("pro"));
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
+    }
+
+    #[tokio::test]
+    async fn reset_inventory_failure_does_not_discard_valid_quota() {
+        let reset_path =
+            env::temp_dir().join(format!("quodex-resets-{}.json", uuid::Uuid::new_v4()));
+        let mut service = ZCodeQuotaService::from_fixture_path(repo_fixture_path());
+        service.reset_fixture_path = Some(reset_path.clone());
+        fs::write(&reset_path, r#"{"code":0,"data":{"available_five_hour_resets":[{"expire_at":2000000000000}],"available_week_resets":[]}}"#).unwrap();
+        let snapshot = service.read_snapshot(false).await.unwrap();
+        assert_eq!(snapshot.reset_credits.unwrap().five_hour.available_count, 1);
+        fs::write(&reset_path, r#"{"code":401}"#).unwrap();
+        let snapshot = service.read_snapshot(false).await.unwrap();
+        assert!(snapshot.five_hour.is_some() && snapshot.weekly.is_some());
+        assert!(snapshot.reset_credits.is_none());
+        assert_eq!(snapshot.reset_credits_diagnostic.unwrap().code, "CRV-524");
+        fs::remove_file(reset_path).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires an existing logged-in personal ZCode account; GET only"]
+    async fn live_personal_reset_cards_are_read_only_and_account_bound() {
+        let snapshot = ZCodeQuotaService::from_environment()
+            .read_snapshot(false)
+            .await
+            .expect("live quota");
+        assert!(
+            snapshot.reset_credits_diagnostic.is_none(),
+            "{:?}",
+            snapshot.reset_credits_diagnostic
+        );
+        let cards = snapshot.reset_credits.expect("live reset cards");
+        println!(
+            "5H cards: {}, nearest expiry: {:?}; weekly cards: {}, nearest expiry: {:?}",
+            cards.five_hour.available_count,
+            cards.five_hour.nearest_expiry_at,
+            cards.weekly.available_count,
+            cards.weekly.nearest_expiry_at
+        );
     }
 
     /// 真实环境联调：读本机 ~/.zcode 真实配置并向 zcode-plan 网关发起真实探测。

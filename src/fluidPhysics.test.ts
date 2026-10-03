@@ -9,6 +9,31 @@ import {
 } from "./fluidPhysics";
 
 describe("volumetric fluid surface", () => {
+  it("makes shallow, half-full and deep slosh visibly differ under the same drag", () => {
+    const measure = (level: number) => {
+      const surface = new FluidSurface();
+      surface.configure(deriveFluidDynamics(level, 0.35));
+      surface.disturb(1.6, -0.5, true);
+      let peak = 0;
+      let firstReturn = 0;
+      let initialSign = 0;
+      for (let frame = 1; frame <= 180; frame += 1) {
+        surface.step();
+        const rms = Math.hypot(...surface.heights) / Math.sqrt(surface.heights.length);
+        peak = Math.max(peak, rms);
+        const tilt = surface.heights[50] - surface.heights[5];
+        if (frame === 1) initialSign = Math.sign(tilt);
+        if (firstReturn === 0 && Math.sign(tilt) !== initialSign) firstReturn = frame;
+      }
+      return { peak, firstReturn };
+    };
+    const low = measure(20);
+    const middle = measure(50);
+    const high = measure(85);
+    expect(high.firstReturn).toBeGreaterThan(low.firstReturn * 1.8);
+    expect(middle.peak).toBeGreaterThan(Math.max(low.peak, high.peak) * 1.4);
+  });
+
   it("derives stable liquid dynamics from chamber seed and remaining capacity", () => {
     const shallow = deriveFluidDynamics(20, 0.35);
     const repeated = deriveFluidDynamics(20, 0.35);
@@ -17,7 +42,7 @@ describe("volumetric fluid surface", () => {
     expect(repeated).toEqual(shallow);
     expect(shallow.tension).toBeGreaterThan(deep.tension);
     expect(shallow.damping).toBeLessThan(deep.damping);
-    expect(shallow.surfaceImpulse).toBeGreaterThan(deep.surfaceImpulse);
+    expect(shallow.surfaceRestoring).toBeGreaterThan(deep.surfaceRestoring);
     expect(deep.bodyImpulse).toBeGreaterThan(shallow.bodyImpulse);
   });
 
@@ -100,6 +125,34 @@ describe("volumetric fluid surface", () => {
     expect(linearLiquidLevel(18, 10, 180)).toBeCloseTo(157.6);
     expect(linearLiquidLevel(95, 10, 180)).toBeCloseTo(19);
     expect(linearLiquidLevel(100, 10, 180)).toBe(10);
+  });
+
+  it("bounds near-empty/full motion while conserving volume and settling", () => {
+    for (const level of [0, 2, 20, 50, 85, 98, 100]) {
+      const dynamics = deriveFluidDynamics(level, 0.35);
+      const surface = new FluidSurface();
+      surface.configure(dynamics);
+      for (let frame = 0; frame < 120; frame += 1) {
+        surface.disturb(frame % 30 < 15 ? 2.4 : -2.4, -1.5);
+        surface.step();
+        expect(Math.max(...surface.heights.map(Math.abs))).toBeLessThanOrEqual(dynamics.surfaceMaxDisplacement + 0.00001);
+        expect(Math.abs(surface.heights.reduce((sum, value) => sum + value, 0))).toBeLessThan(0.0001);
+      }
+      for (let frame = 0; frame < 1200; frame += 1) surface.step();
+      expect(surface.isActive).toBe(false);
+    }
+  });
+
+  it("settles low-level drag at 30fps instead of staying at the displacement limit", () => {
+    const surface = new FluidSurface();
+    surface.configure(deriveFluidDynamics(20, 0.2));
+    for (let frame = 0; frame < 120; frame += 1) {
+      surface.disturb(frame % 30 < 15 ? 2.4 : -2.4, -1.5);
+      surface.step(2);
+    }
+    for (let frame = 0; frame < 1200; frame += 1) surface.step(2);
+    expect(surface.isActive).toBe(false);
+    expect(Math.max(...surface.heights.map(Math.abs))).toBe(0);
   });
 
   it("keeps the settled surface within a sub-pixel sea-breeze range", () => {

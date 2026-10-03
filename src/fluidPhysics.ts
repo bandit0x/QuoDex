@@ -21,6 +21,8 @@ export interface FluidDynamics {
   surfaceImpulse: number;
   surfaceResponse: number;
   surfaceWaveFrequency: number;
+  surfaceRestoring: number;
+  surfaceMaxDisplacement: number;
   bodyImpulse: number;
   bodyResponseX: number;
   bodyResponseY: number;
@@ -62,18 +64,21 @@ export function deriveFluidDynamics(
   const depth = clamp(remainingPercent, 0, 100) / 100;
   const seed = ((chamberSeed % 1) + 1) % 1;
   const phaseOffset = seed * Math.PI * 2;
+  const freeSpace = Math.sin(Math.PI * depth);
   return {
-    tension: 0.215 - depth * 0.06 + seededVariation(seed, 0.17) * 0.016,
-    damping: 0.968 + depth * 0.018 + seededVariation(seed, 0.41) * 0.004,
-    surfaceImpulse: 1.05 - depth * 0.16 + seededVariation(seed, 0.63) * 0.09,
+    tension: 0.25 - depth * 0.13 + seededVariation(seed, 0.17) * 0.025,
+    damping: 0.925 + depth * 0.054 + seededVariation(seed, 0.41) * 0.006,
+    surfaceImpulse: (0.5 + freeSpace * 1.15) * (1 + seededVariation(seed, 0.63) * 0.15),
     surfaceResponse: 0.92 + (1 - depth) * 0.18 + seededVariation(seed, 1.07) * 0.12,
-    surfaceWaveFrequency: 0.82 + depth * 0.78 + seededVariation(seed, 1.31) * 0.22,
-    bodyImpulse: 0.74 + depth * 0.42 + seededVariation(seed, 0.79) * 0.14,
-    bodyResponseX: 0.88 + depth * 0.24 + seededVariation(seed, 1.61) * 0.14,
+    surfaceWaveFrequency: 3.5 - depth * 2.7 + seededVariation(seed, 1.31) * 0.3,
+    surfaceRestoring: (0.014 + 0.12 * (1 - depth) ** 2) * (1 + seededVariation(seed, 1.53) * 0.2),
+    surfaceMaxDisplacement: 13 * freeSpace ** 1.7,
+    bodyImpulse: 0.6 + depth * 0.8 + seededVariation(seed, 0.79) * 0.25,
+    bodyResponseX: 0.7 + depth * 0.6 + seededVariation(seed, 1.61) * 0.2,
     bodyResponseY: 0.93 + (1 - depth) * 0.2 + seededVariation(seed, 1.83) * 0.14,
     bodyCrossCoupling: Math.sin(phaseOffset * 1.37) * 0.24,
-    bodyDamping: 0.948 + depth * 0.018 + seededVariation(seed, 2.11) * 0.012,
-    timeScale: 0.83 + (1 - depth) * 0.24 + seededVariation(seed, 0.93) * 0.14,
+    bodyDamping: 0.925 + depth * 0.052 + seededVariation(seed, 2.11) * 0.012,
+    timeScale: 1.3 - depth * 0.62 + seededVariation(seed, 0.93) * 0.18,
     flowScale: 0.78 + depth * 0.38 + seededVariation(seed, 2.37) * 0.18,
     phaseOffset,
   };
@@ -134,6 +139,8 @@ export class FluidSurface {
   private surfaceResponse = 1;
   private surfaceWaveFrequency = 1;
   private surfaceWavePhase = 0;
+  private surfaceRestoring = 0.034;
+  private surfaceMaxDisplacement = 18;
   private timeScale = 1;
   private energy = 0;
 
@@ -155,6 +162,8 @@ export class FluidSurface {
     this.surfaceResponse = dynamics.surfaceResponse;
     this.surfaceWaveFrequency = dynamics.surfaceWaveFrequency;
     this.surfaceWavePhase = dynamics.phaseOffset;
+    this.surfaceRestoring = dynamics.surfaceRestoring;
+    this.surfaceMaxDisplacement = dynamics.surfaceMaxDisplacement;
     this.timeScale = dynamics.timeScale;
   }
 
@@ -186,8 +195,18 @@ export class FluidSurface {
   }
 
   step(frameScale = 1): boolean {
-    const count = this.heights.length;
     const scale = clamp(frameScale * this.timeScale, 0.35, 2);
+    // Keep each spring integration step stable when the native renderer runs
+    // at 30fps or a frame is delayed, while advancing the full elapsed time.
+    const steps = Math.ceil(scale);
+    for (let step = 0; step < steps; step += 1) {
+      if (!this.stepOnce(scale / steps)) return false;
+    }
+    return true;
+  }
+
+  private stepOnce(scale: number): boolean {
+    const count = this.heights.length;
     let total = 0;
     let kinetic = 0;
 
@@ -195,21 +214,28 @@ export class FluidSurface {
       const left = index === 0 ? this.heights[1] : this.heights[index - 1];
       const right = index === count - 1 ? this.heights[count - 2] : this.heights[index + 1];
       const laplacian = left + right - 2 * this.heights[index];
-      const wallSpring = index === 0 || index === count - 1 ? 0.048 : 0.034;
+      const wallSpring = this.surfaceRestoring * (index === 0 || index === count - 1 ? 1.4 : 1);
       this.accelerations[index] = laplacian * this.tension - this.heights[index] * wallSpring;
     }
 
     for (let index = 0; index < count; index += 1) {
       this.velocities[index] += this.accelerations[index] * scale;
       this.velocities[index] *= Math.pow(this.damping, scale);
-      this.heights[index] = clamp(this.heights[index] + this.velocities[index] * scale, -18, 18);
+      this.heights[index] = clamp(this.heights[index] + this.velocities[index] * scale, -this.surfaceMaxDisplacement, this.surfaceMaxDisplacement);
       total += this.heights[index];
       kinetic += Math.abs(this.velocities[index]) + Math.abs(this.heights[index]) * 0.035;
     }
 
     const mean = total / count;
+    let peak = 0;
     for (let index = 0; index < count; index += 1) {
       this.heights[index] -= mean;
+      peak = Math.max(peak, Math.abs(this.heights[index]));
+    }
+    // Bound near-empty/full motion without changing the represented liquid volume.
+    if (peak > this.surfaceMaxDisplacement) {
+      const correction = this.surfaceMaxDisplacement / peak;
+      for (let index = 0; index < count; index += 1) this.heights[index] *= correction;
     }
 
     this.energy = this.energy * Math.pow(0.974, scale) + kinetic / count;

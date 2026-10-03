@@ -616,6 +616,10 @@ input:focus-visible {
 
 .status-footer b { color: var(--mint); font-weight: 700; }
 
+.status-footer--zcode { gap: 6px; }
+.reset-card-counts { flex-shrink: 0; font-size: 11px; white-space: nowrap; }
+.reset-card-detail { font-size: 11px; }
+
 .route-status {
   min-width: 0;
   display: inline-flex;

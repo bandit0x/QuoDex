@@ -20,6 +20,7 @@ import type {
   CapacitySnapshot,
   Diagnostic,
   DisplayPreferences,
+  FullResetCredits,
   MeterSource,
   QuotaWindow,
   SourceSelection,
@@ -240,36 +241,44 @@ function useSourceSlot<S>(
   const [lastSnapshot, setLastSnapshot] = useState<S | null>(null);
   const lastSnapshotRef = useRef<S | null>(null);
   const generationRef = useRef(0);
+  const inFlightRef = useRef<{ loader: () => Promise<S>; promise: Promise<void> } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback((): Promise<void> => {
+    if (inFlightRef.current?.loader === loader) return inFlightRef.current.promise;
     const generation = ++generationRef.current;
     if (lastSnapshotRef.current !== null) setIsRefreshing(true);
     else setView({ kind: "loading" });
 
-    try {
-      const snapshot = await loader();
-      if (generation !== generationRef.current) return;
-      lastSnapshotRef.current = snapshot;
-      setLastSnapshot(snapshot);
-      setView({ kind: "healthy", snapshot });
-    } catch (error) {
-      if (generation !== generationRef.current) return;
-      const diagnostic = normalizeDiagnostic(error, sourceLabel);
-      const cached = lastSnapshotRef.current;
-      if (cached && identityOf) {
-        const cachedIdentity = identityOf(cached);
-        if ((diagnostic.accountId ?? null) !== cachedIdentity) {
-          // 失败时的登录身份与缓存数据的归属账户不同（切换账户或退出登录）：
-          // 丢弃旧账户的额度与套餐标识，不把它展示给当前登录状态。
-          lastSnapshotRef.current = null;
-          setLastSnapshot(null);
+    const request = Promise.resolve().then(async () => {
+      try {
+        const snapshot = await loader();
+        if (generation !== generationRef.current) return;
+        lastSnapshotRef.current = snapshot;
+        setLastSnapshot(snapshot);
+        setView({ kind: "healthy", snapshot });
+      } catch (error) {
+        if (generation !== generationRef.current) return;
+        const diagnostic = normalizeDiagnostic(error, sourceLabel);
+        const cached = lastSnapshotRef.current;
+        if (cached && identityOf) {
+          const cachedIdentity = identityOf(cached);
+          if ((diagnostic.accountId ?? null) !== cachedIdentity) {
+            // 失败时的登录身份与缓存数据的归属账户不同（切换账户或退出登录）：
+            // 丢弃旧账户的额度与套餐标识，不把它展示给当前登录状态。
+            lastSnapshotRef.current = null;
+            setLastSnapshot(null);
+          }
         }
+        setView({ kind: "failed", diagnostic });
+      } finally {
+        if (generation === generationRef.current) setIsRefreshing(false);
       }
-      setView({ kind: "failed", diagnostic });
-    } finally {
-      if (generation === generationRef.current) setIsRefreshing(false);
-    }
+    }).finally(() => {
+      if (inFlightRef.current?.promise === request) inFlightRef.current = null;
+    });
+    inFlightRef.current = { loader, promise: request };
+    return request;
   }, [loader, sourceLabel, identityOf]);
 
   useEffect(() => {
@@ -415,6 +424,18 @@ function RouteAlert({ diagnostic, onRetry }: { diagnostic: Diagnostic | null; on
       <span>{diagnostic?.code ?? "CRV-404"} · Retrying every second</span>
       <button type="button" onClick={onRetry}>Retry</button>
     </section>
+  );
+}
+
+function ZCodeResetDetail({ label, credits }: {
+  label: string;
+  credits: FullResetCredits | undefined;
+}) {
+  const expiry = credits?.availableCount === 0 ? "无可用卡" : formatExpiry(credits?.nearestExpiryAt);
+  return (
+    <span className="reset-card-detail" title={`最近到期：${expiry}`}>
+      {label} <b>{credits?.availableCount ?? "—"}</b> · {expiry}
+    </span>
   );
 }
 
@@ -1045,7 +1066,7 @@ export function App({
 
             {routeBlocked && !activeIsZcode && <RouteAlert diagnostic={routeConnection.diagnostic} onRetry={() => void probeRoute()} />}
 
-            <footer className={`status-footer ${expanded ? "status-footer--expanded" : ""}`}>
+            <footer className={`status-footer ${expanded ? "status-footer--expanded" : ""} ${activeIsZcode && !zcodeIsTrial ? "status-footer--zcode" : ""}`}>
               {activeSlot.view.kind === "loading" && <span>Reading {sourceLabels[activeSource]}…</span>}
               {activeSlot.view.kind === "failed" && !activeSnapshot && <span>数据不可用 · {activeSlot.view.diagnostic.code}</span>}
               {!activeSnapshot && !activeIsZcode && <RouteStatus route={routeConnection} alert={routeBlocked} />}
@@ -1063,8 +1084,16 @@ export function App({
                   {zcodeSnapshot.planLevel && (
                     <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                   )}
+                  {!zcodeIsTrial && (
+                    <span className="reset-card-counts" aria-label="ZCode 可用重置卡" title="可用的 5 小时重置卡 / 周重置卡">
+                      5H <b>{zcodeSnapshot.resetCredits?.fiveHour.availableCount ?? "—"}</b>
+                      {" · "}W <b>{zcodeSnapshot.resetCredits?.weekly.availableCount ?? "—"}</b>
+                    </span>
+                  )}
                   <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                    {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
+                    {!zcodeIsTrial && zcodeSnapshot.resetCreditsDiagnostic
+                      ? <span title={zcodeSnapshot.resetCreditsDiagnostic.message}>{zcodeSnapshot.resetCreditsDiagnostic.code}</span>
+                      : activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
                   </span>
                 </>
               )}
@@ -1072,12 +1101,26 @@ export function App({
                 <div className="detail-strip">
                   {activeIsZcode && zcodeSnapshot ? (
                     <>
-                      {zcodeSnapshot.planLevel && (
-                        <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
+                      {zcodeIsTrial ? (
+                        <>
+                          {zcodeSnapshot.planLevel && <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>}
+                          <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
+                            {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
+                          </span>
+                        </>
+                      ) : zcodeSnapshot.resetCreditsDiagnostic ? (
+                        <>
+                          <span className="reset-card-detail">5H RESETS — · WEEK RESETS —</span>
+                          <span className="reset-card-detail" title={zcodeSnapshot.resetCreditsDiagnostic.message}>
+                            {zcodeSnapshot.resetCreditsDiagnostic.code} · {zcodeSnapshot.resetCreditsDiagnostic.message}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <ZCodeResetDetail label="5H RESETS" credits={zcodeSnapshot.resetCredits?.fiveHour} />
+                          <ZCodeResetDetail label="WEEK RESETS" credits={zcodeSnapshot.resetCredits?.weekly} />
+                        </>
                       )}
-                      <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                        {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
-                      </span>
                     </>
                   ) : codexSnapshot ? (
                     <>

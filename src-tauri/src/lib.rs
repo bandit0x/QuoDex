@@ -6,6 +6,7 @@ mod preferences;
 mod task_status;
 mod tomato_cloud;
 mod zcode_quota;
+mod zcode_resets;
 mod zcode_tasks;
 
 use capacity::{CapacityService, CapacitySnapshot, Diagnostic};

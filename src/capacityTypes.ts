@@ -40,6 +40,8 @@ export interface ZCodeQuotaSnapshot {
   planLevel: string | null;
   /** 套餐形态：start_plan = 体验套餐（单池），coding_plan = 个人套餐（5h+周窗口）。 */
   planKind: "start_plan" | "coding_plan" | null;
+  resetCredits: { fiveHour: FullResetCredits; weekly: FullResetCredits } | null;
+  resetCreditsDiagnostic: Diagnostic | null;
   observedAtMs: number;
 }
 

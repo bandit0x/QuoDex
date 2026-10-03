@@ -103,6 +103,8 @@ const healthyZcodeSnapshot: ZCodeQuotaSnapshot = {
   },
   planLevel: "pro",
   planKind: "coding_plan",
+  resetCredits: null,
+  resetCreditsDiagnostic: null,
   observedAtMs: 1_800_000_000_000,
 };
 
@@ -603,6 +605,61 @@ describe("dual quota sources", () => {
     expect(screen.queryByText(/FULL RESETS/)).not.toBeInTheDocument();
   });
 
+  it("shows ZCode five-hour and weekly reset cards without borrowing Codex counts", async () => {
+    render(<App {...inertPreferences}
+      loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => ({ ...healthyZcodeSnapshot, resetCredits: {
+        fiveHour: { availableCount: 6, nearestExpiryAt: 1_800_432_000 },
+        weekly: { availableCount: 5, nearestExpiryAt: 1_800_604_800 },
+      } })}
+      loadPreferences={async () => ({ ...basePreferences, source: "zcode" as const })}
+    />);
+    expect(await screen.findByLabelText("ZCode 可用重置卡")).toHaveTextContent("5H 6");
+    expect(screen.getByLabelText("ZCode 可用重置卡")).toHaveTextContent("W 5");
+    expect(screen.queryByText("FULL RESETS")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "展开重置详情" }));
+    expect(screen.getByText(/5H RESETS/)).toHaveTextContent("6");
+    expect(screen.getByText(/WEEK RESETS/)).toHaveTextContent("5");
+  });
+
+  it.each([true, false])("distinguishes ZCode zero cards from unavailable inventory (zero=%s)", async (zero) => {
+    render(<App {...inertPreferences}
+      loadSnapshot={async () => healthySnapshot}
+      loadPreferences={async () => ({ ...basePreferences, source: "zcode" as const })}
+      loadZcodeSnapshot={async () => ({ ...healthyZcodeSnapshot,
+        resetCredits: zero ? {
+          fiveHour: { availableCount: 0, nearestExpiryAt: null },
+          weekly: { availableCount: 0, nearestExpiryAt: null },
+        } : null,
+        resetCreditsDiagnostic: zero ? null : { code: "CRV-521", message: "请在 ZCode 重新登录后刷新", detail: null },
+      })}
+    />);
+    const counts = await screen.findByLabelText("ZCode 可用重置卡");
+    expect(counts).toHaveTextContent(zero ? "5H 0 · W 0" : "5H — · W —");
+    if (!zero) expect(screen.getByText("CRV-521")).toHaveAttribute("title", "请在 ZCode 重新登录后刷新");
+    await userEvent.click(screen.getByRole("button", { name: "展开重置详情" }));
+    expect(screen.getByText(/5H RESETS/)).toHaveTextContent(zero ? "无可用卡" : "5H RESETS — · WEEK RESETS —");
+    if (!zero) expect(screen.getByText(/CRV-521/)).toHaveTextContent("请在 ZCode 重新登录后刷新");
+  });
+
+  it("publishes a slow ZCode response without restarting it on every polling tick", async () => {
+    vi.useFakeTimers();
+    try {
+      let release: (snapshot: ZCodeQuotaSnapshot) => void = () => undefined;
+      const loadZcode = vi.fn(() => new Promise<ZCodeQuotaSnapshot>((resolve) => { release = resolve; }));
+      render(<App {...inertPreferences}
+        loadPreferences={async () => ({ ...basePreferences, source: "zcode" as const })}
+        loadSnapshot={async () => healthySnapshot}
+        loadZcodeSnapshot={loadZcode}
+      />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(11_000); });
+      expect(loadZcode).toHaveBeenCalledTimes(1);
+      await act(async () => { release({ ...healthyZcodeSnapshot, resetCreditsDiagnostic: { code: "CRV-523", message: "检查网络后刷新", detail: null } }); });
+      expect(screen.getByRole("group", { name: "5 HOUR quota" })).toHaveTextContent("76%");
+      expect(screen.getByLabelText("ZCode 可用重置卡")).toHaveTextContent("5H —");
+    } finally { vi.useRealTimers(); }
+  });
+
   it("renders a placeholder when the ZCode window has no reset time", async () => {
     render(
       <App
@@ -652,6 +709,10 @@ describe("dual quota sources", () => {
           weekly: null,
           planLevel: "Start",
           planKind: "start_plan",
+          resetCredits: {
+            fiveHour: { availableCount: 99, nearestExpiryAt: 1_800_432_000 },
+            weekly: { availableCount: 99, nearestExpiryAt: 1_800_432_000 },
+          },
         })}
       />,
     );
@@ -665,6 +726,7 @@ describe("dual quota sources", () => {
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "5 HOUR quota" })).not.toBeInTheDocument();
     expect(screen.getByText("START")).toBeInTheDocument();
+    expect(screen.queryByLabelText("ZCode 可用重置卡")).not.toBeInTheDocument();
     // 体验套餐没有周窗口概念，footer 不应提示 Week unavailable
     expect(screen.queryByText(/Week unavailable/)).not.toBeInTheDocument();
   });
