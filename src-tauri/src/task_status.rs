@@ -36,6 +36,23 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+fn desktop_endpoint(home: &Path) -> String {
+    #[cfg(windows)]
+    {
+        let _ = home;
+        r"\\.\pipe\codex-ipc".to_owned()
+    }
+    #[cfg(unix)]
+    {
+        home.join("ipc/ipc.sock").to_string_lossy().into_owned()
+    }
+    #[cfg(not(any(windows, unix)))]
+    {
+        let _ = home;
+        String::new()
+    }
+}
+
 fn runtime_state(state: &Value, turn_id: &str) -> TaskState {
     if state["threadRuntimeStatus"]["type"] != "active" {
         return TaskState::Unknown;
@@ -94,8 +111,8 @@ impl TaskStatusService {
                     .app_config_dir()
                     .unwrap_or_else(|_| PathBuf::from("."))
             });
-        let endpoint = std::env::var("QUODEX_TASK_IPC_ENDPOINT")
-            .unwrap_or_else(|_| r"\\.\pipe\codex-ipc".into());
+        let endpoint =
+            std::env::var("QUODEX_TASK_IPC_ENDPOINT").unwrap_or_else(|_| desktop_endpoint(&home));
         let mut service = Self::from_paths(home, config.join("task-reminders.json"), endpoint);
         service.zcode = Some(crate::zcode_tasks::ZCodeTaskService::from_environment());
         service
@@ -123,12 +140,12 @@ impl TaskStatusService {
         let shared = snapshot.clone();
         tauri::async_runtime::spawn(async move {
             loop {
-                #[cfg(windows)]
+                #[cfg(any(windows, unix))]
                 let result = observe_desktop(&home, &endpoint, &shared, &mut stopped).await;
-                #[cfg(not(windows))]
+                #[cfg(not(any(windows, unix)))]
                 let result: Result<(), Diagnostic> = Err(Diagnostic::new(
                     "QDT-601",
-                    "任务监测暂仅支持 Windows Codex 桌面应用",
+                    "当前平台无法连接 Codex 桌面任务状态",
                 ));
                 match result {
                     Ok(()) => break,
@@ -238,9 +255,9 @@ impl Drop for TaskStatusService {
     }
 }
 
-#[cfg(windows)]
-async fn send(
-    pipe: &mut tokio::net::windows::named_pipe::NamedPipeClient,
+#[cfg(any(windows, unix))]
+async fn send<W: tokio::io::AsyncWrite + Unpin>(
+    pipe: &mut W,
     message: Value,
 ) -> Result<(), Diagnostic> {
     let bytes = serde_json::to_vec(&message)
@@ -254,9 +271,18 @@ async fn send(
     .map_err(|_| Diagnostic::new("QDT-601", "Codex 状态通道已断开；启动 Codex 后自动重连"))
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, unix))]
 fn follow(client: &str, owner: &str, id: &str, following: bool) -> Value {
     json!({"type":"broadcast","method":"thread-stream-following-changed","sourceClientId":client,"targetClientIds":[owner],"version":1,"params":{"hostId":"local","conversationId":id,"following":following}})
+}
+
+#[cfg(any(windows, unix))]
+fn mark_task_unavailable(live: &mut HashMap<String, ChatTask>, id: &str, message: &str) {
+    if let Some(task) = live.get_mut(id) {
+        task.state = TaskState::Unknown;
+        task.completed_at_ms = None;
+        task.detail = Some(format!("{message} · QDT-607"));
+    }
 }
 
 fn publish_tasks(
@@ -328,20 +354,28 @@ fn expired_completion(task: &ChatTask, now: u64) -> bool {
                 .is_some_and(|ended| now.saturating_sub(ended) >= 1_800_000)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, unix))]
 async fn observe_desktop(
     home: &Path,
     endpoint: &str,
     shared: &Arc<Mutex<TaskStatusSnapshot>>,
     stopped: &mut oneshot::Receiver<()>,
 ) -> Result<(), Diagnostic> {
-    use tokio::net::windows::named_pipe::ClientOptions;
     let chats = read_task_history(home)?;
     let mut candidates: HashMap<_, _> = chats
         .into_iter()
         .map(|chat| (chat.task.id.clone(), chat))
         .collect();
-    let mut pipe = ClientOptions::new().open(endpoint).map_err(|_| {
+    #[cfg(windows)]
+    let connection = tokio::net::windows::named_pipe::ClientOptions::new().open(endpoint);
+    #[cfg(unix)]
+    let connection = tokio::time::timeout(
+        Duration::from_secs(1),
+        tokio::net::UnixStream::connect(endpoint),
+    )
+    .await
+    .map_err(|_| Diagnostic::new("QDT-601", "Codex 状态通道连接超时；稍后自动重连"))?;
+    let mut pipe = connection.map_err(|_| {
         Diagnostic::new("QDT-601", "无法连接 Codex 桌面应用；启动 Codex 后自动重连")
     })?;
     let initialize_id = uuid::Uuid::new_v4().to_string();
@@ -380,17 +414,40 @@ async fn observe_desktop(
                     }
                     continue;
                 }
-                if pending
-                    .values()
-                    .any(|(_, started)| started.elapsed() > Duration::from_secs(3))
-                    || awaiting
-                        .values()
-                        .any(|started| started.elapsed() > Duration::from_secs(3))
-                {
-                    return Err(Diagnostic::new(
-                        "QDT-607",
-                        "聊天状态来源未响应；稍后自动重新同步",
-                    ));
+                // Owner discovery and snapshot deadlines belong to individual chats.
+                // A closed historical chat must not tear down healthy subscriptions.
+                let expired_pending: Vec<_> = pending
+                    .iter()
+                    .filter(|(_, (_, started))| started.elapsed() > Duration::from_secs(3))
+                    .map(|(request, (id, _))| (request.clone(), id.clone()))
+                    .collect();
+                let expired_awaiting: Vec<_> = awaiting
+                    .iter()
+                    .filter(|(_, started)| started.elapsed() > Duration::from_secs(3))
+                    .map(|(id, _)| id.clone())
+                    .collect();
+                let invalidated = !expired_pending.is_empty() || !expired_awaiting.is_empty();
+                for (request, id) in expired_pending {
+                    pending.remove(&request);
+                    idle.remove(&id);
+                    mark_task_unavailable(&mut live, &id, "聊天执行来源查询超时；稍后自动重新查询");
+                }
+                for id in expired_awaiting {
+                    awaiting.remove(&id);
+                    if let Some(owner) = owners.remove(&id) {
+                        send(&mut pipe, follow(&client, &owner, &id, false)).await?;
+                    }
+                    fresh.remove(&id);
+                    revisions.remove(&id);
+                    idle.remove(&id);
+                    last_discovery.remove(&id);
+                    if let Some(chat) = candidates.get(&id) {
+                        live.entry(id.clone()).or_insert_with(|| chat.task.clone());
+                    }
+                    mark_task_unavailable(&mut live, &id, "聊天执行来源未响应；稍后自动重新同步");
+                }
+                if invalidated {
+                    publish_tasks(shared, &candidates, &live, &idle, &resolved, &excluded);
                 }
                 candidates = read_task_history(home)?
                     .into_iter()
@@ -539,10 +596,21 @@ async fn observe_desktop(
                             } else if message["error"] != "no-client-found"
                                 && message["error"]["code"] != "no-client-found"
                             {
-                                return Err(Diagnostic::new(
-                                    "QDT-607",
-                                    "无法查询聊天执行来源；稍后自动重连",
-                                ));
+                                resolved.remove(&id);
+                                idle.remove(&id);
+                                mark_task_unavailable(
+                                    &mut live,
+                                    &id,
+                                    "聊天执行来源查询失败；稍后自动重新查询",
+                                );
+                                publish_tasks(
+                                    shared,
+                                    &candidates,
+                                    &live,
+                                    &idle,
+                                    &resolved,
+                                    &excluded,
+                                );
                             }
                             if pending.is_empty() && awaiting.is_empty() {
                                 publish_tasks(
@@ -1033,6 +1101,175 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unresponsive_chat_does_not_freeze_new_or_restarted_chats() {
+        use tokio::net::UnixListener;
+        use tokio::sync::mpsc;
+
+        fn snapshot(id: &str, turn: &str, revision: u64, ended: Option<u64>) -> Value {
+            json!({"type":"broadcast","method":"thread-stream-state-changed","version":11,"sourceClientId":"sample-owner","targetClientIds":["observer"],"params":{"hostId":"local","conversationId":id,"change":{"type":"snapshot","revision":revision,"conversationState":{"id":id,"title":"示例聊天","requests":[],"threadRuntimeStatus":{"type":if ended.is_some() {"idle"} else {"active"},"activeFlags":[]},"turns":[{"turnId":turn,"status":if ended.is_some() {"completed"} else {"inProgress"},"turnStartedAtMs":ended.unwrap_or_else(now_ms).saturating_sub(1000),"durationMs":ended.map(|_|1000)}]}}}})
+        }
+        fn changed(id: &str, base: u64, revision: u64, runtime: &str) -> Value {
+            json!({"type":"broadcast","method":"thread-stream-state-changed","version":11,"sourceClientId":"sample-owner","targetClientIds":["observer"],"params":{"hostId":"local","conversationId":id,"change":{"type":"patches","baseRevision":base,"revision":revision,"patches":[{"op":"replace","path":["threadRuntimeStatus"],"value":{"type":runtime,"activeFlags":[]}}]}}})
+        }
+        async fn wait_for(service: &TaskStatusService, id: &str, state: TaskState) -> ChatTask {
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    let snapshot = service.read_snapshot();
+                    if snapshot.diagnostic.is_none() {
+                        if let Some(task) = snapshot
+                            .tasks
+                            .iter()
+                            .find(|task| task.id == id && task.state == state)
+                        {
+                            return task.clone();
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("task state updates through the desktop connection")
+        }
+
+        // Keep the fixture socket below macOS's Unix socket path limit.
+        let root = PathBuf::from("/tmp").join(format!("qdt-live-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let state = Connection::open(root.join("state_5.sqlite")).unwrap();
+        state.execute_batch("CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,archived INTEGER,updated_at INTEGER); CREATE TABLE thread_spawn_edges(child_thread_id TEXT); INSERT INTO threads VALUES('retry-chat','重启聊天','vscode','Codex Desktop',0,1800000000); INSERT INTO threads VALUES('silent-chat','无响应旧聊天','cli','codex_cli_rs',0,1);").unwrap();
+        let history = Connection::open(root.join("thread_history_1.sqlite")).unwrap();
+        history.execute_batch("CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_json TEXT,rollout_ordinal INTEGER);").unwrap();
+        let ended = now_ms() - 60_000;
+        history
+            .execute(
+                "INSERT INTO thread_turns VALUES('retry-chat','old-turn','completed',?1,?2,NULL,1)",
+                rusqlite::params![(ended / 1000 - 1) as i64, (ended / 1000) as i64],
+            )
+            .unwrap();
+        let snapshots = Arc::new(Mutex::new(HashMap::from([(
+            "retry-chat".to_owned(),
+            snapshot("retry-chat", "old-turn", 1, Some(ended)),
+        )])));
+        let endpoint = root.join("ipc.sock");
+        let listener = UnixListener::bind(&endpoint).unwrap();
+        let (events, mut outbound) = mpsc::unbounded_channel::<Value>();
+        let replies = events.clone();
+        let server_snapshots = snapshots.clone();
+        let server = tokio::spawn(async move {
+            let (pipe, _) = listener.accept().await.unwrap();
+            let (mut reader, mut writer) = pipe.into_split();
+            let requests = tokio::spawn(async move {
+                loop {
+                    let Ok(length) = reader.read_u32_le().await else {
+                        break;
+                    };
+                    let mut bytes = vec![0; length as usize];
+                    if reader.read_exact(&mut bytes).await.is_err() {
+                        break;
+                    }
+                    let request: Value = serde_json::from_slice(&bytes).unwrap();
+                    let reply = match request["method"].as_str() {
+                        Some("initialize") => {
+                            json!({"type":"response","requestId":request["requestId"],"method":"initialize","resultType":"success","result":{"clientId":"observer"}})
+                        }
+                        Some("thread-owner-discovery")
+                            if request["params"]["conversationId"] == "silent-chat" =>
+                        {
+                            continue
+                        }
+                        Some("thread-owner-discovery") => {
+                            json!({"type":"response","requestId":request["requestId"],"method":"thread-owner-discovery","resultType":"success","handledByClientId":"sample-owner","result":{}})
+                        }
+                        Some("thread-stream-following-changed")
+                            if request["params"]["following"] == true =>
+                        {
+                            let id = request["params"]["conversationId"].as_str().unwrap();
+                            server_snapshots.lock().unwrap().get(id).unwrap().clone()
+                        }
+                        _ => continue,
+                    };
+                    if replies.send(reply).is_err() {
+                        break;
+                    }
+                }
+            });
+            while let Some(message) = outbound.recv().await {
+                let bytes = serde_json::to_vec(&message).unwrap();
+                if writer.write_u32_le(bytes.len() as u32).await.is_err()
+                    || writer.write_all(&bytes).await.is_err()
+                {
+                    break;
+                }
+            }
+            requests.await.unwrap();
+        });
+        let service = TaskStatusService::from_paths(
+            root.clone(),
+            root.join("reminders.json"),
+            endpoint.to_string_lossy().into_owned(),
+        );
+        wait_for(&service, "retry-chat", TaskState::Completed).await;
+        tokio::time::sleep(Duration::from_millis(4300)).await;
+        assert!(
+            service.read_snapshot().diagnostic.is_none(),
+            "an unresponsive historical chat must not disconnect healthy task subscriptions"
+        );
+
+        snapshots.lock().unwrap().insert(
+            "retry-chat".into(),
+            snapshot("retry-chat", "new-turn", 2, None),
+        );
+        events.send(changed("retry-chat", 1, 2, "active")).unwrap();
+        let restarted = wait_for(&service, "retry-chat", TaskState::Running).await;
+        assert_eq!(restarted.turn_id, "new-turn");
+        assert_eq!(restarted.completed_at_ms, None);
+        assert_eq!(restarted.expires_at_ms, None);
+
+        snapshots.lock().unwrap().insert(
+            "new-chat".into(),
+            snapshot("new-chat", "first-turn", 1, None),
+        );
+        state.execute_batch("INSERT INTO threads VALUES('new-chat','刚开启的聊天','vscode','Codex Desktop',0,1800000000);").unwrap();
+        // The first running turn does not need to have reached the history projection.
+        assert_eq!(
+            wait_for(&service, "new-chat", TaskState::Running)
+                .await
+                .turn_id,
+            "first-turn"
+        );
+        let completed = now_ms() - 10;
+        snapshots.lock().unwrap().insert(
+            "retry-chat".into(),
+            snapshot("retry-chat", "new-turn", 3, Some(completed)),
+        );
+        events.send(changed("retry-chat", 2, 3, "idle")).unwrap();
+        assert_eq!(
+            wait_for(&service, "retry-chat", TaskState::Completed)
+                .await
+                .completed_at_ms,
+            Some(completed)
+        );
+        assert_eq!(
+            service
+                .read_snapshot()
+                .tasks
+                .iter()
+                .filter(|task| task.id == "retry-chat")
+                .count(),
+            1
+        );
+        drop(service);
+        drop(events);
+        tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(state);
+        drop(history);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     use rusqlite::Connection;
 
     #[test]
@@ -1089,7 +1326,7 @@ mod tests {
         std::fs::remove_dir(root).unwrap();
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, unix))]
     #[tokio::test]
     #[ignore = "requires the local Codex Desktop and existing running chat; read-only"]
     async fn live_desktop_read_only_smoke() {
@@ -1097,15 +1334,20 @@ mod tests {
             std::env::var_os("CODEX_SQLITE_HOME")
                 .or_else(|| std::env::var_os("CODEX_HOME"))
                 .unwrap_or_else(|| {
-                    PathBuf::from(std::env::var_os("USERPROFILE").unwrap())
-                        .join(".codex")
-                        .into_os_string()
+                    PathBuf::from(
+                        std::env::var_os("USERPROFILE")
+                            .or_else(|| std::env::var_os("HOME"))
+                            .unwrap(),
+                    )
+                    .join(".codex")
+                    .into_os_string()
                 }),
         );
+        let endpoint = desktop_endpoint(&home);
         let service = TaskStatusService::from_paths(
             home,
             std::env::temp_dir().join(format!("quodex-live-{}.json", uuid::Uuid::new_v4())),
-            r"\\.\pipe\codex-ipc".into(),
+            endpoint,
         );
         tokio::time::timeout(Duration::from_secs(12), async {
             loop {
@@ -1134,20 +1376,24 @@ mod tests {
                     .collect::<Vec<_>>()
             );
         });
-        tokio::time::sleep(Duration::from_secs(18)).await;
+        let observed = Instant::now();
+        while observed.elapsed() < Duration::from_secs(18) {
+            let snapshot = service.read_snapshot();
+            assert!(
+                snapshot.diagnostic.is_none(),
+                "live source diagnostic: {:?}",
+                snapshot.diagnostic
+            );
+            assert!(
+                snapshot
+                    .tasks
+                    .iter()
+                    .any(|task| matches!(task.state, TaskState::Running | TaskState::Waiting)),
+                "actual active chat stays live throughout discovery and follower heartbeat"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
         let snapshot = service.read_snapshot();
-        assert!(
-            snapshot.diagnostic.is_none(),
-            "live source diagnostic: {:?}",
-            snapshot.diagnostic
-        );
-        assert!(
-            snapshot
-                .tasks
-                .iter()
-                .any(|task| matches!(task.state, TaskState::Running | TaskState::Waiting)),
-            "actual active chat remains fresh after follower heartbeat"
-        );
         eprintln!(
             "LIVE_DESKTOP_READ_ONLY: {}",
             json!({"observedTasks":snapshot.tasks.len(),"running":snapshot.tasks.iter().filter(|task|task.state==TaskState::Running).count(),"waiting":snapshot.tasks.iter().filter(|task|task.state==TaskState::Waiting).count(),"diagnostic":snapshot.diagnostic})

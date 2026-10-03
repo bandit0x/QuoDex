@@ -169,7 +169,93 @@ fn runtime_started_at_ms() -> Option<u64> {
         oldest
     }
 }
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn runtime_started_at_ms() -> Option<u64> {
+    use std::ffi::{c_int, c_void, CStr};
+    use std::mem::{size_of, MaybeUninit};
+
+    // PROC_PIDTBSDINFO layout from the macOS SDK's <sys/proc_info.h>.
+    #[repr(C)]
+    struct ProcessInfo {
+        flags: u32,
+        status: u32,
+        exit_status: u32,
+        pid: u32,
+        parent_pid: u32,
+        uid: u32,
+        gid: u32,
+        real_uid: u32,
+        real_gid: u32,
+        saved_uid: u32,
+        saved_gid: u32,
+        reserved: u32,
+        command: [u8; 16],
+        name: [u8; 32],
+        open_files: u32,
+        process_group: u32,
+        job_control: u32,
+        terminal_device: u32,
+        terminal_group: u32,
+        nice: i32,
+        started_seconds: u64,
+        started_microseconds: u64,
+    }
+    #[link(name = "proc")]
+    unsafe extern "C" {
+        fn proc_listallpids(buffer: *mut c_void, size: c_int) -> c_int;
+        fn proc_pidinfo(
+            pid: c_int,
+            flavor: c_int,
+            arg: u64,
+            buffer: *mut c_void,
+            size: c_int,
+        ) -> c_int;
+        fn getuid() -> u32;
+    }
+    // libproc reports PID counts; the buffers below match their C layouts and sizes.
+    let count = unsafe { proc_listallpids(std::ptr::null_mut(), 0) };
+    if count <= 0 {
+        return None;
+    }
+    let mut pids = vec![0_i32; count as usize + 32];
+    let filled = unsafe {
+        proc_listallpids(
+            pids.as_mut_ptr().cast(),
+            (pids.len() * size_of::<i32>()) as c_int,
+        )
+    };
+    let uid = unsafe { getuid() };
+    let mut oldest = None;
+    for pid in pids
+        .into_iter()
+        .take(filled.max(0) as usize)
+        .filter(|pid| *pid > 0)
+    {
+        let mut info = MaybeUninit::<ProcessInfo>::zeroed();
+        let bytes = size_of::<ProcessInfo>() as c_int;
+        if unsafe { proc_pidinfo(pid, 3, 0, info.as_mut_ptr().cast(), bytes) } != bytes {
+            continue;
+        }
+        // The entire repr(C) record was written; all its fields are integer/byte values.
+        let info = unsafe { info.assume_init() };
+        if info.uid != uid
+            || !CStr::from_bytes_until_nul(&info.command)
+                .is_ok_and(|name| name.to_bytes() == b"ZCode")
+        {
+            continue;
+        }
+        if let Some(started) = info
+            .started_seconds
+            .checked_mul(1000)
+            .and_then(|time| time.checked_add(info.started_microseconds / 1000))
+        {
+            oldest = Some(oldest.map_or(started, |old: u64| old.min(started)));
+        }
+    }
+    oldest
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn runtime_started_at_ms() -> Option<u64> {
     None
 }
@@ -215,7 +301,8 @@ pub fn read_zcode_tasks(
         .collect::<Result<HashMap<_, _>, _>>()
         .map_err(|_| schema_error())?;
     let now = now_ms();
-    let mut legacy = agent.prepare("SELECT m.id,json_extract(m.data,'$.parentID'),json_extract(m.data,'$.role'),m.time_created,json_extract(m.data,'$.time.completed'),json_extract(m.data,'$.finish'),json_extract(m.data,'$.error.name') FROM message m JOIN session s ON s.id=m.session_id WHERE m.session_id=?1 AND s.task_type='interactive' ORDER BY m.time_created DESC,m.id DESC LIMIT 1").map_err(|_|schema_error())?;
+    let mut restarted = agent.prepare("SELECT m.id FROM message m JOIN session s ON s.id=m.session_id WHERE m.session_id=?1 AND s.task_type='interactive' AND m.time_created>?2 AND json_extract(m.data,'$.role')='user' ORDER BY m.time_created DESC,m.id DESC LIMIT 1").map_err(|_| schema_error())?;
+    let mut legacy = agent.prepare("SELECT m.id,json_extract(m.data,'$.parentID'),json_extract(m.data,'$.role'),m.time_created,json_extract(m.data,'$.time.completed'),json_extract(m.data,'$.finish'),json_extract(m.data,'$.error.name') FROM message m JOIN session s ON s.id=m.session_id WHERE m.session_id=?1 AND s.task_type='interactive' AND (?2 IS NULL OR m.id=?2 OR json_extract(m.data,'$.parentID')=?2) ORDER BY m.time_created DESC,m.id DESC LIMIT 1").map_err(|_|schema_error())?;
     let mut query = index.prepare("SELECT workspace_key,workspace_path,task_id,title FROM tasks WHERE deleted=0 ORDER BY workspace_key,task_id").map_err(|_| schema_error())?;
     let rows = query
         .query_map([], |r| {
@@ -232,11 +319,26 @@ pub fn read_zcode_tasks(
     let mut tools = agent.prepare("SELECT json_extract(p.data,'$.tool'),json_extract(p.data,'$.state.status') FROM part p JOIN message m ON m.id=p.message_id AND m.session_id=p.session_id WHERE p.session_id=?1 AND m.time_created>=?2 AND json_extract(p.data,'$.type')='tool' AND json_extract(p.data,'$.state.status') IN ('pending','running')").map_err(|_| schema_error())?;
     for row in rows {
         let (workspace, path, id, title) = row.map_err(|_| schema_error())?;
-        // Older desktop records predate turn_usage. Read only the final message's
-        // role/finish/error/timestamps, following ZCode's own tool-continuation rule.
-        let fallback = if !turns.contains_key(&id) {
+        // A new user submission can precede its turn_usage projection. Only a newer
+        // user message proves a restart; late metadata from the old assistant does not.
+        let restarted_user = match turns.get(&id) {
+            Some((_, status, Some(ended), _))
+                if matches!(status.as_str(), "completed" | "error" | "cancelled") =>
+            {
+                restarted
+                    .query_row(rusqlite::params![id, *ended as i64], |r| {
+                        r.get::<_, String>(0)
+                    })
+                    .optional()
+                    .map_err(|_| schema_error())?
+            }
+            _ => None,
+        };
+        // Older desktop records predate turn_usage. Read only role/finish/error/time
+        // metadata, restricting a restarted chat to the newly submitted round.
+        let fallback = if !turns.contains_key(&id) || restarted_user.is_some() {
             legacy
-                .query_row([&id], |r| {
+                .query_row(rusqlite::params![id, restarted_user], |r| {
                     let message_id = r.get::<_, String>(0)?;
                     let parent = r.get::<_, Option<String>>(1)?;
                     let role = r.get::<_, Option<String>>(2)?;
@@ -269,7 +371,7 @@ pub fn read_zcode_tasks(
         } else {
             None
         };
-        let Some((turn_id, status, ended, started)) = turns.get(&id).or(fallback.as_ref()) else {
+        let Some((turn_id, status, ended, started)) = fallback.as_ref().or(turns.get(&id)) else {
             continue;
         };
         if status == "cancelled" {
@@ -409,6 +511,99 @@ mod tests {
             drop(index);
             drop(agent);
             std::fs::remove_dir_all(&self.root).unwrap();
+        }
+    }
+
+    #[test]
+    fn restarted_chat_does_not_reuse_completed_usage_while_new_execution_is_starting() {
+        let fixture = Fixture::new();
+        fixture.chat("ses-retry", "completed", Some(fixture.now - 60_000));
+        fixture
+            .agent
+            .execute(
+                "INSERT INTO message VALUES('new-user','ses-retry',?1,?2)",
+                params![
+                    (fixture.now - 1000) as i64,
+                    serde_json::json!({"role":"user"}).to_string()
+                ],
+            )
+            .unwrap();
+        let tasks = read_zcode_tasks(&fixture.root, Some(fixture.now - 2000)).unwrap();
+        assert_eq!(tasks[0].state, TaskState::Running);
+        assert_eq!(tasks[0].turn_id, "new-user");
+        assert_eq!(tasks[0].completed_at_ms, None);
+        assert_eq!(tasks[0].expires_at_ms, None);
+        let stopped = read_zcode_tasks(&fixture.root, None).unwrap();
+        assert_eq!(stopped[0].state, TaskState::Unknown);
+    }
+
+    #[test]
+    fn restart_ignores_late_old_assistant_metadata_and_accepts_new_round_result() {
+        for previous in ["completed", "error", "cancelled"] {
+            let fixture = Fixture::new();
+            fixture.chat("ses-retry", previous, Some(fixture.now - 60_000));
+            for (id, created, data) in [
+                (
+                    "new-user",
+                    fixture.now - 1000,
+                    serde_json::json!({"role":"user"}),
+                ),
+                (
+                    "late-old-assistant",
+                    fixture.now - 500,
+                    serde_json::json!({"role":"assistant","parentID":"old-user","finish":"stop","time":{"completed":fixture.now-100}}),
+                ),
+            ] {
+                fixture
+                    .agent
+                    .execute(
+                        "INSERT INTO message VALUES(?1,'ses-retry',?2,?3)",
+                        params![id, created as i64, data.to_string()],
+                    )
+                    .unwrap();
+            }
+            let tasks = read_zcode_tasks(&fixture.root, Some(fixture.now - 2000)).unwrap();
+            assert_eq!(
+                tasks[0].state,
+                TaskState::Running,
+                "previous state: {previous}"
+            );
+            assert_eq!(tasks[0].turn_id, "new-user");
+
+            fixture.agent.execute("INSERT INTO message VALUES('new-assistant','ses-retry',?1,?2)", params![(fixture.now-50) as i64, serde_json::json!({"role":"assistant","parentID":"new-user","finish":"stop","time":{"completed":fixture.now-10}}).to_string()]).unwrap();
+            let tasks = read_zcode_tasks(&fixture.root, None).unwrap();
+            assert_eq!(tasks[0].state, TaskState::Completed);
+            assert_eq!(tasks[0].turn_id, "new-user");
+            assert_eq!(tasks[0].completed_at_ms, Some(fixture.now - 10));
+
+            fixture.agent.execute("INSERT INTO turn_usage VALUES('ses-retry','projected-new-turn','completed',?1,?2,NULL)", params![(fixture.now-1000) as i64, (fixture.now-10) as i64]).unwrap();
+            let tasks = read_zcode_tasks(&fixture.root, None).unwrap();
+            assert_eq!(tasks[0].turn_id, "projected-new-turn");
+            assert_eq!(tasks[0].completed_at_ms, Some(fixture.now - 10));
+        }
+    }
+
+    #[test]
+    fn terminal_round_without_finish_time_does_not_treat_its_original_user_as_restart() {
+        for (status, expected) in [("error", Some(TaskState::Failed)), ("cancelled", None)] {
+            let fixture = Fixture::new();
+            fixture.chat("ses-terminal", status, None);
+            fixture
+                .agent
+                .execute(
+                    "INSERT INTO message VALUES('original-user','ses-terminal',?1,?2)",
+                    params![
+                        (fixture.now - 659_700) as i64,
+                        serde_json::json!({"role":"user"}).to_string()
+                    ],
+                )
+                .unwrap();
+            let tasks = read_zcode_tasks(&fixture.root, Some(fixture.now - 700_000)).unwrap();
+            assert_eq!(
+                tasks.first().map(|task| task.state),
+                expected,
+                "terminal status: {status}"
+            );
         }
     }
 
@@ -605,6 +800,23 @@ mod tests {
                 .state,
             TaskState::Failed
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "requires a running local ZCode desktop process; fixture task metadata"]
+    fn running_macos_desktop_keeps_current_execution_active() {
+        let fixture = Fixture::new();
+        fixture.chat("ses-active", "running", None);
+        fixture
+            .agent
+            .execute(
+                "UPDATE turn_usage SET started_at=?1",
+                [(fixture.now - 1000) as i64],
+            )
+            .unwrap();
+        let service = ZCodeTaskService::from_path(fixture.root.clone());
+        assert_eq!(service.read_snapshot().tasks[0].state, TaskState::Running);
     }
 
     #[test]
