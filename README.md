@@ -8,11 +8,7 @@
 
 **v0.3.0** · Windows 11 x64 / macOS · [下载安装](https://github.com/bandit0x/QuoDex/releases/tag/v0.3.0)
 
-<p align="center">
-  <img src="docs/screenshots/v0.3.0/main.png" width="400" alt="QuoDex v0.3.0 主界面，Codex 和 ZCode 各显示五个任务，任务条与额度仓分离">
-</p>
-
-## 三件事，一眼看清
+## 主要功能
 
 - **额度与重置**：查看 5 小时、周额度或单池套餐，支持 Codex / ZCode 切换与轮播，以及可用重置次数。
 - **两组任务**：Codex 与 ZCode 始终同时可见，每组直接显示 5 项，区分运行、等待、成功和报错。
@@ -22,19 +18,34 @@
 
 <table>
   <tr>
-    <th>ZCode 额度与重置卡</th>
-    <th>悬浮设置玻璃坞</th>
-    <th>窄条视图</th>
+    <th>Codex</th>
+    <th>ZCode</th>
+    <th>Codex Pro</th>
   </tr>
   <tr>
     <td align="center">
-      <img src="docs/screenshots/v0.3.0/zcode.png" width="300" alt="ZCode 月光银额度仓及五小时、周重置卡">
+      <img src="docs/screenshots/v0.3.0/main.png" width="300" alt="Codex">
     </td>
     <td align="center">
-      <img src="docs/screenshots/v0.3.0/settings.png" width="300" alt="独立来源按钮和中性反光的玻璃设置底舱">
+      <img src="docs/screenshots/v0.3.0/zcode.png" width="300" alt="ZCode">
     </td>
     <td align="center">
-      <img src="docs/screenshots/v0.3.0/narrow.png" width="260" alt="窄条布局中 Codex 和 ZCode 各显示五个任务">
+      <img src="docs/screenshots/v0.3.0/codex-pro.png" width="300" alt="Codex Pro 单舱">
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <th>设置</th>
+    <th>窄条</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/v0.3.0/settings.png" width="300" alt="设置">
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/v0.3.0/narrow.png" width="260" alt="窄条">
     </td>
   </tr>
 </table>

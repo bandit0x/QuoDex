@@ -4,5 +4,7 @@
   "qaSignedSha256": "4aad76daec10d45035496baf96a9abeddbc307c21e35e2eabe8f14aa2bdd9498",
   "signatureRemovedCopiesSha256": "b3cd1cdeb8e02cc5bc9de0cce56331d08c9cf397daf958149a9b9839dbb7f763",
   "sameExecutableCode": true,
-  "method": "Compare temporary executable copies after codesign --remove-signature; originals untouched. QA fixture changes only bundle identity, environment and ad-hoc signature."
+  "method": "Compare temporary executable copies after codesign --remove-signature; originals untouched. QA fixture changes only bundle identity, environment and ad-hoc signature.",
+  "proQaSignedSha256": "a2edb6a29532409b96997d2fde141f425d4e3a318ecab00c03590ba6919e6cd1",
+  "proSameExecutableCode": true
 }

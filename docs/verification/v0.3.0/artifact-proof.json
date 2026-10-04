@@ -17,8 +17,8 @@
     "Cargo.toml": "0.3.0",
     "Cargo.lock": "0.3.0"
   },
-  "readmeLines": 63,
-  "localLinksChecked": 26,
+  "readmeLines": 74,
+  "localLinksChecked": 30,
   "screenshots": [
     {
       "file": "docs/screenshots/v0.3.0/main.png",
@@ -33,6 +33,14 @@
       "sha256": "c78bb56193b35a9cafaa2166c2f98e9cc8ba20268a9116114e67584e50975788",
       "width": 600,
       "height": 408,
+      "format": "PNG",
+      "origin": "Native v0.3.0 packaged macOS App, isolated anonymous fixtures; lossless format conversion only"
+    },
+    {
+      "file": "docs/screenshots/v0.3.0/codex-pro.png",
+      "sha256": "8b3ad3793e0592c5d9e4782ea823b1d71b6655939c290de354400226e0fb952d",
+      "width": 600,
+      "height": 350,
       "format": "PNG",
       "origin": "Native v0.3.0 packaged macOS App, isolated anonymous fixtures; lossless format conversion only"
     },

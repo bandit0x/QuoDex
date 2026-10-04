@@ -7,6 +7,7 @@ parser.add_argument('--app',type=Path,default=repo/'release/macos/QuoDex.app')
 parser.add_argument('--output',type=Path,default=repo/'.scratch/task-source-design')
 parser.add_argument('--empty',action='store_true')
 parser.add_argument('--tasks-per-source',type=int,help='Anonymous task count for each source (1–99)')
+parser.add_argument('--codex-scenario',choices=['healthy','pro-weekly'],default='healthy',help='Codex quota fixture: dual chambers or Pro weekly-only chamber')
 parser.add_argument('--common-diagnostic',action='store_true')
 parser.add_argument('--y',type=int,default=800,help='Initial physical desktop Y coordinate')
 parser.add_argument('--launch-services',action='store_true',help='Launch an independently identified QA bundle for native UI automation')
@@ -68,6 +69,7 @@ def accept():
   c,_=listener.accept();threading.Thread(target=serve,args=(c,),daemon=True).start()
 threading.Thread(target=accept,daemon=True).start()
 fixture_env=dict(CODEX_CREDITS_CONFIG_DIR=str(root/'config'),CODEX_SQLITE_HOME=str(root),QUODEX_TASK_IPC_ENDPOINT=str(endpoint),ZCODE_DATA_BASE_DIR=str(root),CODEX_CREDITS_APP_SERVER_EXECUTABLE=node,CODEX_CREDITS_APP_SERVER_ARGS=json.dumps([str(repo/'fixtures/app-server-fixture.mjs')]),CODEX_CREDITS_ZCODE_QUOTA_RESPONSE_FILE=str(root/'quota.json'),CODEX_CREDITS_ZCODE_RESET_RESPONSE_FILE=str(root/'resets.json'))
+fixture_env['CODEX_CREDITS_FIXTURE_SCENARIO']=args.codex_scenario
 env=dict(os.environ,**fixture_env)
 app_path=args.app.resolve()
 command=[str(app_path/'Contents/MacOS/codex-credits-view')]
