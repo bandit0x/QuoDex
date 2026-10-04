@@ -18,7 +18,7 @@ const SURFACE_COPY = {
     low: "周额度偏低",
   },
   "zcode-trial": {
-    accent: "emerald" as const,
+    accent: "moonlight" as const,
     label: "TRIAL",
     loading: "正在读取体验额度…",
     failed: "体验额度读取失败",
@@ -39,7 +39,7 @@ export function ProQuotaSurface({ window, motion, motionSeed, reducedMotion, res
   low?: boolean;
   diagnostic?: { code: string; message: string };
   onRetry: () => void;
-  /** zcode-trial：ZCode 体验套餐单池，翡翠绿液体与 Codex Pro 薄荷绿区分 */
+  /** zcode-trial：ZCode 体验套餐单池，月光银液体与 Codex Pro 薄荷绿区分 */
   variant?: "codex-pro" | "zcode-trial";
 }) {
   const copy = SURFACE_COPY[variant];

@@ -598,7 +598,7 @@ describe("dual quota sources", () => {
     expect(within(fiveHour).getByText("76%", { exact: false })).toBeInTheDocument();
     expect(within(fiveHour).getByText("1520 / 2000")).toBeInTheDocument();
     const weekly = screen.getByRole("group", { name: "WEEK quota" });
-    expect(weekly).toHaveClass("quota-cell--emerald");
+    expect(weekly).toHaveClass("quota-cell--moonlight");
     expect(within(weekly).getByText("42%", { exact: false })).toBeInTheDocument();
     expect(within(weekly).getByText("4200 / 10000")).toBeInTheDocument();
     expect(screen.getByText("ZCODE")).toBeInTheDocument();
@@ -690,7 +690,7 @@ describe("dual quota sources", () => {
     expect(screen.queryByRole("group", { name: "WEEK quota" })).not.toBeInTheDocument();
   });
 
-  it("renders the Start trial plan as a Pro-style single pool with emerald liquid", async () => {
+  it("renders the Start trial plan as a Pro-style single pool with moonlight silver liquid", async () => {
     render(
       <App
         {...inertPreferences}
@@ -719,7 +719,7 @@ describe("dual quota sources", () => {
     );
 
     const trial = await screen.findByRole("group", { name: "TRIAL quota" });
-    expect(trial).toHaveClass("quota-cell--emerald", "quota-cell--pro");
+    expect(trial).toHaveClass("quota-cell--moonlight", "quota-cell--pro");
     expect(within(trial).getByText("65%", { exact: false })).toBeInTheDocument();
     expect(within(trial).getByText("TRIAL")).toBeInTheDocument();
     // 体验套餐的池到期时间语义是 Expires，不是 Resets

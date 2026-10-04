@@ -1065,7 +1065,7 @@ export function App({
                       <QuotaCell
                         label="WEEK"
                         window={zcodeSnapshot.weekly}
-                        accent="emerald"
+                        accent="moonlight"
                         credits={formatCredits(zcodeSnapshot.weekly)}
                         motion={fluidMotion}
                         motionSeed={fluidChamberSeeds.zcodeWeekly}

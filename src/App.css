@@ -236,13 +236,13 @@ input:focus-visible {
   --center-wall-depth: inset 0 0 0 transparent;
 }
 .quota-cell--mint.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
-/* ZCode 体验套餐复用 Pro 单舱形态，液体/边框换成翡翠绿以区分来源 */
-.quota-cell--emerald.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
+/* ZCode 体验套餐复用 Pro 单舱形态，采用与个人套餐一致的月光银材质。 */
+.quota-cell--moonlight.quota-cell--pro .fluid-reservoir { border-radius: 25px; }
 .quota-cell--pro .quota-cell__bezel {
   background: linear-gradient(150deg, rgba(215,250,255,.4), rgba(4,27,40,.74) 42%, rgba(81,228,198,.3) 76%, rgba(1,15,25,.78));
 }
-.quota-cell--emerald.quota-cell--pro .quota-cell__bezel {
-  background: linear-gradient(150deg, rgba(215,250,236,.4), rgba(4,27,22,.74) 42%, rgba(89,227,173,.3) 76%, rgba(1,25,18,.78));
+.quota-cell--moonlight.quota-cell--pro .quota-cell__bezel {
+  background: linear-gradient(150deg, rgba(236,249,253,.4), rgba(7,30,41,.74) 42%, rgba(200,217,223,.3) 76%, rgba(1,15,25,.78));
 }
 .source-badge__pro {
   border-left: 1px solid #50d8ff66;
@@ -277,9 +277,9 @@ input:focus-visible {
 .collapsed-surface.collapsed-surface--pro strong { font-size: 25px; }
 .collapsed-surface--pro > svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
 .collapsed-dot--pro { margin-left: auto; color: var(--mint); background: var(--mint); width: 9px; height: 9px; }
-/* ZCode 体验套餐窄条：同一布局，来源文字与圆点换成翡翠绿 */
+/* ZCode 体验套餐窄条：保留来源标识色，圆点对应月光银液体。 */
 .collapsed-surface--zcode-trial .collapsed-pro-source { color: var(--emerald); }
-.collapsed-dot--zcode-trial { margin-left: auto; color: var(--emerald); background: var(--emerald); width: 9px; height: 9px; }
+.collapsed-dot--zcode-trial { margin-left: auto; color: var(--moonlight); background: var(--moonlight); width: 9px; height: 9px; }
 
 .quota-grid.source-stage { animation: source-fade 240ms ease-out both; }
 
@@ -328,17 +328,17 @@ input:focus-visible {
   --accent: var(--emerald);
 }
 
-.quota-cell--emerald.quota-cell--week {
+.quota-cell--moonlight.quota-cell--week {
   --bezel-left: -2px;
   --bezel-right: -6px;
   --bezel-radius: 25px 31px 31px 29px;
   --bezel-outer-x: 100%;
   --bezel-center-x: 0%;
-  --center-wall-depth: inset 12px 0 18px rgba(29, 129, 94, 0.22);
+  --center-wall-depth: inset 12px 0 18px rgba(123, 156, 168, 0.22);
   border-radius: 19px 25px 25px 19px;
 }
 
-.quota-cell--emerald.quota-cell--week .fluid-reservoir { border-radius: 19px 25px 25px 19px; }
+.quota-cell--moonlight.quota-cell--week .fluid-reservoir { border-radius: 19px 25px 25px 19px; }
 
 .quota-cell::before {
   content: "";
@@ -935,7 +935,7 @@ input:focus-visible {
 
 .collapsed-dot--codex { color: var(--cyan); background: var(--cyan); }
 .collapsed-dot--zcode-five-hour { color: var(--moonlight); background: var(--moonlight); }
-.collapsed-dot--zcode-weekly { color: var(--emerald); background: var(--emerald); }
+.collapsed-dot--zcode-weekly { color: var(--moonlight); background: var(--moonlight); }
 
 .plan-chip {
   padding: 1px 8px;

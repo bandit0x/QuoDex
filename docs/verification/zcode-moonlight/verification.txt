@@ -1,0 +1,16 @@
+状态：Acceptance pending
+日期：2026-10-04
+目标：ZCode 周仓、体验套餐单仓和窄条色点统一复用左仓 moonlight 材质。
+来源：v0.2.5；基线 5a817fa，加本轮补丁与已有未提交工作区。仅本轮补丁单独提交。
+环境：macOS 27.0.1 (26A434)，arm64，WKWebView，Node 24。
+构建：npm run tauri:build -- --bundles app，通过。见 build.txt。
+产物：src-tauri/target/release/bundle/macos/QuoDex.app。
+测试：npm test -- --maxWorkers=1，10 文件 106 项通过。见 tests.txt。
+首次测试误收集本轮保存的测试文件快照，另有 4 项超时；快照改为 .txt 后以单 worker 重跑通过，未放宽超时。
+原生冒烟：使用 fixtures/task-capsules-macos.py 的本轮临时副本，仅将初始来源改为 zcode，运行于全新临时数据目录。
+复现命令：python3 .scratch/zcode-moonlight/native-fixture.py --app src-tauri/target/release/bundle/macos/QuoDex.app --launch-services --empty --output .scratch/zcode-moonlight/native --y 400
+截图：native-standard.png 为真实 App 双仓；native-collapsed.png 为点击展开、收起为窄条后的真实 App。
+对照结果：左仓原材质保留，右仓色调/高光与左仓一致；右仓外侧圆角保留；窄条两色点均为月光银。
+两路代码审查：Standards 0 项；Spec 0 项。按本轮开始前工作区快照审查，没有包含其他设置改动。
+限制：体验套餐单仓由组件测试及共用材质检查覆盖，未单独取得原生截图；Windows 未验证。夹具不是线上账户协议验证。
+原有设置界面改动尚未验收，本轮未替换 /Applications 中的安装版。QA App 检查后退出。
