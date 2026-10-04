@@ -1,0 +1,53 @@
+{
+  "aboutVisible": true,
+  "allFiveImagesLoaded": true,
+  "featureHeading": true,
+  "galleryHeaders": [
+    "Codex",
+    "ZCode",
+    "Codex Pro",
+    "设置",
+    "窄条"
+  ],
+  "images": [
+    {
+      "alt": "Codex",
+      "complete": true,
+      "height": 350,
+      "src": "/bandit0x/QuoDex/raw/main/docs/screenshots/v0.3.0/main.png",
+      "width": 600
+    },
+    {
+      "alt": "ZCode",
+      "complete": true,
+      "height": 408,
+      "src": "/bandit0x/QuoDex/raw/main/docs/screenshots/v0.3.0/zcode.png",
+      "width": 600
+    },
+    {
+      "alt": "Codex Pro 单舱",
+      "complete": true,
+      "height": 350,
+      "src": "/bandit0x/QuoDex/raw/main/docs/screenshots/v0.3.0/codex-pro.png",
+      "width": 600
+    },
+    {
+      "alt": "设置",
+      "complete": true,
+      "height": 532,
+      "src": "/bandit0x/QuoDex/raw/main/docs/screenshots/v0.3.0/settings.png",
+      "width": 600
+    },
+    {
+      "alt": "窄条",
+      "complete": true,
+      "height": 184,
+      "src": "/bandit0x/QuoDex/raw/main/docs/screenshots/v0.3.0/narrow.png",
+      "width": 520
+    }
+  ],
+  "versionVisible": true,
+  "repositoryUrl": "https://github.com/bandit0x/QuoDex",
+  "readmeCommit": "37ed071142d933f18b48a40cf8ebb38a7b8ea59c",
+  "screenshot": "github-gallery.jpg"
+}

@@ -1,0 +1,32 @@
+{
+  "tagCommit": "4ff14fd8cc2451ecff99a64379cff5c4d69c70df",
+  "asset": "QuoDex_0.3.0_aarch64.dmg",
+  "checkedAt": "2026-10-04T16:03:32.027925+00:00",
+  "version": "0.3.0",
+  "architecture": "arm64",
+  "signatureVerification": {
+    "command": "codesign --verify --deep --strict QuoDex.app",
+    "exitCode": 0,
+    "status": "Verified"
+  },
+  "dmgIntegrity": {
+    "command": "hdiutil verify QuoDex_0.3.0_aarch64.dmg",
+    "status": "Verified",
+    "log": "published-dmg-verify.txt"
+  },
+  "executableSha256": "0531131e46eea6fcfb87529c918d74478dff391fcdaae9277f107b453f7943e3",
+  "runtime": {
+    "present": true,
+    "command": "Contents/MacOS/codex-runtime/bin/codex --version",
+    "version": "codex-cli 0.147.0",
+    "exitCode": 0,
+    "warning": "Could not create PATH aliases in the restricted environment; version query succeeded."
+  },
+  "downloadedNativeSmoke": {
+    "status": "Blocked",
+    "anonymousQaProcessStarted": true,
+    "screenshotCaptured": false,
+    "diagnostic": "ScreenCaptureKit SCStreamErrorDomain -3811: could not start audio/video capture",
+    "scope": "No visual or interaction success claimed for the downloaded bundle."
+  }
+}

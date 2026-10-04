@@ -1,0 +1,52 @@
+{
+  "tag": "v0.3.0",
+  "tagCommit": "4ff14fd8cc2451ecff99a64379cff5c4d69c70df",
+  "releaseUrl": "https://github.com/bandit0x/QuoDex/releases/tag/v0.3.0",
+  "publishedAt": "2026-10-04T15:43:01Z",
+  "isDraft": false,
+  "ciUrl": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417",
+  "ciConclusion": "success",
+  "jobs": [
+    {
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417/job/111467196017"
+    },
+    {
+      "name": "test (windows-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417/job/111467196206"
+    },
+    {
+      "name": "package-windows",
+      "conclusion": "success",
+      "url": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417/job/111467811735"
+    },
+    {
+      "name": "package-macos",
+      "conclusion": "success",
+      "url": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417/job/111467811807"
+    },
+    {
+      "name": "release",
+      "conclusion": "success",
+      "url": "https://github.com/bandit0x/QuoDex/actions/runs/37212796417/job/111470753239"
+    }
+  ],
+  "assets": [
+    {
+      "name": "QuoDex-0.3.0-win-x64-setup.exe",
+      "size": 300209237,
+      "digest": "sha256:1490e2bd8001f1408ba3b81df76bf367e71b365b5893043ceeac8971d81fdaa4",
+      "downloadedDigestMatchesGitHub": true,
+      "url": "https://github.com/bandit0x/QuoDex/releases/download/v0.3.0/QuoDex-0.3.0-win-x64-setup.exe"
+    },
+    {
+      "name": "QuoDex_0.3.0_aarch64.dmg",
+      "size": 101176894,
+      "digest": "sha256:8bcfbe490d1994d580423e0a49bf09a9b82d88141424faed036c96069bc7d6cf",
+      "downloadedDigestMatchesGitHub": true,
+      "url": "https://github.com/bandit0x/QuoDex/releases/download/v0.3.0/QuoDex_0.3.0_aarch64.dmg"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 # v0.3.0 发布验证
 
-状态：Implemented。本地发布验证为 Verified；双平台 CI 打包与 Release 尚在执行，首页新增 Pro 图待推送后复核。
+本地生产包验证、双平台 CI 和发布附件校验：Verified。首页五图已推送并核对；用户视觉验收：Acceptance pending。下载后 DMG 的补充界面检查因系统截图服务错误为 Blocked，具体边界见下文。
 
-来源：应用发布提交 4ff14fd（v0.3.0 标签），UI 基线 7248615；package.json、Tauri 和 Cargo 均为 0.3.0。环境：macOS 27.0.1 / 26A434、Apple Silicon arm64、Node 24.21.0、npm 11、Rust 1.98.1、Tauri WKWebView。
+来源：应用发布提交 4ff14fd（v0.3.0 标签），UI 基线 7248615，首页截图与文案提交 37ed071；package.json、Tauri 和 Cargo 均为 0.3.0。环境：macOS 27.0.1 / 26A434、Apple Silicon arm64、Node 24.21.0、npm 11、Rust 1.98.1、Tauri WKWebView。
 
 ## 本地验证
 
@@ -57,7 +57,13 @@ python3 fixtures/task-capsules-macos.py --launch-services --tasks-per-source 5 -
 
 ## 远程发布
 
-main 和 v0.3.0 标签已推送，标签指向 4ff14fd；About 已更新。双平台测试通过，安装包生成与自动 Release 仍在执行。首页五图补充待推送后复核。[本次发布 CI](https://github.com/bandit0x/QuoDex/actions/runs/37212796417)、[v0.3.0 Release](https://github.com/bandit0x/QuoDex/releases/tag/v0.3.0)。
+main 和 v0.3.0 标签已推送，标签指向 4ff14fd。macOS、Windows 测试与打包、Release 五个 CI job 均成功；Release 于 2026-10-04 15:43:01 UTC 发布，两份安装附件均可下载。[本次发布 CI](https://github.com/bandit0x/QuoDex/actions/runs/37212796417)、[v0.3.0 Release](https://github.com/bandit0x/QuoDex/releases/tag/v0.3.0)、[发布与附件指纹](remote-release.json)。
+
+两份附件下载到 release/v0.3.0-published，实际大小与 SHA-256 均匹配 GitHub。下载的 DMG 经 hdiutil verify 和挂载后 codesign --verify --deep --strict 核验通过，Info.plist 为 0.3.0，捆绑 runtime 执行 --version 返回 codex-cli 0.147.0。[下载 DMG 校验日志](published-dmg-verify.txt)、[下载包检查](published-package-check.json)。
+
+下载包的独立匿名 QA 进程已启动，但本次 CUA 在获取窗口时返回 ScreenCaptureKit -3811，未取得界面截图，因此这项补充界面验证为 Blocked。前述本地生产包原生截图、操作与安装冒烟检查仍为已执行证据，不将它们当作下载包的界面测试。
+
+GitHub 首页 About 已更新；“主要功能”标题可见，Codex、ZCode、Codex Pro、设置、窄条五张图片均加载成功。[首页检查](homepage-check.json)、[实际首页截图](github-gallery.jpg)。
 
 ## 已知限制
 
