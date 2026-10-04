@@ -49,6 +49,7 @@ import {
   setOverlayTaskSpace,
   TASK_ROW_HEIGHT,
   TASK_POPOVER_HEIGHT,
+  SETTINGS_WINDOW_EXTRA_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -993,7 +994,7 @@ export function App({
   return (
     <main
       className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${taskPopoverOpen && taskPopoverPlacement === "below" ? " app-frame--task-popover-below" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
-      style={{ "--surface-opacity": preferences.opacity, "--task-popover-space": `${taskPopoverOpen && taskPopoverPlacement === "above" ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
+      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${SETTINGS_WINDOW_EXTRA_HEIGHT * 2}px`, "--task-popover-space": `${taskPopoverOpen && taskPopoverPlacement === "above" ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
       onContextMenu={(event) => {
         event.preventDefault();
         void toggleSettings();

@@ -1,16 +1,33 @@
 # 双来源任务胶囊验证记录
 
-状态：**Acceptance pending**。本记录是实现与验证状态的唯一入口；macOS arm64 浅背景现场检查已通过，仍待用户验收。首次双胶囊版本经独立 finish reviewer 检查；本次透明度修订的 Standards / Spec 审查各 0 项发现。
+状态：**Acceptance pending**。本记录是实现与验证状态的唯一入口；macOS arm64 浅背景现场检查已通过，仍待用户验收。首次双胶囊版本经独立 finish reviewer 检查；本次设置遮挡修复的 Standards / Spec 审查各 0 项发现。
 
 ## 版本、产物与环境
 
-- 来源基线：首次双胶囊实现基于 `v0.2.5` / `1a80d5ee8a69f25ef9cb80f9c2c330f5f5915ecb`；本次透明度修订基于 `aeb0d6a`，位于 `codex/task-source-capsules` 分支，包版本仍为 `0.2.5`。
+- 来源基线：首次双胶囊实现基于 `v0.2.5` / `1a80d5ee8a69f25ef9cb80f9c2c330f5f5915ecb`；透明度修订基于 `aeb0d6a`，本次设置遮挡修复基于 `c0c7442`。分支为 `codex/task-source-capsules`，包版本仍为 `0.2.5`。
 - 产物：`release/macos/QuoDex.app`、`release/macos/QuoDex_0.2.5_aarch64.dmg`。
 - 现场：macOS `27.0.1`（`26A434`）、`arm64`、浅色桌面背景，运行真实打包 App。
-- App 主二进制 SHA256：`7ba815d156ba268d00f5ff4a9d29e36912c1fbee4ed84f180072678d53246b46`。
-- DMG SHA256：`7b7262286674ffdabf314058a8fcff8b0eba1c29d67f2cfbed29357cba0f3596`。
+- App 主二进制 SHA256：`e9991ac11389ae42c96d55214010b33c60accdac72127b4c41a3ee332e3d05cf`。
+- DMG SHA256：`25e61293c96f92403c10636f114474853278ccb2d11d7437b23fe120ff071c77`。
 
-安装复核：已替换并启动 `/Applications/QuoDex.app`；安装包主二进制与上述 SHA256 一致，安装后签名复核成功。真实用户环境中两个来源分别显示，额度读取正常；ZCode 列表展开和收起成功。用户任务标题与账号数值不写入本记录；本次调整前、调整后与列表截图仅保留在本地 ignored 的 `.scratch/task-source-design/transparency-{before,after,list}-installed.png`。旧 App 与显示配置备份位于 `.scratch/task-source-design/rollback-transparency-20261004-145024/`。
+安装复核：已替换并启动 `/Applications/QuoDex.app`；安装包主二进制与上述 SHA256 一致，安装后签名复核成功。真实用户环境中两个来源分别显示，额度读取正常。用户任务标题与账号数值不写入本记录；本次设置截图仅保留在本地 ignored 的 `.scratch/task-source-design/settings-overlap-{before,after-above,after-below,restored}.png`。旧 App 与显示配置备份位于 `.scratch/task-source-design/rollback-settings-20261004-174716/`。验收时临时选中的 ZCode 来源已恢复为原轮播偏好，窗口回到原桌面区域，其他显示偏好已核对备份一致。
+
+## 2026-10-04 设置页遮挡修复
+
+最小复现：任务区可见，展开驾驶舱后打开设置，再选择 ZCode 以显示“ZCode 套餐”行。原生截图中设置面板底部约为 `389px`，任务胶囊从约 `349px` 开始，产生约 `40px` 重叠；设置内容高约 `368` CSS px，半缩放后需要 `184` logical px，旧窗口只为设置预留 `160` logical px。
+
+修复将原生设置预算设为 `192` logical px，并由 App 给 CSS 提供同源的 `--settings-space: 384px`。设置区留白、任务栏上方偏移与面板高度上限使用该预算；扣除 `16` CSS px 的放置间隙后，面板上限为 `368` CSS px，超高内容在面板内滚动。未更改任务分区、材质透明度、额度数据或关闭恢复流程。
+
+| 本轮验证 | 证据与结果 |
+| --- | --- |
+| 修复前回归 | `npm test -- src/windowClient.test.ts`，新增 compact / expanded / collapsed 三个用例全部失败：旧预算 `160` 小于实测面板所需 `184`；日志 `settings-overlap-red.log`。最终用例还校验了 `8` logical px 间隙、上下位置、恢复状态与工作区边界。 |
+| 当前前端 | 10 个文件、94 项通过；日志 `settings-overlap-frontend.log`。 |
+| 当前产物 | 最终源码执行 `npm run package:app` 成功，包含 TS / Vite / Rust release 与 App / DMG；日志 `settings-overlap-package.log`。 |
+| 原生向上展开 | 新包安装后，ZCode 套餐行、退出按钮完整可见；设置底部约 `389px`、胶囊起点约 `414px`，两者分离。见 `settings-overlap-after-above.png`。 |
+| 原生向下展开 | 将浮窗移到屏幕顶部附近打开设置，任务栏与驾驶舱在上方，完整设置面板在下方，退出按钮可见。见 `settings-overlap-after-below.png`。 |
+| 关闭与恢复 | 关闭设置恢复展开驾驶舱尺寸，见 `settings-overlap-restored.png`；随后还原原轮播、位置与显示偏好，并重新启动安装 App。 |
+
+日志和本轮截图均在 ignored 的 `.scratch/task-source-design/`。本次未修改 Rust 逻辑，因此没有重复上轮 95 项 Rust 测试；Rust release 构建与安装前后签名检查为本次重新执行。三种初始布局与上下位置有自动规划回归，当前原生现场覆盖展开布局和真实用户数据；不把它扩展成全部布局、干净数据目录或 Windows 的现场验收。
 
 ## 2026-10-04 透明度修订
 
@@ -32,14 +49,14 @@
 
 | 检查 | 结果与范围 |
 | --- | --- |
-| 前端测试 | 10 个文件、91 项通过；包含分组计数、同 ID 来源隔离、独立新鲜度、失败轮次、浮层、布局与材质区域检查。 |
-| Rust 测试 | 95 项通过、0 失败、5 项 ignored；SQLite 与真实 IPC 消息格式的本地夹具覆盖来源隔离、状态轮次与异常恢复。 |
+| 前端测试 | 本次 10 个文件、94 项通过；新增设置面板预算回归，保留来源分组、新鲜度、失败轮次、布局与材质检查。 |
+| Rust 测试 | 透明度修订时 95 项通过、0 失败、5 项 ignored；本次未改 Rust，未重复该测试。 |
 | 构建与打包 | `npm run package:app` 成功；包含 `tsc`、Vite 生产构建、Rust release 构建及 App / DMG 打包。 |
 | 签名检查 | `codesign --verify --deep --strict release/macos/QuoDex.app` 成功。 |
 | 原生启动冒烟 | 本次真实安装 App 启动成功，驾驶舱、任务胶囊可见，配额读取正常；隔离原生夹具启动限制见上。 |
-| 原生交互 | 本次复核来源列表展开与收起、来源文字与列表可读性。首次双胶囊版本曾在隔离数据上验证窄条、独立 `+N`、失败轮次、来源故障恢复、额度切换、减少动效、展开方向、空组与公共诊断；本次没有重复全部历史旅程。 |
+| 原生交互 | 本次复核设置向上 / 向下展开、ZCode 套餐行、退出按钮可见与关闭恢复。来源列表与全部历史任务旅程没有重复现场检查。 |
 
-本次构建与测试日志仅保留在 ignored 的 `.scratch/task-source-design/transparency-{frontend,rust,package}.log`，不作为源码产物复制。Rust 第一次在沙箱内运行时 Unix socket 绑定被拒绝，允许本地 socket 后重新运行得到 95 项通过。5 项 ignored 分别需要本机运行中的 Codex 聊天、已登录 ZCode 个人账号、真实网关、现有 ZCode 数据库或运行中的 ZCode 桌面进程；此次没有把它们计为通过。
+历史透明度修订日志保留在 ignored 的 `.scratch/task-source-design/transparency-{frontend,rust,package}.log`。当时 Rust 首次运行的 Unix socket 绑定被沙箱拒绝，允许本地 socket 后重跑得到 95 项通过。5 项 ignored 需要本机 Codex 聊天、已登录 ZCode 个人账号、真实网关、现有 ZCode 数据库或运行中的 ZCode 桌面进程，没有把它们计为通过。
 
 任务由采集层显式提供 `source`，以 `source:id` 区分聊天、以 `turnId` 区分执行轮次。完成保留 30 分钟，失败移除只隐藏该来源该聊天的当前失败轮次。两来源各自保留健康状态、诊断与观察时间；2 秒心跳 + 3 秒回复期限 + 1 秒前端读取 + 2 秒余量形成 8 秒过期阈值。过期来源的非终态任务降为未知，已确认完成 / 失败保留；不会用另一来源的新时间冒充健康。
 

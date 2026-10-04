@@ -9,7 +9,8 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
   expanded: { width: 300, height: 160 },
 };
 
-export const SETTINGS_WINDOW_EXTRA_HEIGHT = 160;
+// Includes the ZCode plan selector; the CSS panel is bounded by this same budget.
+export const SETTINGS_WINDOW_EXTRA_HEIGHT = 192;
 export const TASK_ROW_HEIGHT = 36;
 export const TASK_POPOVER_HEIGHT = 160;
 

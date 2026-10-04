@@ -56,8 +56,8 @@ input:focus-visible {
 }
 
 .app-frame--collapsed { padding: 8px 10px; }
-.app-frame--settings-above { padding-top: calc(22px + 320px); }
-.app-frame--settings-below { padding-bottom: calc(18px + 320px); }
+.app-frame--settings-above { padding-top: calc(22px + var(--settings-space)); }
+.app-frame--settings-below { padding-bottom: calc(18px + var(--settings-space)); }
 .app-frame--settings-above .glass-shell,
 .app-frame--settings-below .glass-shell { pointer-events: none; }
 .app-frame.is-dragging { cursor: grabbing; }
@@ -954,6 +954,9 @@ input:focus-visible {
   z-index: 20;
   right: 56px;
   width: 488px;
+  /* Below the cockpit, 16px of the native budget belongs to placement gaps. */
+  max-height: calc(var(--settings-space) - 16px);
+  overflow-y: auto;
   padding: 20px 24px;
   display: grid;
   gap: 14px;
