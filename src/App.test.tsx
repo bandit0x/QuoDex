@@ -1,3 +1,4 @@
+import { readyTaskSources } from "./taskStatusTypes";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -11,7 +12,7 @@ import type {
 } from "./capacityTypes";
 
 const inertPreferences = {
-  loadTaskStatus: async () => ({ tasks: [], observedAtMs: Date.now(), diagnostic: null }),
+  loadTaskStatus: async () => ({ tasks: [], sources: readyTaskSources(Date.now()), observedAtMs: Date.now(), diagnostic: null }),
   setTaskSpace: async () => undefined,
   loadPreferences: async () => ({ opacity: 0.92, reducedMotion: false, x: null, y: null }),
   savePreferences: async () => undefined,
@@ -42,16 +43,16 @@ describe("mixed task row", () => {
       loadSnapshot={async () => healthySnapshot}
       loadZcodeSnapshot={async () => healthyZcodeSnapshot}
       openChat={openChat}
-      loadTaskStatus={async () => ({ observedAtMs: Date.now(), diagnostic: null, tasks: [
-        { id: "codex-example", turnId: "turn-1", title: "整理文档", state: "running" as const, completedAtMs: null, detail: null },
-        { id: "zcode:example:ses-example", turnId: "turn-2", title: "修复项目", state: "completed" as const, completedAtMs: Date.now() - 610_000, detail: null, projectPath: "D:/example" },
+      loadTaskStatus={async () => ({ sources: readyTaskSources(Date.now()), observedAtMs: Date.now(), diagnostic: null, tasks: [
+        { source: "codex" as const, id: "codex-example", turnId: "turn-1", title: "整理文档", state: "running" as const, completedAtMs: null, detail: null },
+        { source: "zcode" as const, id: "zcode:example:ses-example", turnId: "turn-2", title: "修复项目", state: "completed" as const, completedAtMs: Date.now() - 610_000, detail: null, projectPath: "D:/example" },
       ] })}
     />);
     const strip = await screen.findByRole("region", { name: "聊天任务" });
     expect(within(strip).getByRole("button", { name: "整理文档 · 运行中" })).toBeInTheDocument();
     const project = within(strip).getByRole("button", { name: "修复项目 · 已完成 · 10 分钟前" });
     fireEvent.mouseEnter(project);
-    expect(await screen.findByText("点击圆圈打开项目")).toBeInTheDocument();
+    expect(await screen.findByText("点击圆圈打开 ZCode 项目")).toBeInTheDocument();
     expect(screen.getByText("D:/example")).toBeInTheDocument();
     fireEvent.click(project);
     expect(openChat).toHaveBeenCalledWith("zcode:example:ses-example");

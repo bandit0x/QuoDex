@@ -21,6 +21,11 @@ export async function isOverlayTaskPointerInside(): Promise<boolean> {
   return target?.closest(".task-strip,.task-popover") !== null && target !== null;
 }
 let taskWindowSpace = 0;
+let taskWindowAboveSpace = 0;
+export type TaskPopoverPlacement = "above" | "below";
+export function chooseTaskPopoverPlacement(position: OverlayPosition, area: OverlayWorkArea): TaskPopoverPlacement {
+  return position.y - area.top >= TASK_POPOVER_HEIGHT ? "above" : "below";
+}
 let resizeQueue: Promise<unknown> = Promise.resolve();
 
 function serializeWindowChange<T>(change: () => Promise<T>): Promise<T> {
@@ -95,22 +100,24 @@ export async function setOverlayWindowLayout(layout: OverlayLayout): Promise<voi
   await serializeWindowChange(() => getCurrentWindow().setSize(new LogicalSize(width, height + taskWindowSpace)));
 }
 
-export function planTaskWindowPresentation(layout: OverlayLayout, position: OverlayPosition, area: OverlayWorkArea, previousSpace: number, nextSpace: number, baseHeight = overlayLayoutSizes[layout].height) {
+export function planTaskWindowPresentation(layout: OverlayLayout, position: OverlayPosition, area: OverlayWorkArea, previousSpace: number, nextSpace: number, baseHeight = overlayLayoutSizes[layout].height, previousAbove = previousSpace, nextAbove = nextSpace) {
   const size = { width: overlayLayoutSizes[layout].width, height: baseHeight + nextSpace };
-  return { size, position: { x: Math.max(area.left, Math.min(area.left + area.width - size.width, position.x)), y: Math.max(area.top, Math.min(area.top + area.height - size.height, position.y + previousSpace - nextSpace)) } };
+  return { size, position: { x: Math.max(area.left, Math.min(area.left + area.width - size.width, position.x)), y: Math.max(area.top, Math.min(area.top + area.height - size.height, position.y + previousAbove - nextAbove)) } };
 }
 
-export function setOverlayTaskSpace(layout: OverlayLayout, nextSpace: number): Promise<void> {
+export function setOverlayTaskSpace(layout: OverlayLayout, nextSpace: number, placement: TaskPopoverPlacement = "above"): Promise<void> {
   return serializeWindowChange(async () => {
-    if (nextSpace === taskWindowSpace) return;
+    const nextAbove = placement === "below" && nextSpace > TASK_ROW_HEIGHT ? TASK_ROW_HEIGHT : nextSpace;
+    if (nextSpace === taskWindowSpace && nextAbove === taskWindowAboveSpace) return;
     const appWindow = getCurrentWindow();
     const [position, area, physicalSize, scale] = await Promise.all([getOverlayWindowPosition(), getOverlayWorkArea(), appWindow.innerSize(), appWindow.scaleFactor()]);
     const size = physicalSize.toLogical(scale);
-    const plan = planTaskWindowPresentation(layout, position, area, taskWindowSpace, nextSpace, size.height - taskWindowSpace);
+    const plan = planTaskWindowPresentation(layout, position, area, taskWindowSpace, nextSpace, size.height - taskWindowSpace, taskWindowAboveSpace, nextAbove);
     try {
       await appWindow.setPosition(new LogicalPosition(plan.position.x, plan.position.y));
       await appWindow.setSize(new LogicalSize(plan.size.width, plan.size.height));
       taskWindowSpace = nextSpace;
+      taskWindowAboveSpace = nextAbove;
     } catch (error) {
       await Promise.allSettled([appWindow.setPosition(new LogicalPosition(position.x, position.y)), appWindow.setSize(new LogicalSize(size.width, size.height))]);
       throw error;

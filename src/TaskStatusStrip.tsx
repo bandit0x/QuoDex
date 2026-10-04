@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import "./TaskStatusStrip.css";
-import type { ChatTask } from "./taskStatusTypes";
+import { readyTaskSources, type ChatTask, type TaskSource, type TaskSourceStatus } from "./taskStatusTypes";
 import { isOverlayTaskPointerInside } from "./windowClient";
 import { TaskWaterFlow } from "./TaskWaterFlow";
+import type { Diagnostic } from "./capacityTypes";
 
 interface TaskStatusStripProps {
   tasks: ChatTask[];
   now: number;
   capacity: number;
+  sources?: TaskSourceStatus[];
+  diagnostic?: Diagnostic | null;
   reducedMotion?: boolean;
   onOpen: (task: ChatTask) => void;
   onDismiss: (task: ChatTask) => void;
@@ -51,24 +54,33 @@ function taskLabel(task: ChatTask, now: number): string {
   return `${taskTitle(task)} · ${taskStateLabel(task, now)}`;
 }
 
-export function TaskStatusStrip({ tasks, now, capacity, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const [hoverId, setHoverId] = useState<string | null>(null);
+const sourceNames: Record<TaskSource, string> = { codex: "Codex", zcode: "ZCode" };
+const statePriority = { running: 0, waiting: 1, failed: 2, unknown: 3, completed: 4 };
+
+export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, capacity, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
+  const [listSource, setListSource] = useState<TaskSource | null>(null);
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const [commonDiagnosticOpen, setCommonDiagnosticOpen] = useState(false);
   const closeTimer = useRef<number | null>(null);
   const closeGeneration = useRef(0);
+  const key = (task: ChatTask) => `${task.source}:${task.id}`;
   const visible = visibleChatTasks(tasks, now);
-  const count = visible.length > capacity ? capacity - 1 : capacity;
-  const shown = visible.slice(0, count);
-  const hidden = visible.slice(count);
-  const hovered = visible.find(task => task.id === hoverId);
-  const isOpen = (overflowOpen && hidden.length > 0) || hovered !== undefined;
+  const groups = (["codex", "zcode"] as const).map(source => ({
+    source,
+    status: sources.find(item => item.source === source),
+    tasks: visible.filter(task => task.source === source).sort((a, b) => statePriority[a.state] - statePriority[b.state] || (b.completedAtMs ?? 0) - (a.completedAtMs ?? 0) || a.id.localeCompare(b.id)),
+  }));
+  const hovered = visible.find(task => key(task) === hoverKey);
+  const activeGroup = groups.find(group => group.source === listSource);
+  const hasArea = visible.length > 0 || sources.some(source => source.health !== "ready") || diagnostic !== null;
+  const commonDiagnostic = commonDiagnosticOpen ? diagnostic : null;
+  const isOpen = hasArea && (activeGroup !== undefined || hovered !== undefined || commonDiagnostic !== null);
   const cancelClose = () => { closeGeneration.current += 1; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };
-  const close = () => { setOverflowOpen(false); setHoverId(null); };
+  const close = () => { setListSource(null); setHoverKey(null); setCommonDiagnosticOpen(false); };
   const scheduleClose = () => {
     cancelClose();
     const generation = closeGeneration.current;
     closeTimer.current = window.setTimeout(() => {
-      // Native resize can emit a leave even though the circle returns beneath the pointer.
       void isPointerInside().then(inside => {
         if (generation === closeGeneration.current && !inside) close();
       }).catch(() => { if (generation === closeGeneration.current) close(); });
@@ -78,31 +90,55 @@ export function TaskStatusStrip({ tasks, now, capacity, reducedMotion = false, o
   useEffect(() => () => { closeGeneration.current += 1; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); }, []);
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { setOverflowOpen(false); setHoverId(null); } };
-    const onOutside = (event: PointerEvent) => { if (!(event.target as HTMLElement).closest(".task-strip,.task-popover")) { setOverflowOpen(false); setHoverId(null); } };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    const onOutside = (event: PointerEvent) => { if (!(event.target as HTMLElement).closest(".task-strip,.task-popover")) close(); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onOutside);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", onOutside); };
   }, [isOpen]);
-  if (visible.length === 0) return null;
+  if (!hasArea) return null;
+  const openList = (source: TaskSource) => { cancelClose(); setHoverKey(null); setCommonDiagnosticOpen(false); setListSource(previous => previous === source ? null : source); };
+  const showTask = (task: ChatTask) => { cancelClose(); setHoverKey(key(task)); setListSource(null); setCommonDiagnosticOpen(false); };
+  const slots = Math.min(3, Math.max(2, capacity));
   return <>
-    <section className="task-strip" aria-label="聊天任务" onMouseLeave={scheduleClose}>
-      {shown.map(task => <button key={task.id} type="button" className="task-button"
-        aria-label={taskLabel(task, now)} onMouseEnter={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }}
-        onFocus={() => { cancelClose(); setHoverId(task.id); setOverflowOpen(false); }} onBlur={scheduleClose}
-        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /></button>)}
-      {hidden.length > 0 && <button type="button" className={`task-button task-overflow-button${hidden.some(task => task.state === "running") ? " task-overflow-button--active" : ""}`} aria-label={`其余 ${hidden.length} 个聊天`}
-        aria-expanded={overflowOpen} onMouseEnter={() => { cancelClose(); setHoverId(null); }} onClick={() => { cancelClose(); setHoverId(null); setOverflowOpen(!overflowOpen); }}><span className="task-overflow-indicator">...</span></button>}
+    <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+      {groups.map(group => {
+        const name = sourceNames[group.source];
+        const count = group.tasks.length > slots ? slots - 1 : slots;
+        const hidden = group.tasks.slice(count);
+        const attention = ["failed", "waiting", "running", "unknown", "completed"].find(state => hidden.some(task => task.state === state));
+        const health = group.status?.health ?? "loading";
+        return <div key={group.source} className={`task-source-capsule task-source-capsule--${group.source}`} role="group" aria-label={`${name} 任务`}>
+          <button type="button" className={`task-source-name task-source-name--${health}`} aria-label={`查看 ${name} 全部 ${group.tasks.length} 个任务${health === "unavailable" ? "，状态不可用" : ""}`} aria-expanded={listSource === group.source}
+            onMouseEnter={() => { cancelClose(); setHoverKey(null); }} onClick={() => openList(group.source)}>{name}<i aria-hidden="true" /></button>
+          {group.tasks.slice(0, count).map(task => <button key={key(task)} type="button" className="task-button"
+            aria-label={taskLabel(task, now)} onMouseEnter={() => showTask(task)}
+            onFocus={() => showTask(task)} onBlur={scheduleClose}
+            onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /></button>)}
+          {hidden.length > 0 && <button type="button" className={`task-button task-overflow-button task-overflow-button--${attention}`} aria-label={`${name}：其余 ${hidden.length} 个任务`}
+            title={hidden.map(task => taskLabel(task, now)).join("\n")} aria-expanded={listSource === group.source}
+            onMouseEnter={() => { cancelClose(); setHoverKey(null); }} onClick={() => openList(group.source)}><span className="task-overflow-indicator">{hidden.length > 99 ? "99+" : `+${hidden.length}`}</span></button>}
+          {group.tasks.length === 0 && <span className="task-empty" role="status">{health === "loading" ? "读取中" : health === "unavailable" ? "连接异常" : "暂无任务"}</span>}
+        </div>;
+      })}
+      {diagnostic && <button type="button" className="task-common-diagnostic" aria-label="公共任务诊断" title={`${diagnostic.message} · ${diagnostic.code}`} aria-expanded={commonDiagnosticOpen}
+        onMouseEnter={cancelClose} onClick={() => { cancelClose(); setHoverKey(null); setListSource(null); setCommonDiagnosticOpen(previous => !previous); }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9m0 4v1" /></svg>
+      </button>}
     </section>
-    {isOpen && <aside className="task-popover" role="dialog" aria-label={overflowOpen ? "其余聊天" : "聊天详情"} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
-      {hovered && !overflowOpen && <div className="task-details"><strong>{taskTitle(hovered)}</strong><span>{taskStateLabel(hovered, now)}</span>
+    {isOpen && <aside className="task-popover" role="dialog" aria-label={commonDiagnostic ? "公共任务诊断" : activeGroup ? `${sourceNames[activeGroup.source]} 任务列表` : "聊天详情"} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
+      {commonDiagnostic && <div className="task-details"><strong>任务提醒记录异常</strong><p className="task-detail-reason" role="status">{commonDiagnostic.message} · {commonDiagnostic.code}</p></div>}
+      {hovered && !activeGroup && <div className="task-details"><small>{sourceNames[hovered.source]}</small><strong>{taskTitle(hovered)}</strong><span>{taskStateLabel(hovered, now)}</span>
         {hovered.detail && <span className="task-detail-reason">{hovered.detail}</span>}
         {hovered.state === "failed" && <button type="button" onClick={() => { onDismiss(hovered); close(); }}>移除提醒</button>}
         {hovered.projectPath && <span>{hovered.projectPath}</span>}
-        <small>{hovered.projectPath ? "点击圆圈打开项目" : "点击圆圈打开聊天"}</small></div>}
-      {overflowOpen && <div className="task-list">
-      {hidden.map(task => <button type="button" className="task-list-entry" key={task.id} aria-label={taskLabel(task, now)}
-        onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /><span>{taskTitle(task)}<small>{taskStateLabel(task, now)}</small></span></button>)}
+        <small>{hovered.source === "zcode" ? "点击圆圈打开 ZCode 项目" : "点击圆圈打开 Codex 聊天"}</small></div>}
+      {activeGroup && <div className="task-list"><strong>{sourceNames[activeGroup.source]} · 全部 {activeGroup.tasks.length} 项</strong>
+        {activeGroup.status?.diagnostic && <p className="task-detail-reason" role="status">{activeGroup.status.diagnostic.message} · {activeGroup.status.diagnostic.code}</p>}
+        {activeGroup.tasks.length === 0 && <span>{activeGroup.status?.health === "ready" ? "暂无任务" : "等待来源恢复后自动同步"}</span>}
+        {activeGroup.tasks.map(task => <div className="task-list-row" key={key(task)}><button type="button" className="task-list-entry" aria-label={taskLabel(task, now)}
+          onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /><span>{taskTitle(task)}<small>{taskStateLabel(task, now)}</small></span></button>
+          {task.state === "failed" && <button type="button" className="task-list-dismiss" aria-label={`移除 ${taskTitle(task)} 的报错提醒`} onClick={() => onDismiss(task)}>移除提醒</button>}</div>)}
       </div>}
     </aside>}
   </>;

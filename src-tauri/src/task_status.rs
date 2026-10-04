@@ -15,15 +15,57 @@ use tokio::{
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TaskStatusSnapshot {
+pub struct SourceTaskSnapshot {
     pub tasks: Vec<ChatTask>,
     pub observed_at_ms: u64,
     pub diagnostic: Option<Diagnostic>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskSource {
+    Codex,
+    Zcode,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskSourceStatus {
+    pub source: TaskSource,
+    pub observed_at_ms: u64,
+    pub health: &'static str,
+    pub diagnostic: Option<Diagnostic>,
+}
+
+impl TaskSourceStatus {
+    fn from_snapshot(source: TaskSource, snapshot: &SourceTaskSnapshot) -> Self {
+        Self {
+            source,
+            observed_at_ms: snapshot.observed_at_ms,
+            health: match snapshot.diagnostic.as_ref() {
+                Some(d) if d.code == "QDT-600" => "loading",
+                Some(_) => "unavailable",
+                None => "ready",
+            },
+            diagnostic: snapshot.diagnostic.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskStatusSnapshot {
+    pub tasks: Vec<ChatTask>,
+    pub sources: Vec<TaskSourceStatus>,
+    // This aggregate is only the initial-load marker; freshness belongs to each source.
+    pub observed_at_ms: u64,
+    // Only shared failures belong here. Collector failures stay with their source.
+    pub diagnostic: Option<Diagnostic>,
+}
+
 pub struct TaskStatusService {
     zcode: Option<crate::zcode_tasks::ZCodeTaskService>,
-    snapshot: Arc<Mutex<TaskStatusSnapshot>>,
+    snapshot: Arc<Mutex<SourceTaskSnapshot>>,
     reminders: Mutex<Result<HashMap<String, String>, Diagnostic>>,
     reminders_path: PathBuf,
     stop: Option<oneshot::Sender<()>>,
@@ -131,7 +173,7 @@ impl TaskStatusService {
                 "无法读取提醒记录；请检查 QuoDex 配置目录权限",
             )),
         };
-        let snapshot = Arc::new(Mutex::new(TaskStatusSnapshot {
+        let snapshot = Arc::new(Mutex::new(SourceTaskSnapshot {
             tasks: vec![],
             observed_at_ms: now_ms(),
             diagnostic: Some(Diagnostic::new("QDT-600", "正在连接 Codex 任务状态")),
@@ -155,6 +197,9 @@ impl TaskStatusService {
                             .tasks
                             .retain(|task| !expired_completion(task, now_ms()));
                         for task in &mut snapshot.tasks {
+                            if matches!(task.state, TaskState::Completed | TaskState::Failed) {
+                                continue;
+                            }
                             task.state = TaskState::Unknown;
                             task.detail =
                                 Some(format!("{} · {}", diagnostic.message, diagnostic.code));
@@ -177,12 +222,23 @@ impl TaskStatusService {
 
     pub fn read_snapshot(&self) -> TaskStatusSnapshot {
         let mut snapshot = self.snapshot.lock().expect("task snapshot lock").clone();
-        if let Some(source) = &self.zcode {
-            let extra = source.read_snapshot();
-            snapshot.tasks.extend(extra.tasks);
-            snapshot.diagnostic = snapshot.diagnostic.or(extra.diagnostic);
-            snapshot.observed_at_ms = snapshot.observed_at_ms.max(extra.observed_at_ms);
-        }
+        let mut sources = vec![TaskSourceStatus::from_snapshot(
+            TaskSource::Codex,
+            &snapshot,
+        )];
+        let extra = self
+            .zcode
+            .as_ref()
+            .map(|source| source.read_snapshot())
+            .unwrap_or(SourceTaskSnapshot {
+                tasks: vec![],
+                observed_at_ms: 0,
+                diagnostic: None,
+            });
+        sources.push(TaskSourceStatus::from_snapshot(TaskSource::Zcode, &extra));
+        snapshot.tasks.extend(extra.tasks);
+        snapshot.observed_at_ms = snapshot.observed_at_ms.max(extra.observed_at_ms);
+        snapshot.diagnostic = None;
         let reminders = self.reminders.lock().expect("task reminders lock");
         snapshot.tasks.retain(|task| {
             !(matches!(task.state, TaskState::Failed | TaskState::Unknown)
@@ -203,7 +259,12 @@ impl TaskStatusService {
             snapshot.diagnostic = Some(diagnostic.clone());
         }
         sort_tasks(&mut snapshot.tasks);
-        snapshot
+        TaskStatusSnapshot {
+            tasks: snapshot.tasks,
+            sources,
+            observed_at_ms: snapshot.observed_at_ms,
+            diagnostic: snapshot.diagnostic,
+        }
     }
 
     pub fn zcode_project_url(&self, id: &str) -> Result<tauri::Url, Diagnostic> {
@@ -286,7 +347,7 @@ fn mark_task_unavailable(live: &mut HashMap<String, ChatTask>, id: &str, message
 }
 
 fn publish_tasks(
-    shared: &Arc<Mutex<TaskStatusSnapshot>>,
+    shared: &Arc<Mutex<SourceTaskSnapshot>>,
     candidates: &HashMap<String, StoredChat>,
     live: &HashMap<String, ChatTask>,
     idle: &HashSet<String>,
@@ -358,7 +419,7 @@ fn expired_completion(task: &ChatTask, now: u64) -> bool {
 async fn observe_desktop(
     home: &Path,
     endpoint: &str,
-    shared: &Arc<Mutex<TaskStatusSnapshot>>,
+    shared: &Arc<Mutex<SourceTaskSnapshot>>,
     stopped: &mut oneshot::Receiver<()>,
 ) -> Result<(), Diagnostic> {
     let chats = read_task_history(home)?;
@@ -891,6 +952,7 @@ pub enum TaskState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatTask {
+    pub source: TaskSource,
     pub id: String,
     pub turn_id: String,
     pub title: String,
@@ -1072,6 +1134,7 @@ pub fn read_task_history(home: &Path) -> Result<Vec<StoredChat>, Diagnostic> {
         };
         result.push(StoredChat {
             task: ChatTask {
+                source: TaskSource::Codex,
                 project_path: None,
                 project_name: project_name(&metadata, &id, cwd.as_deref()),
                 id,
@@ -1118,7 +1181,7 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(3), async {
                 loop {
                     let snapshot = service.read_snapshot();
-                    if snapshot.diagnostic.is_none() {
+                    if snapshot.sources[0].diagnostic.is_none() {
                         if let Some(task) = snapshot
                             .tasks
                             .iter()
@@ -1213,7 +1276,7 @@ mod tests {
         wait_for(&service, "retry-chat", TaskState::Completed).await;
         tokio::time::sleep(Duration::from_millis(4300)).await;
         assert!(
-            service.read_snapshot().diagnostic.is_none(),
+            service.read_snapshot().sources[0].diagnostic.is_none(),
             "an unresponsive historical chat must not disconnect healthy task subscriptions"
         );
 
@@ -1352,7 +1415,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(12), async {
             loop {
                 let snapshot = service.read_snapshot();
-                if snapshot.diagnostic.is_none()
+                if snapshot.sources[0].diagnostic.is_none()
                     && snapshot
                         .tasks
                         .iter()
@@ -1380,7 +1443,7 @@ mod tests {
         while observed.elapsed() < Duration::from_secs(18) {
             let snapshot = service.read_snapshot();
             assert!(
-                snapshot.diagnostic.is_none(),
+                snapshot.sources[0].diagnostic.is_none(),
                 "live source diagnostic: {:?}",
                 snapshot.diagnostic
             );
@@ -1493,7 +1556,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
                 let snapshot = service.read_snapshot();
-                if snapshot.diagnostic.is_some()
+                if snapshot.sources[0].diagnostic.is_some()
                     && snapshot
                         .tasks
                         .iter()
@@ -1635,7 +1698,7 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(4), async {
                 loop {
                     let snapshot = service.read_snapshot();
-                    if snapshot.diagnostic.is_none() {
+                    if snapshot.sources[0].diagnostic.is_none() {
                         if let Some(expected) = expected {
                             if snapshot.tasks.is_empty()
                                 || (patch_mode && snapshot.tasks[0].state != expected)
@@ -1681,7 +1744,7 @@ mod tests {
                 assert!(service.read_snapshot().tasks.is_empty());
                 server.abort();
                 tokio::time::timeout(Duration::from_secs(2), async {
-                    while service.read_snapshot().diagnostic.is_none() {
+                    while service.read_snapshot().sources[0].diagnostic.is_none() {
                         tokio::time::sleep(Duration::from_millis(20)).await;
                     }
                 })
@@ -1859,7 +1922,7 @@ mod tests {
         let snapshot = tokio::time::timeout(Duration::from_secs(4), async {
             loop {
                 let snapshot = service.read_snapshot();
-                if snapshot.diagnostic.is_none() {
+                if snapshot.sources[0].diagnostic.is_none() {
                     break snapshot;
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1874,5 +1937,39 @@ mod tests {
         }
         std::fs::remove_dir(root).unwrap();
         snapshot
+    }
+}
+
+#[cfg(test)]
+mod source_isolation_tests {
+    use super::*;
+    #[test]
+    fn collector_diagnostics_and_timestamps_are_independent_of_the_other_source() {
+        let service = TaskStatusService {
+            zcode: Some(crate::zcode_tasks::ZCodeTaskService::from_path(
+                std::env::temp_dir().join(format!("quodex-no-zcode-{}", uuid::Uuid::new_v4())),
+            )),
+            snapshot: Arc::new(Mutex::new(SourceTaskSnapshot {
+                tasks: vec![],
+                observed_at_ms: 1234,
+                diagnostic: Some(Diagnostic::new("QDT-601", "Codex 已断开")),
+            })),
+            reminders: Mutex::new(Ok(HashMap::new())),
+            reminders_path: PathBuf::new(),
+            stop: None,
+        };
+        let result = service.read_snapshot();
+        assert!(result.diagnostic.is_none());
+        assert_eq!(result.sources[0].source, TaskSource::Codex);
+        assert_eq!(result.sources[0].observed_at_ms, 1234);
+        assert_eq!(result.sources[0].health, "unavailable");
+        assert_eq!(
+            result.sources[0].diagnostic.as_ref().unwrap().code,
+            "QDT-601"
+        );
+        assert_eq!(result.sources[1].source, TaskSource::Zcode);
+        assert_eq!(result.sources[1].health, "ready");
+        assert!(result.sources[1].diagnostic.is_none());
+        assert!(result.sources[1].observed_at_ms > 1234);
     }
 }

@@ -3,6 +3,7 @@ mod capacity;
 mod desktop_shortcut;
 mod platform;
 mod preferences;
+mod task_material;
 mod task_status;
 mod tomato_cloud;
 mod zcode_quota;
@@ -261,6 +262,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             read_task_status,
+            task_material::set_task_material_regions,
             dismiss_task_failure,
             open_codex_chat,
             open_task_chat,

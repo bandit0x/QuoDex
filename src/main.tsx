@@ -1,3 +1,4 @@
+import { readyTaskSources } from "./taskStatusTypes";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
@@ -160,7 +161,7 @@ const fixtureEnabled = fixtureName !== null && visualFixtureNames.has(fixtureNam
 
 const fixtureProps: React.ComponentProps<typeof App> = fixtureEnabled
   ? {
-      loadTaskStatus: async () => ({ tasks: [], observedAtMs: Date.now(), diagnostic: null }),
+      loadTaskStatus: async () => ({ tasks: [], sources: readyTaskSources(Date.now()), observedAtMs: Date.now(), diagnostic: null }),
       setTaskSpace: async () => undefined,
       initialLayout: fixtureLayout,
       loadSnapshot: createFixtureLoader(fixtureName),

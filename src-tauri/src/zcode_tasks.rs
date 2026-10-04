@@ -1,7 +1,7 @@
-use crate::task_status::TaskStatusSnapshot;
+use crate::task_status::SourceTaskSnapshot;
 use crate::{
     capacity::Diagnostic,
-    task_status::{ChatTask, TaskState},
+    task_status::{ChatTask, TaskSource, TaskState},
 };
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ use std::{
 
 pub struct ZCodeTaskService {
     home: PathBuf,
-    last: Mutex<TaskStatusSnapshot>,
+    last: Mutex<SourceTaskSnapshot>,
 }
 
 impl ZCodeTaskService {
@@ -28,14 +28,14 @@ impl ZCodeTaskService {
     pub fn from_path(home: PathBuf) -> Self {
         Self {
             home,
-            last: Mutex::new(TaskStatusSnapshot {
+            last: Mutex::new(SourceTaskSnapshot {
                 tasks: vec![],
                 observed_at_ms: 0,
                 diagnostic: None,
             }),
         }
     }
-    pub fn read_snapshot(&self) -> TaskStatusSnapshot {
+    pub fn read_snapshot(&self) -> SourceTaskSnapshot {
         let mut last = self.last.lock().expect("ZCode task snapshot lock");
         match read_zcode_tasks(&self.home, runtime_started_at_ms()) {
             Ok(tasks) => {
@@ -46,6 +46,9 @@ impl ZCodeTaskService {
                 last.tasks
                     .retain(|task| task.expires_at_ms.is_none_or(|time| time > now_ms()));
                 for task in &mut last.tasks {
+                    if matches!(task.state, TaskState::Completed | TaskState::Failed) {
+                        continue;
+                    }
                     task.state = TaskState::Unknown;
                     task.detail = Some(format!("{} · {}", diagnostic.message, diagnostic.code));
                 }
@@ -407,6 +410,7 @@ pub fn read_zcode_tasks(
             continue;
         }
         tasks.push(ChatTask {
+            source: TaskSource::Zcode,
             id: task_id(&workspace, &id),
             turn_id: turn_id.clone(),
             title,
@@ -716,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn read_error_invalidates_only_this_source_and_retains_deadline_then_recovers() {
+    fn read_error_preserves_confirmed_completion_and_deadline_then_recovers() {
         let f = Fixture::new();
         f.chat("ses-success", "completed", Some(f.now - 600_000));
         let service = ZCodeTaskService::from_path(f.root.clone());
@@ -727,7 +731,7 @@ mod tests {
             .unwrap();
         let lost = service.read_snapshot();
         assert_eq!(lost.diagnostic.unwrap().code, "QDT-622");
-        assert_eq!(lost.tasks[0].state, TaskState::Unknown);
+        assert_eq!(lost.tasks[0].state, TaskState::Completed);
         assert_eq!(lost.tasks[0].expires_at_ms, before.tasks[0].expires_at_ms);
         f.agent
             .execute_batch("ALTER TABLE temporarily_unavailable RENAME TO turn_usage;")

@@ -378,6 +378,8 @@ version = "0.2.5"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
+ "objc2",
+ "objc2-foundation",
  "open",
  "rusqlite",
  "serde",

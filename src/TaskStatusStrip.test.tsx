@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TaskStatusStrip } from "./TaskStatusStrip";
 
 const now = 1_800_000_000_000;
-const success = { id: "chat-1", turnId: "turn-1", title: "整理文档", state: "completed" as const, completedAtMs: now - 600_000, detail: null };
+const success = { source: "codex" as const, id: "chat-1", turnId: "turn-1", title: "整理文档", state: "completed" as const, completedAtMs: now - 600_000, detail: null };
 
 describe("approved chat task indicators", () => {
   it("qualifies hover and overflow titles without changing circle content or chat identity", () => {
@@ -17,8 +17,8 @@ describe("approved chat task indicators", () => {
     const details = screen.getByRole("dialog", { name: "聊天详情" });
     expect(within(details).getByText("QuoDex-v0.2.1：任务状态显示 0")).toBeInTheDocument();
     expect(within(details).getByText("已完成 · 10 分钟前")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "其余 2 个聊天" }));
-    const overflow = screen.getByRole("dialog", { name: "其余聊天" });
+    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 2 个任务" }));
+    const overflow = screen.getByRole("dialog", { name: "Codex 任务列表" });
     expect(within(overflow).getByText("QuoDex-v0.2.1：任务状态显示 2")).toBeInTheDocument();
     fireEvent.click(within(overflow).getByRole("button", { name: "QuoDex-v0.2.1：任务状态显示 2 · 已完成 · 10 分钟前" }));
     expect(onOpen).toHaveBeenCalledWith(tasks[2]);
@@ -120,15 +120,15 @@ describe("approved chat task indicators", () => {
     fireEvent.click(circle);
   });
 
-  it("keeps nine chats in one row and opens the four remaining chats through the ellipsis", () => {
+  it("keeps two source tasks visible and opens the full source list through its count", () => {
     const tasks = Array.from({ length: 13 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
     const onOpen = vi.fn();
     render(<TaskStatusStrip tasks={tasks} now={now} capacity={10} onOpen={onOpen} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
     const strip = screen.getByRole("region", { name: "聊天任务" });
-    expect(within(strip).getAllByRole("button")).toHaveLength(10);
-    fireEvent.click(screen.getByRole("button", { name: "其余 4 个聊天" }));
-    const popup = screen.getByRole("dialog", { name: "其余聊天" });
-    expect(within(popup).getAllByText("10m")).toHaveLength(4);
+    expect(within(strip).getAllByRole("button")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 11 个任务" }));
+    const popup = screen.getByRole("dialog", { name: "Codex 任务列表" });
+    expect(within(popup).getAllByText("10m")).toHaveLength(13);
     fireEvent.click(within(popup).getByRole("button", { name: "聊天 12 · 已完成 · 10 分钟前" }));
     expect(onOpen).toHaveBeenCalledWith(tasks[12]);
   });
