@@ -1,0 +1,8 @@
+{
+  "version": "0.3.0",
+  "productionSignedSha256": "4d6850d87828d96ed6c6a31567a6ce747cacac577395ba2ba1a001c6012ea857",
+  "qaSignedSha256": "4aad76daec10d45035496baf96a9abeddbc307c21e35e2eabe8f14aa2bdd9498",
+  "signatureRemovedCopiesSha256": "b3cd1cdeb8e02cc5bc9de0cce56331d08c9cf397daf958149a9b9839dbb7f763",
+  "sameExecutableCode": true,
+  "method": "Compare temporary executable copies after codesign --remove-signature; originals untouched. QA fixture changes only bundle identity, environment and ad-hoc signature."
+}

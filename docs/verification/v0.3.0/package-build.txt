@@ -1,0 +1,35 @@
+
+> quodex@0.3.0 package:app
+> bash scripts/package-app.sh
+
+
+> quodex@0.3.0 tauri:build
+> tauri build --bundles app
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> quodex@0.3.0 build
+> tsc && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 54 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.39 kB │ gzip:  0.26 kB
+dist/assets/index-BvFQcyPO.css   37.79 kB │ gzip:  9.04 kB
+dist/assets/index-DHTcm5bm.js   306.46 kB │ gzip: 96.02 kB
+✓ built in 2.51s
+   Compiling codex-credits-view v0.3.0 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
+    Finished `release` profile [optimized] target(s) in 4m 21s
+       Built application at: /Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/codex-credits-view
+    Bundling QuoDex.app (/Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app)
+    Finished 1 bundle at:
+        /Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app
+
+release/macos/QuoDex.app: replacing existing signature
+Bundled codex runtime: release/macos/QuoDex.app/Contents/MacOS/codex-runtime/bin/codex
+hdiutil: WARNING: 'hdiutil create -volname -format ...' is deprecated. Please use 'diskutil image create from/blank --volumeName --format ...' instead.
+Packaged: release/macos/QuoDex.app
+Packaged: release/macos/QuoDex_0.3.0_aarch64.dmg

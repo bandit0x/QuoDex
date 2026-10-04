@@ -1,0 +1,12 @@
+
+> quodex@0.3.0 test
+> vitest run
+
+
+ RUN  v4.1.10 /Users/Admin/Documents/projects/QuoDex
+
+
+ Test Files  10 passed (10)
+      Tests  108 passed (108)
+   Start at  23:02:55
+   Duration  46.36s (transform 7.16s, setup 9.45s, import 33.84s, tests 50.41s, environment 67.14s)
