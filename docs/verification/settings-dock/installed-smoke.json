@@ -1,11 +1,11 @@
 {
   "installed": "/Applications/QuoDex.app",
-  "backup": "/private/tmp/quodex-settings-backup-gyeqt5qu/QuoDex.app",
-  "executableSha256": "6d7fe1e7ba9a0a658e25721943d19fcbd614da3bc3662bd7b16fb6322635fc56",
+  "backup": "/var/folders/n2/q_z24zsn5xs43p5ccs34jpfr0000gp/T/quodex-neutral-backup-cx_3_xeh/QuoDex.app",
+  "executableSha256": "df6c864c7e7ac9208655d746af78351c75bcd79e792996e38268175a77617722",
   "version": "0.2.5",
   "installedMatchesBuild": true,
   "smoke": {
-    "observedVia": "cua native AX",
+    "observedVia": "cua native AX (full tree)",
     "installedAppRunning": true,
     "quotaVisible": true,
     "settingsVisible": true,

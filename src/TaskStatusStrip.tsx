@@ -8,7 +8,6 @@ import type { Diagnostic } from "./capacityTypes";
 interface TaskStatusStripProps {
   tasks: ChatTask[];
   now: number;
-  capacity: number;
   sources?: TaskSourceStatus[];
   diagnostic?: Diagnostic | null;
   reducedMotion?: boolean;
@@ -56,8 +55,9 @@ function taskLabel(task: ChatTask, now: number): string {
 
 const sourceNames: Record<TaskSource, string> = { codex: "Codex", zcode: "ZCode" };
 const statePriority = { running: 0, waiting: 1, failed: 2, unknown: 3, completed: 4 };
+const tasksPerSource = 5;
 
-export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, capacity, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
+export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
   const [listSource, setListSource] = useState<TaskSource | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [commonDiagnosticOpen, setCommonDiagnosticOpen] = useState(false);
@@ -99,26 +99,26 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
   if (!hasArea) return null;
   const openList = (source: TaskSource) => { cancelClose(); setHoverKey(null); setCommonDiagnosticOpen(false); setListSource(previous => previous === source ? null : source); };
   const showTask = (task: ChatTask) => { cancelClose(); setHoverKey(key(task)); setListSource(null); setCommonDiagnosticOpen(false); };
-  const slots = Math.min(3, Math.max(2, capacity));
   return <>
     <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
       {groups.map(group => {
         const name = sourceNames[group.source];
-        const count = group.tasks.length > slots ? slots - 1 : slots;
-        const hidden = group.tasks.slice(count);
+        const hidden = group.tasks.slice(tasksPerSource);
         const attention = ["failed", "waiting", "running", "unknown", "completed"].find(state => hidden.some(task => task.state === state));
         const health = group.status?.health ?? "loading";
-        return <div key={group.source} className={`task-source-capsule task-source-capsule--${group.source}`} role="group" aria-label={`${name} 任务`}>
+        return <div key={group.source} className={`task-source-capsule task-source-capsule--${group.source}${group.tasks.length >= 3 ? " task-source-capsule--dense" : ""}`} role="group" aria-label={`${name} 任务`}>
           <button type="button" className={`task-source-name task-source-name--${health}`} aria-label={`查看 ${name} 全部 ${group.tasks.length} 个任务${health === "unavailable" ? "，状态不可用" : ""}`} aria-expanded={listSource === group.source}
             onMouseEnter={() => { cancelClose(); setHoverKey(null); }} onClick={() => openList(group.source)}>{name}<i aria-hidden="true" /></button>
-          {group.tasks.slice(0, count).map(task => <button key={key(task)} type="button" className="task-button"
+          <div className="task-source-indicators">
+          {group.tasks.slice(0, tasksPerSource).map(task => <button key={key(task)} type="button" className="task-button"
             aria-label={taskLabel(task, now)} onMouseEnter={() => showTask(task)}
             onFocus={() => showTask(task)} onBlur={scheduleClose}
             onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /></button>)}
+          {group.tasks.length === 0 && <span className="task-empty" role="status">{health === "loading" ? "读取中" : health === "unavailable" ? "连接异常" : "暂无任务"}</span>}
+          </div>
           {hidden.length > 0 && <button type="button" className={`task-button task-overflow-button task-overflow-button--${attention}`} aria-label={`${name}：其余 ${hidden.length} 个任务`}
             title={hidden.map(task => taskLabel(task, now)).join("\n")} aria-expanded={listSource === group.source}
             onMouseEnter={() => { cancelClose(); setHoverKey(null); }} onClick={() => openList(group.source)}><span className="task-overflow-indicator">{hidden.length > 99 ? "99+" : `+${hidden.length}`}</span></button>}
-          {group.tasks.length === 0 && <span className="task-empty" role="status">{health === "loading" ? "读取中" : health === "unavailable" ? "连接异常" : "暂无任务"}</span>}
         </div>;
       })}
       {diagnostic && <button type="button" className="task-common-diagnostic" aria-label="公共任务诊断" title={`${diagnostic.message} · ${diagnostic.code}`} aria-expanded={commonDiagnosticOpen}

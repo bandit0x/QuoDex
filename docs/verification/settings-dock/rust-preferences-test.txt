@@ -1,5 +1,4 @@
-   Compiling codex-credits-view v0.2.5 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.56s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.64s
      Running unittests src/lib.rs (src-tauri/target/debug/deps/codex_credits_view_lib-a1a0b4b6466d057c)
 
 running 3 tests
@@ -7,7 +6,7 @@ test preferences::tests::default_preferences_match_the_volumetric_lens_contract 
 test preferences::tests::legacy_preferences_without_source_default_to_carousel ... ok
 test preferences::tests::preferences_round_trip_without_credentials_or_startup_state ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 97 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 97 filtered out; finished in 0.11s
 
      Running unittests src/main.rs (src-tauri/target/debug/deps/codex_credits_view-4943f75a08730fb5)
 

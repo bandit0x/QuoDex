@@ -51,11 +51,21 @@
   grid-template-rows: 64px;
   align-items: center;
   column-gap: 12px;
+  background: rgba(8,10,12,calc(var(--surface-opacity,.92) * .32));
+  box-shadow: 0 10px 24px rgba(0,3,8,.54),
+    inset 0 1px 0 rgba(243,247,249,.62),
+    inset 0 4px 8px rgba(226,235,240,.42),
+    inset 0 -3px 5px rgba(206,218,225,.28),
+    inset 0 -10px 18px rgba(0,5,10,.82),
+    inset 6px 0 12px rgba(200,214,222,.16),
+    inset -6px 0 12px rgba(200,214,222,.16);
   animation: none;
   text-shadow: 0 2px 7px rgba(0,2,7,.94), 0 0 1px #000;
 }
 .dock-controls--simple { grid-template-columns: minmax(0,1fr) 84px 44px 36px; }
 .dock-controls--error { height:136px; grid-template-rows:64px 40px; row-gap:8px; }
+.dock-controls::before { background:linear-gradient(128deg,rgba(255,255,255,.82),rgba(213,223,229,.58) 14%,rgba(241,245,247,.3) 37%,rgba(53,60,66,.18) 56%,rgba(213,223,229,.52) 84%,rgba(255,255,255,.78)); }
+.dock-controls::after { border-color:rgba(230,237,241,.5); box-shadow:0 0 0 1px rgba(0,5,10,.78), 0 3px 14px rgba(202,216,225,.18), inset 0 15px 22px rgba(237,242,245,.13), inset 0 -16px 23px rgba(0,2,6,.68), inset 10px 0 18px rgba(202,216,225,.12), inset -10px 0 18px rgba(202,216,225,.12); }
 .dock-controls:has(.optical-shell-canvas[data-renderer="webgl-shell"])::before,
 .dock-controls:has(.optical-shell-canvas[data-renderer="webgl-shell"])::after { content:none; }
 .dock-preferences, .dock-actions { display: contents; }

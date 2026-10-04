@@ -17,12 +17,12 @@ transforming...
 ✓ 54 modules transformed.
 rendering chunks...
 computing gzip size...
-dist/index.html                   0.39 kB │ gzip:  0.27 kB
-dist/assets/index-CGVIPNQ5.css   36.14 kB │ gzip:  8.76 kB
-dist/assets/index-C4U_OTok.js   306.33 kB │ gzip: 95.96 kB
-✓ built in 2.20s
+dist/index.html                   0.39 kB │ gzip:  0.26 kB
+dist/assets/index-BvFQcyPO.css   37.79 kB │ gzip:  9.04 kB
+dist/assets/index-DHTcm5bm.js   306.46 kB │ gzip: 96.02 kB
+✓ built in 3.56s
    Compiling codex-credits-view v0.2.5 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
-    Finished `release` profile [optimized] target(s) in 2m 35s
+    Finished `release` profile [optimized] target(s) in 3m 32s
        Built application at: /Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/codex-credits-view
     Bundling QuoDex.app (/Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app)
     Finished 1 bundle at:

@@ -93,14 +93,13 @@ vec3 controlEnvironment(vec3 ray, vec2 point) {
   float wallSoftbox = exp(-pow((ray.x + 0.34) / 0.48, 4.0)
     - pow((ray.y + 0.62) / 0.26, 4.0))
     * exp(-pow((point.x / uResolution.x - 0.17) / 0.30, 2.0));
-  float cyanWall = exp(-pow((ray.x + 0.8) / 0.42, 2.0)
+  float leftReflection = exp(-pow((ray.x + 0.8) / 0.42, 2.0)
     - pow((ray.y + 0.05) / 0.8, 2.0));
-  float greenWall = exp(-pow((ray.x - 0.76) / 0.38, 2.0)
+  float rightReflection = exp(-pow((ray.x - 0.76) / 0.38, 2.0)
     - pow((ray.y - 0.22) / 0.7, 2.0));
-  return vec3(0.045, 0.12, 0.18)
-    + vec3(0.86, 0.97, 1.0) * (softbox * 13.5 + wallSoftbox * 7.0)
-    + vec3(0.06, 0.64, 0.87) * cyanWall * 1.7
-    + vec3(0.035, 0.68, 0.47) * greenWall * 2.0;
+  return vec3(0.11, 0.12, 0.13)
+    + vec3(0.98, 0.995, 1.0) * (softbox * 13.5 + wallSoftbox * 7.0)
+    + vec3(0.55, 0.58, 0.61) * (leftReflection * 0.9 + rightReflection * 0.9);
 }
 
 vec4 controlGlass(vec2 fragment) {
@@ -130,14 +129,14 @@ vec4 controlGlass(vec2 fragment) {
 
   // Beer-Lambert attenuation depends on wall thickness and the viewing angle.
   float path = (3.4 + 11.0 * roll) / max(nDotV, 0.2);
-  vec3 transmission = exp(-vec3(0.052, 0.019, 0.008) * path);
+  vec3 transmission = exp(-vec3(0.028, 0.027, 0.025) * path);
   vec3 transmittedRay = refract(-view, normal, AIR_IOR / GLASS_IOR);
   vec2 refractedUv = fragment / uResolution
     + transmittedRay.xy * path * ratio / uResolution;
   float dome = max(1.0 - length((refractedUv - vec2(0.36, -0.15)) * vec2(0.9, 1.25)), 0.0);
   float lowerDepth = smoothstep(0.4, 1.0, refractedUv.y);
-  vec3 body = vec3(0.014, 0.052, 0.082)
-    + vec3(0.055, 0.13, 0.18) * dome * 0.5;
+  vec3 body = vec3(0.038, 0.047, 0.052)
+    + vec3(0.11, 0.125, 0.13) * dome * 0.5;
   body *= transmission * (1.0 - lowerDepth * 0.32);
 
   vec3 reflectedRay = reflect(-view, normal);
@@ -145,15 +144,16 @@ vec4 controlGlass(vec2 fragment) {
   float specular = ggx(0.19, saturate(dot(normal, light)), nDotV,
     saturate(dot(normal, halfway)));
   vec3 glass = body * (1.0 - fresnel) + reflection * fresnel;
-  glass += vec3(0.9, 0.985, 1.0) * specular * 0.28;
+  glass += vec3(0.98, 0.995, 1.0) * specular * 0.28;
 
   float innerBounce = exp(-pow((depth - 15.8) / 5.2, 2.0));
   float outerGlint = exp(-pow((depth - 1.1) / 0.7, 2.0));
-  float side = smoothstep(0.36, 0.88, fragment.x / uResolution.x);
-  vec3 wallTint = mix(vec3(0.055, 0.56, 0.78), vec3(0.025, 0.68, 0.43), side);
-  glass += wallTint * innerBounce * 0.60;
-  glass += vec3(0.65, 0.9, 0.99) * outerGlint * 0.55;
-  glass += wallTint * roll * 0.10;
+  // One neutral glass material: depth comes from the separated inner wall,
+  // curved reflections and optical path, never from a left/right hue split.
+  vec3 wallReflection = vec3(0.54, 0.58, 0.60);
+  glass += wallReflection * innerBounce * 0.40;
+  glass += vec3(0.86, 0.89, 0.90) * outerGlint * 0.55;
+  glass += wallReflection * roll * 0.10;
 
   float alpha = mask * clamp(0.84 + fresnel * 0.14 + roll * 0.06, 0.0, 0.98)
     * mix(0.9, 1.0, uOpacity);

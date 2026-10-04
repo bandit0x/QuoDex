@@ -6,10 +6,12 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,default=repo/'release/macos/QuoDex.app')
 parser.add_argument('--output',type=Path,default=repo/'.scratch/task-source-design')
 parser.add_argument('--empty',action='store_true')
+parser.add_argument('--tasks-per-source',type=int,help='Anonymous task count for each source (1–99)')
 parser.add_argument('--common-diagnostic',action='store_true')
 parser.add_argument('--y',type=int,default=800,help='Initial physical desktop Y coordinate')
 parser.add_argument('--launch-services',action='store_true',help='Launch an independently identified QA bundle for native UI automation')
 args=parser.parse_args()
+if args.tasks_per_source is not None and not 1 <= args.tasks_per_source <= 99:parser.error('--tasks-per-source must be between 1 and 99')
 out=args.output;out.mkdir(parents=True,exist_ok=True)
 node=shutil.which('node')
 if not node:parser.error('Node must be available on PATH')
@@ -21,13 +23,15 @@ if args.common_diagnostic:(root/'config/task-reminders.json').write_text('corrup
 now=int(time.time()*1000)
 state=sqlite3.connect(root/'state_5.sqlite');state.executescript('CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,archived INTEGER,updated_at INTEGER); CREATE TABLE thread_spawn_edges(child_thread_id TEXT);')
 history=sqlite3.connect(root/'thread_history_1.sqlite');history.executescript('CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_json TEXT,rollout_ordinal INTEGER);')
-for i in range(0 if args.empty else 6):
+for i in range(0 if args.empty else args.tasks_per_source if args.tasks_per_source is not None else 6):
  state.execute('INSERT INTO threads VALUES(?,?,?, ?,0,?)',(f'codex-demo-{i}',f'示例任务 {i+1}','vscode','Codex Desktop',now//1000))
  history.execute('INSERT INTO thread_turns VALUES(?,?,?,?,?,?,1)',(f'codex-demo-{i}',f'turn-{i}','completed' if i>1 else 'inProgress',(now-130000)//1000,(now-120000)//1000 if i>1 else None,None))
 state.commit();state.close();history.commit();history.close()
 index=sqlite3.connect(root/'.zcode/v2/tasks-index.sqlite');index.executescript('CREATE TABLE tasks(workspace_key TEXT,workspace_path TEXT,workspace_identity TEXT,task_id TEXT,title TEXT,task_status TEXT,deleted INTEGER,meta_json TEXT);')
 agent=sqlite3.connect(root/'.zcode/cli/db/db.sqlite');agent.executescript('CREATE TABLE session(id TEXT,parent_id TEXT,task_type TEXT); CREATE TABLE turn_usage(session_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_code TEXT); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE part(id TEXT,message_id TEXT,session_id TEXT,time_updated INTEGER,data TEXT);')
-for i,st in enumerate([] if args.empty else ['running','error','completed']):
+zcode_states=['running','error','completed']
+if args.tasks_per_source is not None:zcode_states=(zcode_states+['completed']*args.tasks_per_source)[:args.tasks_per_source]
+for i,st in enumerate([] if args.empty else zcode_states):
  id=f'zcode-demo-{i}';index.execute('INSERT INTO tasks VALUES(?,?,NULL,?,?,?,0,?)',(str(root/'project'),str(root/'project'),id,f'示例项目任务 {i+1}',st,'{}'))
  agent.execute('INSERT INTO session VALUES(?,NULL,?)',(id,'interactive'));agent.execute('INSERT INTO turn_usage VALUES(?,?,?,?,?,NULL)',(id,f'turn-z-{i}',st,now-1000,now-500 if st!='running' else None))
 index.commit();index.close();agent.commit();agent.close()

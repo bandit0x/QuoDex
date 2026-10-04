@@ -192,7 +192,8 @@
       "settingsExtraHeight": 92,
       "errorExtraHeight": 24,
       "sourceControlGap": 6,
-      "source": "src/windowClient.ts, src/App.css, src/SettingsDock.css"
+      "source": "src/windowClient.ts, src/App.css, src/SettingsDock.css",
+      "taskRowHeight": 44
     },
     "optics": {
       "source": "src/OpticalShell.tsx: controlSurface branch",
@@ -201,9 +202,9 @@
       "glassIor": 1.52,
       "geometry": "卷边壁面 sin² roll 与中心 crown 合为连续高度场；按一个逻辑 CSS px 的偏移作中心差分求法线",
       "response": "Fresnel Schlick 与 GGX 同时作用于中心及壁面；中心反射不乘 rim",
-      "reflection": "有限左上软箱：反射线与光源平面求交，墙面环境提供青绿回光；灯面范围、位置和能量由当前 Shader 源码拥有，不在此固化",
+      "reflection": "有限左上软箱：反射线与光源平面求交，左右采用同一中性环境反射；灯面范围、位置和能量由当前 Shader 源码拥有，不在此固化",
       "absorption": "光程随壁厚及视角改变，Beer–Lambert 分通道吸收；折射方向改变内腔采样",
-      "innerBounce": "厚壁中的青绿回光，与外层局部高光共同表达体积",
+      "innerBounce": "厚壁中的中性内壁回光，与外层局部高光和下沿暗部共同表达体积，不使用左右蓝绿分色",
       "renderer": "WebGL 控制路径使用 premultiplied alpha；WebGL 可用时移除额外 CSS 双描边"
     },
     "previewLimit": "组件片段仅表现 CSS 交互形状与后备材质；不包含生产 WebGL 或原生背景。派生 tonalRamp 只用于调色板预览，不是新增生产 tokens。",
@@ -269,7 +270,7 @@
   ],
   "narrative": {
     "northStar": "透明额度驾驶舱",
-    "overview": "保留现有常驻浮窗的液态玻璃语言：桌面透景、深蓝内腔、厚壁吸收与青绿回光。用户确认的设置材质将中心冠面和卷边壁面作为同一光学表面，来源入口保持已认可的独立凸面透镜。\n\n本文件只提取浮窗共享样式和本次设置组件中可复用的规则，未建立新的产品身份。B 的具体构图、目标图来源与设置尺度合同放在[设置控制仓契约](docs/design/settings-control-chamber/README.md)。tokens 来自 [App.css](src/App.css)、[SettingsDock.css](src/SettingsDock.css)、[SettingsDock.tsx](src/SettingsDock.tsx) 和 [OpticalShell.tsx](src/OpticalShell.tsx)；光学、阴影、动效及组件示例由 [.impeccable/design.json](.impeccable/design.json) 扩展。它们记录代码与已确认方向，不能代替视觉判定；原生证据与验收只见[唯一入口](docs/verification/settings-dock/README.md)。",
+    "overview": "保留现有常驻浮窗的液态玻璃语言：桌面透景、曲面反射与厚壁吸收。原额度仓保留深蓝与青绿光学响应；设置控制仓采用同一中性材质，取消左右蓝绿分色，并将中心冠面和卷边壁面作为同一光学表面，来源入口保持已认可的独立凸面透镜。\n\n本文件只提取浮窗共享样式和本次设置组件中可复用的规则，未建立新的产品身份。B 的具体构图、目标图来源与设置尺度合同放在[设置控制仓契约](docs/design/settings-control-chamber/README.md)。tokens 来自 [App.css](src/App.css)、[SettingsDock.css](src/SettingsDock.css)、[SettingsDock.tsx](src/SettingsDock.tsx) 和 [OpticalShell.tsx](src/OpticalShell.tsx)；光学、阴影、动效及组件示例由 [.impeccable/design.json](.impeccable/design.json) 扩展。它们记录代码与已确认方向，不能代替视觉判定；原生证据与验收只见[唯一入口](docs/verification/settings-dock/README.md)。",
     "keyCharacteristics": [
       "相邻功能表面以透明间距分离，控制项在一个内腔中组织。",
       "凸面来源透镜以内部青绿光表达选择，以压缩表达按下。",

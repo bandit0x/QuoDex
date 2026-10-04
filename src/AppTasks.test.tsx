@@ -17,7 +17,7 @@ it("adds the approved task strip to the cockpit and removes its native space whe
   };
   render(<App {...props} />);
   expect(await screen.findByText("10m")).toBeInTheDocument();
-  await waitFor(() => expect(setTaskSpace).toHaveBeenCalledWith("compact", 36));
+  await waitFor(() => expect(setTaskSpace).toHaveBeenCalledWith("compact", 44));
   tasks = [];
   await waitFor(() => expect(screen.queryByRole("region", { name: "聊天任务" })).not.toBeInTheDocument(), { timeout: 2500 });
   await waitFor(() => expect(setTaskSpace).toHaveBeenLastCalledWith("compact", 0));
