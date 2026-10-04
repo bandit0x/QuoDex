@@ -101,7 +101,9 @@ fn apply(
             let _: () = msg_send![&*view, setMaterial: 13isize]; // HUDWindow, macOS 10.14+
             let _: () = msg_send![&*view, setBlendingMode: 0isize]; // behindWindow
             let _: () = msg_send![&*view, setState: 1isize]; // active even when floating window is unfocused
-            let _: () = msg_send![&*view, setAlphaValue: 0.42f64];
+            // Keep the desktop visible instead of stacking an opaque HUD tint
+            // beneath the web surface. Text and state icons retain their own contrast.
+            let _: () = msg_send![&*view, setAlphaValue: 0.14f64];
             let mask_alloc: *mut AnyObject = msg_send![class!(NSImage), alloc];
             let mask: *mut AnyObject = msg_send![mask_alloc, initWithSize: frame.size];
             let Some(mask) = Retained::from_raw(mask) else {

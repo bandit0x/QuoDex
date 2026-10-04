@@ -70,9 +70,9 @@
   padding: 16px 20px;
   border-radius: 18px;
   color: #edfaff;
-  background: rgba(7, 19, 30, .78);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
+  background: rgba(7, 19, 30, .62);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid rgba(224, 244, 250, .24);
   box-shadow: 0 8px 18px rgba(0, 5, 12, .5);
   scrollbar-width: thin;
@@ -122,9 +122,9 @@
   padding: 0 6px;
   border: 1px solid rgba(235, 249, 255, .28);
   border-radius: 32px;
-  background: linear-gradient(rgba(235, 247, 252, .07), rgba(16, 36, 50, .09));
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
+  background: linear-gradient(rgba(235, 247, 252, .02), rgba(16, 36, 50, .035));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .17), 0 3px 7px rgba(0, 9, 18, .10);
 }
 .task-source-name {

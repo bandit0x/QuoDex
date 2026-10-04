@@ -1,16 +1,32 @@
 # 双来源任务胶囊验证记录
 
-状态：**Acceptance pending**。本记录是本轮实现与验证状态的唯一入口；macOS arm64 浅背景现场检查已通过，仍待用户验收。独立 finish reviewer 在此范围给出 `ship`，Standards / Spec 审查无阻塞。
+状态：**Acceptance pending**。本记录是实现与验证状态的唯一入口；macOS arm64 浅背景现场检查已通过，仍待用户验收。首次双胶囊版本经独立 finish reviewer 检查；本次透明度修订的 Standards / Spec 审查各 0 项发现。
 
 ## 版本、产物与环境
 
-- 来源基线：`v0.2.5` / `1a80d5ee8a69f25ef9cb80f9c2c330f5f5915ecb`；本轮实现位于 `codex/task-source-capsules` 分支，与本记录一同提交，包版本仍为 `0.2.5`。
+- 来源基线：首次双胶囊实现基于 `v0.2.5` / `1a80d5ee8a69f25ef9cb80f9c2c330f5f5915ecb`；本次透明度修订基于 `aeb0d6a`，位于 `codex/task-source-capsules` 分支，包版本仍为 `0.2.5`。
 - 产物：`release/macos/QuoDex.app`、`release/macos/QuoDex_0.2.5_aarch64.dmg`。
 - 现场：macOS `27.0.1`（`26A434`）、`arm64`、浅色桌面背景，运行真实打包 App。
-- App 主二进制 SHA256：`14e3662ad4a3e1e09ea35d7fbc8162d0f3f2736811a049bfaa9eb4fa7ba7eee1`。
-- DMG SHA256：`fc3170373c02d5cd2972fb512a4ba394d03f62c0598c6b7c7e6e67fe60ab3a51`。
+- App 主二进制 SHA256：`7ba815d156ba268d00f5ff4a9d29e36912c1fbee4ed84f180072678d53246b46`。
+- DMG SHA256：`7b7262286674ffdabf314058a8fcff8b0eba1c29d67f2cfbed29357cba0f3596`。
 
-安装复核：已替换并启动 `/Applications/QuoDex.app`；安装包主二进制与上述 SHA256 一致，安装后签名复核成功。真实用户环境中 Codex 两个运行任务、ZCode 一个失败提醒分别显示，额度读取正常。用户任务标题与账号数值不写入本记录，安装截图仅保留在本地 ignored 的 `.scratch/task-source-design/native-installed.png`。旧 App 与显示配置备份位于 `.scratch/task-source-design/rollback-20261004-142604/`。
+安装复核：已替换并启动 `/Applications/QuoDex.app`；安装包主二进制与上述 SHA256 一致，安装后签名复核成功。真实用户环境中两个来源分别显示，额度读取正常；ZCode 列表展开和收起成功。用户任务标题与账号数值不写入本记录；本次调整前、调整后与列表截图仅保留在本地 ignored 的 `.scratch/task-source-design/transparency-{before,after,list}-installed.png`。旧 App 与显示配置备份位于 `.scratch/task-source-design/rollback-transparency-20261004-145024/`。
+
+## 2026-10-04 透明度修订
+
+用户反馈毛玻璃遮挡过重，背景几乎不可见。本次保留批准的 C 方向，仅降低材质和网页叠层的遮挡：
+
+| 参数 | 调整前 | 调整后 |
+| --- | --- | --- |
+| macOS 原生 HUD 材质 alpha | 0.42 | 0.14 |
+| 胶囊渐变两端 alpha | 0.07 / 0.09 | 0.02 / 0.035 |
+| 胶囊网页模糊 | 24px | 8px |
+| 列表 / 详情底色 alpha | 0.78 | 0.62 |
+| 列表 / 详情网页模糊 | 24px | 12px |
+
+安装后的原生截图中，胶囊底色明显变淡，来源文字描边与状态图标仍清楚，列表内容与来源标题可读，布局与点击身份保持原样。本次重新运行前端 91 项与 Rust 95 项测试、构建打包、包与安装后签名检查，并完成真实安装 App 启动、来源列表展开与收起检查。
+
+本次隔离原生夹具直接启动未能产生可被截图接口识别的窗口，LaunchServices 重试返回 `-10810`，因此没有把旧夹具截图作为本次材质结果。当前现场证据来自安装后的真实用户环境；下方 8 张已提交截图保留为首次双胶囊版本的历史逻辑验收证据。
 
 ## 实际结果
 
@@ -20,10 +36,10 @@
 | Rust 测试 | 95 项通过、0 失败、5 项 ignored；SQLite 与真实 IPC 消息格式的本地夹具覆盖来源隔离、状态轮次与异常恢复。 |
 | 构建与打包 | `npm run package:app` 成功；包含 `tsc`、Vite 生产构建、Rust release 构建及 App / DMG 打包。 |
 | 签名检查 | `codesign --verify --deep --strict release/macos/QuoDex.app` 成功。 |
-| 原生启动冒烟 | 真实 App 使用每次新建的 `qdx-caps-*` 数据目录启动；驾驶舱、任务胶囊与原生桌面材质可见，用户配置未改动。 |
-| 原生交互 | 窄条每组 3 / 4 项、各来源独立 `+N`、来源列表移除、下一失败轮次重新出现、单 ZCode 数据库故障与恢复、额度切换、减少动效、上 / 下展开、健康空组与公共诊断均完成现场检查。 |
+| 原生启动冒烟 | 本次真实安装 App 启动成功，驾驶舱、任务胶囊可见，配额读取正常；隔离原生夹具启动限制见上。 |
+| 原生交互 | 本次复核来源列表展开与收起、来源文字与列表可读性。首次双胶囊版本曾在隔离数据上验证窄条、独立 `+N`、失败轮次、来源故障恢复、额度切换、减少动效、展开方向、空组与公共诊断；本次没有重复全部历史旅程。 |
 
-构建与测试日志仅保留在 ignored 的 `.scratch/task-source-design/{frontend,rust,package}.log`，不作为源码产物复制。5 项 ignored 分别需要本机运行中的 Codex 聊天、已登录 ZCode 个人账号、真实网关、现有 ZCode 数据库或运行中的 ZCode 桌面进程；此次没有把它们计为通过。
+本次构建与测试日志仅保留在 ignored 的 `.scratch/task-source-design/transparency-{frontend,rust,package}.log`，不作为源码产物复制。Rust 第一次在沙箱内运行时 Unix socket 绑定被拒绝，允许本地 socket 后重新运行得到 95 项通过。5 项 ignored 分别需要本机运行中的 Codex 聊天、已登录 ZCode 个人账号、真实网关、现有 ZCode 数据库或运行中的 ZCode 桌面进程；此次没有把它们计为通过。
 
 任务由采集层显式提供 `source`，以 `source:id` 区分聊天、以 `turnId` 区分执行轮次。完成保留 30 分钟，失败移除只隐藏该来源该聊天的当前失败轮次。两来源各自保留健康状态、诊断与观察时间；2 秒心跳 + 3 秒回复期限 + 1 秒前端读取 + 2 秒余量形成 8 秒过期阈值。过期来源的非终态任务降为未知，已确认完成 / 失败保留；不会用另一来源的新时间冒充健康。
 
@@ -42,7 +58,7 @@
 | 公共诊断存在时，健康空组仍显示“暂无任务” | 两组无任务但公共诊断存在时仍展示双来源与独立诊断 | [空组 / 公共诊断](native-empty-diagnostic.png) |
 | 两组健康且为空时收起整个任务区 | 最后一次包现场确认任务区完全消失，App 返回 `300 × 130` | [健康空组收起](native-healthy-empty.png) |
 
-以上 8 张现场图均来自最后一次真实打包 App，数据为隔离 SQLite 与 IPC 协议夹具；批准图属于虚构设计稿。现场图不是网页或组件预览，也不证明外部真实账号全链路可用。仅浅背景材质、文字与交互获得现场证据，批准图中的深背景效果仍未验证。
+以上 8 张现场图来自 `aeb0d6a` 对应的首次双胶囊打包 App，数据为隔离 SQLite 与 IPC 协议夹具；批准图属于虚构设计稿。它们属于历史验收证据，本次提高透明度后的材质以本地 `transparency-*-installed.png` 为准。现场图不是网页或组件预览，也不证明外部真实账号全链路可用。仅浅背景材质、文字与交互获得现场证据，批准图中的深背景效果仍未验证。
 
 ## 复现步骤
 
@@ -67,5 +83,5 @@ python3 fixtures/task-capsules-macos.py --y 800
 
 - 深色桌面的自动化工具调用超时，没有完成现场复核；不能把浅背景对比结果扩展到所有背景。
 - Windows 没有本轮现场环境；Windows 构建、原生模糊、裁剪 / 命中区、截图与真实旅程尚未验证。
-- 协议夹具证明当前 SQLite / IPC 格式适配及真实 App 的呈现与交互，不替代真实账号、真实桌面应用和网关的完整链路验证；上述 5 项人工环境测试仍为 ignored。
+- 协议夹具证明 SQLite / IPC 格式适配及首次双胶囊版本的真实 App 交互。本次透明度修订的现场证据来自安装后的真实用户环境，尚未重新完成干净数据目录原生夹具验证；上述 5 项人工环境测试仍为 ignored。
 - 待用户验收安装后的实际桌面环境。跨平台发布前需要补齐 Windows 与深色桌面的原生检查，并记录真实应用跳转与账号数据读取结果。
