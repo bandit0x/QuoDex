@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { App, applyRouteGate } from "./App";
+import { overlayLayoutSizes, type SettingsWindowPresentation } from "./windowClient";
 import type {
   CapacitySnapshot,
   DisplayPreferences,
@@ -20,10 +21,14 @@ const inertPreferences = {
   setWindowLayout: async () => undefined,
   openSettingsWindow: async () => ({
     baseLayout: "compact" as const,
-    placement: "above" as const,
+    placement: "below" as const,
     windowPosition: { x: 0, y: 0 },
-    windowSize: { width: 300, height: 278 },
-    restore: { layout: "compact" as const, position: { x: 0, y: 148 } },
+    windowSize: { width: 300, height: 222 },
+    restore: { layout: "compact" as const, position: { x: 0, y: 0 } },
+  }),
+  resizeSettingsWindow: async (presentation: SettingsWindowPresentation, extraHeight: number) => ({
+    ...presentation,
+    windowSize: { ...presentation.windowSize, height: overlayLayoutSizes[presentation.baseLayout].height + (presentation.restore.taskSpace ?? 0) + extraHeight },
   }),
   closeSettingsWindow: async () => undefined,
   loadTomatoConnection: async (): Promise<TomatoConnectionSnapshot> => ({
@@ -478,6 +483,27 @@ describe("Codex capacity overlay", () => {
     expect(saves[saves.length - 1]).toEqual({ opacity: 0.92, reducedMotion: true });
   });
 
+  it("previews the slider until release and serializes later changes behind the pending save", async () => {
+    let finishFirst: () => void = () => undefined;
+    const firstSave = new Promise<void>(resolve => { finishFirst = resolve; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => firstSave).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const slider = await screen.findByRole("slider", { name: "透明度" });
+    fireEvent.change(slider, { target: { value: "0.9" } });
+    expect(slider).toHaveValue("0.9");
+    expect(savePreferences).not.toHaveBeenCalled();
+    fireEvent.pointerUp(slider);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("checkbox", { name: "减少动效" }));
+    expect(savePreferences).toHaveBeenCalledTimes(1);
+    await act(async () => { finishFirst(); await firstSave; });
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(2));
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ opacity: .9, reducedMotion: true });
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
+  });
+
   it("closes the settings dialog with Escape", async () => {
     const user = userEvent.setup();
     render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} />);
@@ -488,6 +514,124 @@ describe("Codex capacity overlay", () => {
     expect(screen.getByRole("dialog", { name: "显示设置" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument();
+  });
+
+  it("keeps failed preferences visible until retry succeeds and grows only the error row", async () => {
+    let finishRetry: () => void = () => undefined;
+    const retry = new Promise<void>(resolve => { finishRetry = resolve; });
+    const savePreferences = vi.fn().mockRejectedValueOnce(new Error("fixture write failed")).mockImplementationOnce(() => retry);
+    const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow);
+    render(<App {...inertPreferences} initialLayout="collapsed" loadSnapshot={async () => healthySnapshot}
+      openSettingsWindow={async () => ({ baseLayout: "collapsed", placement: "below", windowPosition: { x: 0, y: 0 }, windowSize: { width: 260, height: 140 }, restore: { layout: "collapsed", position: { x: 0, y: 0 } } })}
+      savePreferences={savePreferences} resizeSettingsWindow={resizeSettingsWindow} />);
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const slider = await screen.findByRole("slider", { name: "透明度" });
+    fireEvent.change(slider, { target: { value: "0.9" } });
+    fireEvent.pointerUp(slider);
+    expect(await screen.findByRole("alert")).toHaveTextContent("本地写入失败 · CRV-303");
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), 116));
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("CRV-303");
+    expect(screen.getByRole("button", { name: "重试保存" })).toBeDisabled();
+    expect(slider).toHaveValue("0.9");
+    await act(async () => { finishRetry(); await retry; });
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), 92));
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ opacity: .9 });
+  });
+
+  it("closes settings before showing a task source list and keeps that list open", async () => {
+    const closeSettingsWindow = vi.fn(async () => undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} closeSettingsWindow={closeSettingsWindow}
+      loadTaskStatus={async () => ({ tasks: [{ source: "codex", id: "sample", turnId: "turn", title: "示例任务", state: "running", completedAtMs: null, detail: null }], sources: readyTaskSources(Date.now()), observedAtMs: Date.now(), diagnostic: null })} />);
+    await screen.findByRole("button", { name: "查看 Codex 全部 1 个任务" });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
+    fireEvent.click(screen.getByRole("button", { name: "查看 Codex 全部 1 个任务" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "Codex 任务列表" })).toBeInTheDocument();
+    expect(closeSettingsWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for an in-flight error resize before restoring the settings window", async () => {
+    let finishResize: (next: SettingsWindowPresentation) => void = () => undefined;
+    const resizing = new Promise<SettingsWindowPresentation>(resolve => { finishResize = resolve; });
+    const resizeSettingsWindow = vi.fn(() => resizing);
+    const closeSettingsWindow = vi.fn(async () => undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      savePreferences={async () => { throw new Error("fixture write failed"); }}
+      resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "关闭设置" }));
+    expect(closeSettingsWindow).not.toHaveBeenCalled();
+    const resized: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 246 } };
+    await act(async () => { finishResize(resized); await resizing; });
+    await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledWith(resized));
+    expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument();
+  });
+
+  it("converges to 92px when retry succeeds before the error expansion finishes", async () => {
+    let finishExpansion: (next: SettingsWindowPresentation) => void = () => undefined;
+    const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
+    const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow).mockImplementationOnce(() => expansion);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} resizeSettingsWindow={resizeSettingsWindow}
+      savePreferences={vi.fn().mockRejectedValueOnce({ code: "CRV-304", message: "无法保存本地显示偏好" }).mockResolvedValue(undefined)} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    const expanded: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 246 } };
+    await act(async () => { finishExpansion(expanded); await expansion; });
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expanded, 92));
+  });
+
+  it("preserves a late backend diagnostic without resizing a closing settings window", async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    const saving = new Promise<void>((_, reject) => { failSave = reject; });
+    let finishClose: () => void = () => undefined;
+    const closing = new Promise<void>(resolve => { finishClose = resolve; });
+    const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow);
+    const closeSettingsWindow = vi.fn(() => closing);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={() => saving}
+      resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭设置" }));
+    await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledTimes(1));
+    await act(async () => { failSave({ code: "CRV-304", message: "无法保存本地显示偏好" }); await saving.catch(() => undefined); });
+    expect(resizeSettingsWindow).not.toHaveBeenCalled();
+    await act(async () => { finishClose(); await closing; });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法保存本地显示偏好 · CRV-304");
+  });
+
+  it("restores from the last native success if a queued shrink fails", async () => {
+    const initial: SettingsWindowPresentation = { baseLayout: "compact", placement: "below", windowPosition: { x: 100, y: 818 }, windowSize: { width: 300, height: 222 }, restore: { layout: "compact", position: { x: 100, y: 840 } } };
+    const expanded = { ...initial, windowPosition: { x: 100, y: 794 }, windowSize: { width: 300, height: 246 } };
+    let finishExpansion: (next: SettingsWindowPresentation) => void = () => undefined;
+    const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
+    const resizeSettingsWindow = vi.fn().mockImplementationOnce(() => expansion).mockRejectedValueOnce(new Error("fixture resize failed"));
+    const closeSettingsWindow = vi.fn(async () => undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} openSettingsWindow={async () => initial}
+      resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow}
+      savePreferences={vi.fn().mockRejectedValueOnce({ code: "CRV-304", message: "无法保存本地显示偏好" }).mockResolvedValue(undefined)} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    await act(async () => { finishExpansion(expanded); await expansion; });
+    await screen.findByText(/设置窗口未能调整/);
+    fireEvent.click(screen.getByRole("button", { name: "关闭设置" }));
+    await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledWith(expanded));
   });
 
   it("quits the application from the settings dialog", async () => {
@@ -508,13 +652,44 @@ describe("Codex capacity overlay", () => {
     await waitFor(() => expect(quitApp).toHaveBeenCalledTimes(1));
   });
 
-  it("anchors settings above a collapsed shell and restores the prior layout on Escape", async () => {
+  it("commits the slider preview and waits for queued preferences before quitting", async () => {
+    let finishSave: () => void = () => undefined;
+    const pending = new Promise<void>(resolve => { finishSave = resolve; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    const quitApp = vi.fn().mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} quitApp={quitApp} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
+    expect(quitApp).not.toHaveBeenCalled();
+    await act(async () => { finishSave(); await pending; });
+    await waitFor(() => expect(quitApp).toHaveBeenCalledTimes(1));
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ opacity: .9, reducedMotion: true });
+  });
+
+  it("keeps the dock and retry action when saving before quit fails", async () => {
+    const quitApp = vi.fn().mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      savePreferences={vi.fn().mockRejectedValue(new Error("fixture write failed"))} quitApp={quitApp} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.change(await screen.findByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-303");
+    expect(quitApp).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "重试保存" })).toBeEnabled();
+  });
+
+  it("keeps a collapsed shell narrow above the settings rail and restores it on Escape", async () => {
     const user = userEvent.setup();
     const openSettingsWindow = vi.fn(async () => ({
-      baseLayout: "compact" as const,
-      placement: "above" as const,
-      windowPosition: { x: 80, y: 252 },
-      windowSize: { width: 300, height: 278 },
+      baseLayout: "collapsed" as const,
+      placement: "below" as const,
+      windowPosition: { x: 80, y: 400 },
+      windowSize: { width: 260, height: 140 },
       restore: { layout: "collapsed" as const, position: { x: 80, y: 400 } },
     }));
     const closeSettingsWindow = vi.fn(async () => undefined);
@@ -534,8 +709,8 @@ describe("Codex capacity overlay", () => {
     expect(await screen.findByRole("dialog", { name: "显示设置" })).toBeInTheDocument();
     expect(openSettingsWindow).toHaveBeenCalledWith("collapsed");
     expect(container.querySelector("main")).toHaveClass(
-      "app-frame--compact",
-      "app-frame--settings-above",
+      "app-frame--collapsed",
+      "app-frame--settings-below",
     );
 
     await user.keyboard("{Escape}");
@@ -800,12 +975,12 @@ describe("dual quota sources", () => {
 
     await user.click(screen.getByRole("button", { name: "展开重置详情" }));
     await user.click(screen.getByRole("button", { name: "设置" }));
-    const planGroup = screen.getByRole("group", { name: "ZCode 套餐" });
-    expect(within(planGroup).getByText("体验套餐")).toHaveAttribute("aria-pressed", "true");
+    const planSelect = screen.getByRole("combobox", { name: "ZCode 套餐" });
+    expect(planSelect).toHaveValue("start");
 
     // 万一用户不想盯体验套餐的消耗：切到个人套餐后立即按新偏好重探
-    await user.click(within(planGroup).getByText("个人套餐"));
-    expect(within(planGroup).getByText("个人套餐")).toHaveAttribute("aria-pressed", "true");
+    await user.selectOptions(planSelect, "coding");
+    expect(planSelect).toHaveValue("coding");
     expect(saved[saved.length - 1].zcodePlan).toBe("coding");
     await waitFor(() => expect(zcodeCalls).toEqual(["start", "coding"]));
   });
@@ -914,7 +1089,7 @@ describe("dual quota sources", () => {
     await screen.findByText("76%", { exact: false });
     await user.click(screen.getByRole("button", { name: "展开重置详情" }));
     await user.click(screen.getByRole("button", { name: "设置" }));
-    await user.click(screen.getByRole("button", { name: "Zcode" }));
+    await user.click(screen.getByRole("button", { name: "ZCode" }));
     expect(savedSources[savedSources.length - 1]).toBe("zcode");
 
     expect(await screen.findByText("ZCODE")).toBeInTheDocument();

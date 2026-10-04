@@ -1,0 +1,320 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T13:38:34Z",
+  "title": "Design System: QuoDex Floating Glass",
+  "extensions": {
+    "colorMeta": {
+      "focus-cyan": {
+        "role": "primary",
+        "displayName": "焦点青",
+        "tonalRamp": [
+          "oklch(15.00% 0.1274 220.70)",
+          "oklch(26.43% 0.1274 220.70)",
+          "oklch(37.86% 0.1274 220.70)",
+          "oklch(49.29% 0.1274 220.70)",
+          "oklch(60.71% 0.1274 220.70)",
+          "oklch(72.14% 0.1274 220.70)",
+          "oklch(83.57% 0.1274 220.70)",
+          "oklch(95.00% 0.1274 220.70)"
+        ]
+      },
+      "source-cyan": {
+        "role": "primary",
+        "displayName": "来源青",
+        "tonalRamp": [
+          "oklch(15.00% 0.1214 226.04)",
+          "oklch(26.43% 0.1214 226.04)",
+          "oklch(37.86% 0.1214 226.04)",
+          "oklch(49.29% 0.1214 226.04)",
+          "oklch(60.71% 0.1214 226.04)",
+          "oklch(72.14% 0.1214 226.04)",
+          "oklch(83.57% 0.1214 226.04)",
+          "oklch(95.00% 0.1214 226.04)"
+        ]
+      },
+      "source-emerald": {
+        "role": "primary",
+        "displayName": "来源翡翠",
+        "tonalRamp": [
+          "oklch(15.00% 0.1647 159.65)",
+          "oklch(26.43% 0.1647 159.65)",
+          "oklch(37.86% 0.1647 159.65)",
+          "oklch(49.29% 0.1647 159.65)",
+          "oklch(60.71% 0.1647 159.65)",
+          "oklch(72.14% 0.1647 159.65)",
+          "oklch(83.57% 0.1647 159.65)",
+          "oklch(95.00% 0.1647 159.65)"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "主文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.0157 216.67)",
+          "oklch(26.43% 0.0157 216.67)",
+          "oklch(37.86% 0.0157 216.67)",
+          "oklch(49.29% 0.0157 216.67)",
+          "oklch(60.71% 0.0157 216.67)",
+          "oklch(72.14% 0.0157 216.67)",
+          "oklch(83.57% 0.0157 216.67)",
+          "oklch(95.00% 0.0157 216.67)"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "次文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.0305 240.28)",
+          "oklch(26.43% 0.0305 240.28)",
+          "oklch(37.86% 0.0305 240.28)",
+          "oklch(49.29% 0.0305 240.28)",
+          "oklch(60.71% 0.0305 240.28)",
+          "oklch(72.14% 0.0305 240.28)",
+          "oklch(83.57% 0.0305 240.28)",
+          "oklch(95.00% 0.0305 240.28)"
+        ]
+      },
+      "lens-label": {
+        "role": "neutral",
+        "displayName": "透镜文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.0128 221.42)",
+          "oklch(26.43% 0.0128 221.42)",
+          "oklch(37.86% 0.0128 221.42)",
+          "oklch(49.29% 0.0128 221.42)",
+          "oklch(60.71% 0.0128 221.42)",
+          "oklch(72.14% 0.0128 221.42)",
+          "oklch(83.57% 0.0128 221.42)",
+          "oklch(95.00% 0.0128 221.42)"
+        ]
+      },
+      "saved-mint": {
+        "role": "secondary",
+        "displayName": "保存薄荷",
+        "tonalRamp": [
+          "oklch(15.00% 0.0977 164.20)",
+          "oklch(26.43% 0.0977 164.20)",
+          "oklch(37.86% 0.0977 164.20)",
+          "oklch(49.29% 0.0977 164.20)",
+          "oklch(60.71% 0.0977 164.20)",
+          "oklch(72.14% 0.0977 164.20)",
+          "oklch(83.57% 0.0977 164.20)",
+          "oklch(95.00% 0.0977 164.20)"
+        ]
+      },
+      "error-coral": {
+        "role": "secondary",
+        "displayName": "错误珊瑚",
+        "tonalRamp": [
+          "oklch(15.00% 0.0540 32.36)",
+          "oklch(26.43% 0.0540 32.36)",
+          "oklch(37.86% 0.0540 32.36)",
+          "oklch(49.29% 0.0540 32.36)",
+          "oklch(60.71% 0.0540 32.36)",
+          "oklch(72.14% 0.0540 32.36)",
+          "oklch(83.57% 0.0540 32.36)",
+          "oklch(95.00% 0.0540 32.36)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "source-label": {
+        "displayName": "来源名称",
+        "purpose": "独立来源透镜"
+      },
+      "control-label": {
+        "displayName": "控制标签",
+        "purpose": "透明度读数与减少动效标签"
+      },
+      "plan-value": {
+        "displayName": "套餐值",
+        "purpose": "原生套餐选择"
+      },
+      "action": {
+        "displayName": "操作文字",
+        "purpose": "退出与重试"
+      }
+    },
+    "shadows": [
+      {
+        "name": "glass-body",
+        "value": "0 10px 24px rgba(0,3,8,.54), inset 0 1px 0 rgba(205,243,255,.62), inset 0 4px 8px rgba(186,237,255,.42), inset 0 -3px 5px rgba(153,232,255,.28), inset 0 -10px 18px rgba(0,5,13,.82), inset 6px 0 12px rgba(56,187,240,.22), inset -6px 0 12px rgba(81,228,198,.19)",
+        "purpose": "共享玻璃体的桌面抬升与局部内阴影"
+      },
+      {
+        "name": "lens-selected",
+        "value": "0 6px 12px rgba(0,7,16,.32), inset 0 2px 3px rgba(239,255,255,.88), inset 0 -5px 7px rgba(var(--lens-color),.66), inset 3px 0 6px rgba(var(--lens-color),.3)",
+        "purpose": "来源透镜的内部选中光"
+      },
+      {
+        "name": "bead",
+        "value": "0 3px 6px rgba(0,3,8,.65), inset 0 1px 2px rgba(255,255,255,.6)",
+        "purpose": "滑块与开关珠体的局部体积"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16,1,0.3,1)",
+        "purpose": "继承共享局部反馈"
+      },
+      {
+        "name": "lens-feedback",
+        "value": "130ms",
+        "purpose": "透镜悬停与按下压缩"
+      },
+      {
+        "name": "switch-feedback",
+        "value": "160ms",
+        "purpose": "开关珠体位置变化"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "框架缩短 CSS 反馈并暂停光学循环；直接操作仍触发一帧"
+      }
+    ],
+    "focus": {
+      "colorRef": "colors.focus-cyan",
+      "outline": "2px solid var(--cyan)",
+      "trackOffset": "3px",
+      "purpose": "滑轨焦点沿细槽；开关焦点围绕轨道，按钮保持独立焦点"
+    },
+    "nativeLayout": {
+      "unit": "Tauri logical px",
+      "cssToLogicalScale": 0.5,
+      "windowWidth": {
+        "regular": 300,
+        "narrow": 260
+      },
+      "sourceLensHeight": 36,
+      "controlHeight": 44,
+      "settingsExtraHeight": 92,
+      "errorExtraHeight": 24,
+      "sourceControlGap": 6,
+      "source": "src/windowClient.ts, src/App.css, src/SettingsDock.css"
+    },
+    "optics": {
+      "source": "src/OpticalShell.tsx: controlSurface branch",
+      "defaultQuotaPath": "保留独立默认分支；控制变体不改变额度仓默认绘制",
+      "airIor": 1.0003,
+      "glassIor": 1.52,
+      "geometry": "卷边壁面 sin² roll 与中心 crown 合为连续高度场；按一个逻辑 CSS px 的偏移作中心差分求法线",
+      "response": "Fresnel Schlick 与 GGX 同时作用于中心及壁面；中心反射不乘 rim",
+      "reflection": "有限左上软箱：反射线与光源平面求交，墙面环境提供青绿回光；灯面范围、位置和能量由当前 Shader 源码拥有，不在此固化",
+      "absorption": "光程随壁厚及视角改变，Beer–Lambert 分通道吸收；折射方向改变内腔采样",
+      "innerBounce": "厚壁中的青绿回光，与外层局部高光共同表达体积",
+      "renderer": "WebGL 控制路径使用 premultiplied alpha；WebGL 可用时移除额外 CSS 双描边"
+    },
+    "previewLimit": "组件片段仅表现 CSS 交互形状与后备材质；不包含生产 WebGL 或原生背景。派生 tonalRamp 只用于调色板预览，不是新增生产 tokens。",
+    "evidence": "docs/verification/settings-dock/README.md"
+  },
+  "components": [
+    {
+      "name": "来源透镜 / Codex",
+      "kind": "button",
+      "refersTo": "source-codex",
+      "description": "选中态的 CSS 后备示例；内含悬停、按下和焦点反馈，不包含 GlassLensCanvas 或真实来源切换。尺寸以 0.5 缩放呈现。",
+      "html": "<div class=\"ds-lens-preview\"><button type=\"button\" class=\"ds-lens\" data-tone=\"codex\" aria-pressed=\"true\" aria-label=\"组件示例：Codex\"><span class=\"ds-lens-dot\" aria-hidden=\"true\"></span><span>Codex</span></button></div>",
+      "css": ".ds-lens-preview{width:87px;height:36px}.ds-lens{--lens-color:94,211,255;position:relative;display:flex;width:174px;height:72px;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:6px 12px;border:1px solid rgba(210,245,255,.68);border-radius:999px;color:#f0fbff;background:radial-gradient(ellipse at 30% 0%,rgba(228,250,255,.18),transparent 62%),linear-gradient(180deg,rgba(32,94,127,.22),rgba(2,18,30,.48));box-shadow:0 6px 10px rgba(0,7,16,.30),inset 0 2px 3px rgba(237,252,255,.72),inset 0 -4px 5px rgba(78,184,221,.38),inset 4px 0 5px rgba(198,239,255,.2),inset -3px 0 6px rgba(1,11,20,.6);font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:22px;line-height:1.1;font-weight:650;cursor:pointer;transition:transform 130ms cubic-bezier(.16,1,.3,1),box-shadow 130ms ease-out;transform:scale(.5);transform-origin:top left}.ds-lens::after{content:\"\";position:absolute;inset:5px;border-radius:inherit;border:1px solid rgba(161,227,252,.42);pointer-events:none}.ds-lens>span,.ds-lens>svg{position:relative;z-index:2}.ds-lens[data-tone=\"zcode\"]{--lens-color:88,242,171}.ds-lens[aria-pressed=\"true\"]{border-color:rgba(var(--lens-color),.85);background:radial-gradient(ellipse at 50% 95%,rgba(var(--lens-color),.25),transparent 72%),linear-gradient(180deg,rgba(24,62,79,.22),rgba(2,25,32,.32));box-shadow:0 6px 12px rgba(0,7,16,.32),inset 0 2px 3px rgba(239,255,255,.88),inset 0 -5px 7px rgba(var(--lens-color),.66),inset 3px 0 6px rgba(var(--lens-color),.3)}.ds-lens:hover{transform:scale(.5) translateY(-2px)}.ds-lens:active{transform:scale(.5) translateY(2px) scaleY(.93);box-shadow:0 2px 4px rgba(0,7,16,.34),inset 0 4px 8px rgba(0,10,20,.5),inset 0 -2px 4px rgba(var(--lens-color),.45)}.ds-lens:focus-visible{outline:2px solid var(--cyan,#50d8ff);outline-offset:2px}.ds-lens-dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(var(--lens-color),.9);background:#062335;box-shadow:0 2px 3px rgba(0,5,14,.6),inset 0 1px 1px rgba(235,254,255,.4)}.ds-lens[aria-pressed=\"true\"] .ds-lens-dot{background:rgb(var(--lens-color));box-shadow:0 2px 3px rgba(0,5,14,.5),inset 0 2px 2px rgba(255,255,255,.75)}.ds-lens svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}@media(prefers-reduced-motion:reduce){.ds-lens{transition-duration:.01ms}}"
+    },
+    {
+      "name": "来源透镜 / ZCode",
+      "kind": "button",
+      "refersTo": "source-zcode",
+      "description": "选中态的 CSS 后备示例；内含悬停、按下和焦点反馈，不包含 GlassLensCanvas 或真实来源切换。尺寸以 0.5 缩放呈现。",
+      "html": "<div class=\"ds-lens-preview\"><button type=\"button\" class=\"ds-lens\" data-tone=\"zcode\" aria-pressed=\"true\" aria-label=\"组件示例：ZCode\"><span class=\"ds-lens-dot\" aria-hidden=\"true\"></span><span>ZCode</span></button></div>",
+      "css": ".ds-lens-preview{width:87px;height:36px}.ds-lens{--lens-color:94,211,255;position:relative;display:flex;width:174px;height:72px;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:6px 12px;border:1px solid rgba(210,245,255,.68);border-radius:999px;color:#f0fbff;background:radial-gradient(ellipse at 30% 0%,rgba(228,250,255,.18),transparent 62%),linear-gradient(180deg,rgba(32,94,127,.22),rgba(2,18,30,.48));box-shadow:0 6px 10px rgba(0,7,16,.30),inset 0 2px 3px rgba(237,252,255,.72),inset 0 -4px 5px rgba(78,184,221,.38),inset 4px 0 5px rgba(198,239,255,.2),inset -3px 0 6px rgba(1,11,20,.6);font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:22px;line-height:1.1;font-weight:650;cursor:pointer;transition:transform 130ms cubic-bezier(.16,1,.3,1),box-shadow 130ms ease-out;transform:scale(.5);transform-origin:top left}.ds-lens::after{content:\"\";position:absolute;inset:5px;border-radius:inherit;border:1px solid rgba(161,227,252,.42);pointer-events:none}.ds-lens>span,.ds-lens>svg{position:relative;z-index:2}.ds-lens[data-tone=\"zcode\"]{--lens-color:88,242,171}.ds-lens[aria-pressed=\"true\"]{border-color:rgba(var(--lens-color),.85);background:radial-gradient(ellipse at 50% 95%,rgba(var(--lens-color),.25),transparent 72%),linear-gradient(180deg,rgba(24,62,79,.22),rgba(2,25,32,.32));box-shadow:0 6px 12px rgba(0,7,16,.32),inset 0 2px 3px rgba(239,255,255,.88),inset 0 -5px 7px rgba(var(--lens-color),.66),inset 3px 0 6px rgba(var(--lens-color),.3)}.ds-lens:hover{transform:scale(.5) translateY(-2px)}.ds-lens:active{transform:scale(.5) translateY(2px) scaleY(.93);box-shadow:0 2px 4px rgba(0,7,16,.34),inset 0 4px 8px rgba(0,10,20,.5),inset 0 -2px 4px rgba(var(--lens-color),.45)}.ds-lens:focus-visible{outline:2px solid var(--cyan,#50d8ff);outline-offset:2px}.ds-lens-dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(var(--lens-color),.9);background:#062335;box-shadow:0 2px 3px rgba(0,5,14,.6),inset 0 1px 1px rgba(235,254,255,.4)}.ds-lens[aria-pressed=\"true\"] .ds-lens-dot{background:rgb(var(--lens-color));box-shadow:0 2px 3px rgba(0,5,14,.5),inset 0 2px 2px rgba(255,255,255,.75)}.ds-lens svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}@media(prefers-reduced-motion:reduce){.ds-lens{transition-duration:.01ms}}"
+    },
+    {
+      "name": "来源透镜 / 轮播",
+      "kind": "button",
+      "refersTo": "source-carousel",
+      "description": "选中态的 CSS 后备示例；内含悬停、按下和焦点反馈，不包含 GlassLensCanvas 或真实来源切换。尺寸以 0.5 缩放呈现。",
+      "html": "<div class=\"ds-lens-preview\"><button type=\"button\" class=\"ds-lens\" data-tone=\"carousel\" aria-pressed=\"true\" aria-label=\"组件示例：轮播\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 7v5h-5M4 17v-5h5m10-4a8 8 0 0 0-13-2m-1 10a8 8 0 0 0 13 2\"/></svg><span>轮播</span></button></div>",
+      "css": ".ds-lens-preview{width:87px;height:36px}.ds-lens{--lens-color:94,211,255;position:relative;display:flex;width:174px;height:72px;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:6px 12px;border:1px solid rgba(210,245,255,.68);border-radius:999px;color:#f0fbff;background:radial-gradient(ellipse at 30% 0%,rgba(228,250,255,.18),transparent 62%),linear-gradient(180deg,rgba(32,94,127,.22),rgba(2,18,30,.48));box-shadow:0 6px 10px rgba(0,7,16,.30),inset 0 2px 3px rgba(237,252,255,.72),inset 0 -4px 5px rgba(78,184,221,.38),inset 4px 0 5px rgba(198,239,255,.2),inset -3px 0 6px rgba(1,11,20,.6);font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:22px;line-height:1.1;font-weight:650;cursor:pointer;transition:transform 130ms cubic-bezier(.16,1,.3,1),box-shadow 130ms ease-out;transform:scale(.5);transform-origin:top left}.ds-lens::after{content:\"\";position:absolute;inset:5px;border-radius:inherit;border:1px solid rgba(161,227,252,.42);pointer-events:none}.ds-lens>span,.ds-lens>svg{position:relative;z-index:2}.ds-lens[data-tone=\"zcode\"]{--lens-color:88,242,171}.ds-lens[aria-pressed=\"true\"]{border-color:rgba(var(--lens-color),.85);background:radial-gradient(ellipse at 50% 95%,rgba(var(--lens-color),.25),transparent 72%),linear-gradient(180deg,rgba(24,62,79,.22),rgba(2,25,32,.32));box-shadow:0 6px 12px rgba(0,7,16,.32),inset 0 2px 3px rgba(239,255,255,.88),inset 0 -5px 7px rgba(var(--lens-color),.66),inset 3px 0 6px rgba(var(--lens-color),.3)}.ds-lens:hover{transform:scale(.5) translateY(-2px)}.ds-lens:active{transform:scale(.5) translateY(2px) scaleY(.93);box-shadow:0 2px 4px rgba(0,7,16,.34),inset 0 4px 8px rgba(0,10,20,.5),inset 0 -2px 4px rgba(var(--lens-color),.45)}.ds-lens:focus-visible{outline:2px solid var(--cyan,#50d8ff);outline-offset:2px}.ds-lens-dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(var(--lens-color),.9);background:#062335;box-shadow:0 2px 3px rgba(0,5,14,.6),inset 0 1px 1px rgba(235,254,255,.4)}.ds-lens[aria-pressed=\"true\"] .ds-lens-dot{background:rgb(var(--lens-color));box-shadow:0 2px 3px rgba(0,5,14,.5),inset 0 2px 2px rgba(255,255,255,.75)}.ds-lens svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}@media(prefers-reduced-motion:reduce){.ds-lens{transition-duration:.01ms}}"
+    },
+    {
+      "name": "透明度细槽",
+      "kind": "input",
+      "refersTo": "opacity-slider",
+      "description": "静态 94% 示例，保留原生滑块与沿槽焦点；读数及填充不会在此片段自动联动，生产由 React 驱动。",
+      "html": "<div class=\"ds-slider-preview\"><label class=\"ds-opacity\"><span>透明度</span><output>94%</output><input aria-label=\"组件示例：透明度\" type=\"range\" min=\"0.86\" max=\"1\" step=\"0.02\" value=\"0.94\"/></label></div>",
+      "css": ".ds-slider-preview{width:82px;height:30px}.ds-opacity{display:grid;width:164px;grid-template-columns:1fr auto;grid-template-rows:24px 36px;column-gap:8px;align-items:center;color:#eaf8fc;font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:18px;font-weight:540;transform:scale(.5);transform-origin:top left}.ds-opacity output{font-variant-numeric:tabular-nums}.ds-opacity input{grid-column:1/-1;appearance:none;width:100%;height:36px;margin:0;background:transparent;cursor:pointer}.ds-opacity input:focus-visible{outline:0}.ds-opacity input:focus-visible::-webkit-slider-runnable-track{outline:2px solid var(--cyan,#50d8ff);outline-offset:3px}.ds-opacity input:focus-visible::-moz-range-track{outline:2px solid var(--cyan,#50d8ff);outline-offset:3px}.ds-opacity input::-webkit-slider-runnable-track{height:8px;border:0;border-radius:999px;background:linear-gradient(90deg,rgba(88,192,217,.74) 57.142857%,rgba(0,8,15,.42) 57.142857%);box-shadow:inset 0 2px 3px rgba(0,3,8,.78),0 1px rgba(205,243,255,.28)}.ds-opacity input::-webkit-slider-thumb{appearance:none;width:24px;height:24px;margin-top:-8px;border:1px solid rgba(225,251,255,.6);border-radius:50%;background:radial-gradient(circle at 30% 23%,#ecf9fc,#91c5d2 27%,#2d6378 70%,#8fcad3);box-shadow:0 3px 6px rgba(0,3,8,.65),inset 0 1px 2px rgba(255,255,255,.6)}.ds-opacity input::-moz-range-track{height:8px;border:0;border-radius:999px;background:rgba(0,8,15,.42);box-shadow:inset 0 2px 3px rgba(0,3,8,.78),0 1px rgba(205,243,255,.28)}.ds-opacity input::-moz-range-thumb{width:24px;height:24px;border:1px solid rgba(225,251,255,.6);border-radius:50%;background:radial-gradient(circle at 30% 23%,#ecf9fc,#91c5d2 27%,#2d6378 70%,#8fcad3)}"
+    },
+    {
+      "name": "减少动效珠式开关",
+      "kind": "input",
+      "refersTo": "motion-switch",
+      "description": "原生 checkbox 驱动开关形状；不改变 App 偏好。",
+      "html": "<div class=\"ds-switch-preview\"><label class=\"ds-motion\"><span>减少动效</span><input type=\"checkbox\" aria-label=\"组件示例：减少动效\" checked/><span class=\"ds-switch\" aria-hidden=\"true\"></span></label></div>",
+      "css": ".ds-switch-preview{width:42px;height:30px}.ds-motion{position:relative;display:grid;width:84px;height:60px;grid-template-rows:24px 36px;justify-items:start;align-items:center;white-space:nowrap;color:#eaf8fc;font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:18px;font-weight:540;cursor:pointer;transform:scale(.5);transform-origin:top left}.ds-motion input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer}.ds-switch{width:60px;height:28px;border:0;border-radius:999px;background:rgba(0,10,18,.45);box-shadow:inset 0 3px 5px rgba(0,3,8,.7),0 1px rgba(205,243,255,.25);pointer-events:none}.ds-switch::before{content:\"\";display:block;width:24px;height:24px;margin:2px;border-radius:50%;border:1px solid rgba(225,251,255,.6);background:radial-gradient(circle at 30% 23%,#ecf9fc,#91c5d2 27%,#2d6378 70%,#8fcad3);box-shadow:0 3px 6px rgba(0,3,8,.65),inset 0 1px 2px rgba(255,255,255,.6);transition:transform 160ms cubic-bezier(.16,1,.3,1)}.ds-motion input:checked+.ds-switch{background:rgba(32,123,99,.48)}.ds-motion input:checked+.ds-switch::before{transform:translateX(32px)}.ds-motion input:focus-visible+.ds-switch{outline:2px solid var(--cyan,#50d8ff);outline-offset:3px}@media(prefers-reduced-motion:reduce){.ds-switch::before{transition-duration:.01ms}}"
+    },
+    {
+      "name": "退出操作",
+      "kind": "button",
+      "refersTo": "quit-action",
+      "description": "独立次级文字操作；片段不退出任何应用。",
+      "html": "<div class=\"ds-action-preview\"><button type=\"button\" class=\"ds-action\" aria-label=\"组件示例：退出\">退出</button></div>",
+      "css": ".ds-action-preview{width:22px;height:30px}.ds-action{display:grid;place-items:center;width:44px;height:60px;padding:0;border:0;border-radius:12px;color:#afc3d2;background:transparent;font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:18px;text-shadow:0 2px 7px rgba(0,2,7,.94),0 0 1px #000;cursor:pointer;transform:scale(.5);transform-origin:top left}.ds-action:hover{color:#f6fcff;background:rgba(205,243,255,.05)}.ds-action:focus-visible{outline:2px solid var(--cyan,#50d8ff);outline-offset:2px}.ds-action svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
+    },
+    {
+      "name": "独立收起箭头",
+      "kind": "button",
+      "refersTo": "collapse-action",
+      "description": "持续保留的收起操作，不以保存勾替代。",
+      "html": "<div class=\"ds-action-preview\"><button type=\"button\" class=\"ds-action\" aria-label=\"组件示例：收起\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 15 6-6 6 6\"/></svg></button></div>",
+      "css": ".ds-action-preview{width:18px;height:30px}.ds-action{display:grid;place-items:center;width:36px;height:60px;padding:0;border:0;border-radius:12px;color:#afc3d2;background:transparent;font-family:\"Segoe UI Variable\", \"Segoe UI\", -apple-system, \"SF Pro Text\", system-ui, sans-serif;font-size:18px;text-shadow:0 2px 7px rgba(0,2,7,.94),0 0 1px #000;cursor:pointer;transform:scale(.5);transform-origin:top left}.ds-action:hover{color:#f6fcff;background:rgba(205,243,255,.05)}.ds-action:focus-visible{outline:2px solid var(--cyan,#50d8ff);outline-offset:2px}.ds-action svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
+    }
+  ],
+  "narrative": {
+    "northStar": "透明额度驾驶舱",
+    "overview": "保留现有常驻浮窗的液态玻璃语言：桌面透景、深蓝内腔、厚壁吸收与青绿回光。用户确认的设置材质将中心冠面和卷边壁面作为同一光学表面，来源入口保持已认可的独立凸面透镜。\n\n本文件只提取浮窗共享样式和本次设置组件中可复用的规则，未建立新的产品身份。B 的具体构图、目标图来源与设置尺度合同放在[设置控制仓契约](docs/design/settings-control-chamber/README.md)。tokens 来自 [App.css](src/App.css)、[SettingsDock.css](src/SettingsDock.css)、[SettingsDock.tsx](src/SettingsDock.tsx) 和 [OpticalShell.tsx](src/OpticalShell.tsx)；光学、阴影、动效及组件示例由 [.impeccable/design.json](.impeccable/design.json) 扩展。它们记录代码与已确认方向，不能代替视觉判定；原生证据与验收只见[唯一入口](docs/verification/settings-dock/README.md)。",
+    "keyCharacteristics": [
+      "相邻功能表面以透明间距分离，控制项在一个内腔中组织。",
+      "凸面来源透镜以内部青绿光表达选择，以压缩表达按下。",
+      "控制中心与厚壁共用高度场、法线和光照响应。",
+      "细槽与玻璃珠承担输入反馈，保存状态保留独立收起操作。"
+    ],
+    "rules": [
+      {
+        "name": "The State Color Rule",
+        "body": "选中态由内部光和状态点共同表达；保存反馈、错误反馈与来源选择各自保留语义。",
+        "section": "colors"
+      },
+      {
+        "name": "The Local Scale Rule",
+        "body": "不将浮窗中的局部文字尺度推广为普通页面的正文规范。",
+        "section": "typography"
+      },
+      {
+        "name": "The Shared Cavity Rule",
+        "body": "控制项共用一个光学内腔；避免给每个字段另套独立高亮边框。",
+        "section": "layout"
+      },
+      {
+        "name": "The Optical Response Rule",
+        "body": "中心高光必须响应曲面法线，不能退化为只乘壁面 rim 的二维颜色场。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Independent Action Rule",
+        "body": "保存结果不能替代收起动作；减少动效改变反馈强度，不改变功能可用性。",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do 保留额度仓默认绘制入口，将控制材质限制在显式变体中。",
+      "Do 保留已认可的独立来源透镜与任务条结构。",
+      "Do 区分 CSS px、原生逻辑 px 和截图物理像素。",
+      "Do 在同一控制内腔内呈现读数、真实诊断和重试。",
+      "Do 将视觉判定与原生证据链接到唯一验收入口。"
+    ],
+    "donts": [
+      "Don't 用额外增亮描边、假液面、气泡或放大渐变替代控制曲面。",
+      "Don't 让成功勾替代或覆盖收起操作。",
+      "Don't 将目标示意图、组件片段或模型参数当作实际 App 验证结果。",
+      "Don't 将本次设置表面的局部布局提升为其他产品表面的通用限制。"
+    ]
+  }
+}

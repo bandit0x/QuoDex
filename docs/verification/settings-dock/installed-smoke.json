@@ -1,0 +1,16 @@
+{
+  "installed": "/Applications/QuoDex.app",
+  "backup": "/private/tmp/quodex-settings-backup-gyeqt5qu/QuoDex.app",
+  "executableSha256": "6d7fe1e7ba9a0a658e25721943d19fcbd614da3bc3662bd7b16fb6322635fc56",
+  "version": "0.2.5",
+  "installedMatchesBuild": true,
+  "smoke": {
+    "observedVia": "cua native AX",
+    "installedAppRunning": true,
+    "quotaVisible": true,
+    "settingsVisible": true,
+    "taskSourcesSeparate": true,
+    "controlsVisible": true,
+    "privateTaskContentsSaved": false
+  }
+}

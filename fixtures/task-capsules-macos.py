@@ -1,5 +1,5 @@
 """Launch the real packaged app with isolated local protocol and SQLite fixtures."""
-import argparse,os,json,sqlite3,socket,struct,threading,subprocess,time,tempfile,shutil
+import argparse,os,json,sqlite3,socket,struct,threading,subprocess,time,tempfile,shutil,plistlib
 from pathlib import Path
 repo=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
@@ -8,6 +8,7 @@ parser.add_argument('--output',type=Path,default=repo/'.scratch/task-source-desi
 parser.add_argument('--empty',action='store_true')
 parser.add_argument('--common-diagnostic',action='store_true')
 parser.add_argument('--y',type=int,default=800,help='Initial physical desktop Y coordinate')
+parser.add_argument('--launch-services',action='store_true',help='Launch an independently identified QA bundle for native UI automation')
 args=parser.parse_args()
 out=args.output;out.mkdir(parents=True,exist_ok=True)
 node=shutil.which('node')
@@ -62,10 +63,23 @@ def accept():
  while True:
   c,_=listener.accept();threading.Thread(target=serve,args=(c,),daemon=True).start()
 threading.Thread(target=accept,daemon=True).start()
-env=dict(os.environ,CODEX_CREDITS_CONFIG_DIR=str(root/'config'),CODEX_SQLITE_HOME=str(root),QUODEX_TASK_IPC_ENDPOINT=str(endpoint),ZCODE_DATA_BASE_DIR=str(root),CODEX_CREDITS_APP_SERVER_EXECUTABLE=node,CODEX_CREDITS_APP_SERVER_ARGS=json.dumps([str(repo/'fixtures/app-server-fixture.mjs')]),CODEX_CREDITS_ZCODE_QUOTA_RESPONSE_FILE=str(root/'quota.json'),CODEX_CREDITS_ZCODE_RESET_RESPONSE_FILE=str(root/'resets.json'))
+fixture_env=dict(CODEX_CREDITS_CONFIG_DIR=str(root/'config'),CODEX_SQLITE_HOME=str(root),QUODEX_TASK_IPC_ENDPOINT=str(endpoint),ZCODE_DATA_BASE_DIR=str(root),CODEX_CREDITS_APP_SERVER_EXECUTABLE=node,CODEX_CREDITS_APP_SERVER_ARGS=json.dumps([str(repo/'fixtures/app-server-fixture.mjs')]),CODEX_CREDITS_ZCODE_QUOTA_RESPONSE_FILE=str(root/'quota.json'),CODEX_CREDITS_ZCODE_RESET_RESPONSE_FILE=str(root/'resets.json'))
+env=dict(os.environ,**fixture_env)
+app_path=args.app.resolve()
+command=[str(app_path/'Contents/MacOS/codex-credits-view')]
+if args.launch_services:
+ qa_app=root/'QuoDex Settings QA.app'
+ shutil.copytree(app_path,qa_app)
+ plist_path=qa_app/'Contents/Info.plist'
+ with plist_path.open('rb') as f:info=plistlib.load(f)
+ info.update(CFBundleIdentifier='io.github.bandit.quodex.settingsqa',CFBundleName='QuoDex Settings QA',CFBundleDisplayName='QuoDex Settings QA',LSEnvironment=fixture_env)
+ with plist_path.open('wb') as f:plistlib.dump(info,f)
+ subprocess.run(['codesign','--force','--deep','--sign','-',str(qa_app)],check=True)
+ app_path=qa_app
+ command=['open','-n','-W','-a',str(app_path)]
 with (out/'native-app.log').open('w') as f:
- app=subprocess.Popen([str(args.app/'Contents/MacOS/codex-credits-view')],env=env,stdout=f,stderr=subprocess.STDOUT)
- (out/'native-ready.json').write_text(json.dumps({'pid':app.pid,'root':str(root),'fixture':True}))
+ app=subprocess.Popen(command,env=env,stdout=f,stderr=subprocess.STDOUT)
+ (out/'native-ready.json').write_text(json.dumps({'pid':app.pid,'processKind':'launcher' if args.launch_services else 'app','root':str(root),'app':str(app_path),'fixture':True}))
  print(json.dumps({'pid':app.pid,'root':str(root)}),flush=True)
  try:app.wait()
  finally:

@@ -9,8 +9,9 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
   expanded: { width: 300, height: 160 },
 };
 
-// Includes the ZCode plan selector; the CSS panel is bounded by this same budget.
-export const SETTINGS_WINDOW_EXTRA_HEIGHT = 192;
+// Floating dock: 36px lenses + 6px gap + 44px controls + 6px quota gap.
+export const SETTINGS_WINDOW_EXTRA_HEIGHT = 92;
+export const SETTINGS_ERROR_EXTRA_HEIGHT = 24;
 export const TASK_ROW_HEIGHT = 36;
 export const TASK_POPOVER_HEIGHT = 160;
 
@@ -48,7 +49,7 @@ export interface OverlayWorkArea {
 }
 
 export interface SettingsWindowPresentation {
-  baseLayout: Exclude<OverlayLayout, "collapsed">;
+  baseLayout: OverlayLayout;
   placement: "above" | "below";
   windowPosition: OverlayPosition;
   windowSize: { width: number; height: number };
@@ -64,33 +65,26 @@ export function planSettingsWindowPresentation(
   position: OverlayPosition,
   workArea: OverlayWorkArea,
   taskSpace = 0,
+  extraHeight = SETTINGS_WINDOW_EXTRA_HEIGHT,
 ): SettingsWindowPresentation {
-  const baseLayout = layout === "collapsed" ? "compact" : layout;
+  const baseLayout = layout;
   const originalSize = overlayLayoutSizes[baseLayout];
   const baseSize = { ...originalSize, height: originalSize.height + taskSpace };
   const workAreaRight = workArea.left + workArea.width;
   const workAreaBottom = workArea.top + workArea.height;
-  const spaceAbove = position.y - workArea.top;
-  const spaceBelow = workAreaBottom - (position.y + baseSize.height);
-  const placement = spaceAbove >= SETTINGS_WINDOW_EXTRA_HEIGHT || spaceAbove >= spaceBelow
-    ? "above"
-    : "below";
-  const preferredY = placement === "above"
-    ? position.y - SETTINGS_WINDOW_EXTRA_HEIGHT
-    : position.y;
-  const maximumY = workAreaBottom - baseSize.height - SETTINGS_WINDOW_EXTRA_HEIGHT;
+  const maximumY = workAreaBottom - baseSize.height - extraHeight;
   const maximumX = workAreaRight - baseSize.width;
 
   return {
     baseLayout,
-    placement,
+    placement: "below",
     windowPosition: {
       x: Math.max(workArea.left, Math.min(maximumX, position.x)),
-      y: Math.max(workArea.top, Math.min(maximumY, preferredY)),
+      y: Math.max(workArea.top, Math.min(maximumY, position.y)),
     },
     windowSize: {
       width: baseSize.width,
-      height: baseSize.height + SETTINGS_WINDOW_EXTRA_HEIGHT,
+      height: baseSize.height + extraHeight,
     },
     restore: { layout, position, ...(taskSpace > 0 ? { taskSpace } : {}) },
   };
@@ -197,11 +191,43 @@ export async function closeOverlaySettings(
 ): Promise<void> {
   return serializeWindowChange(async () => {
   const appWindow = getCurrentWindow();
+  const [currentPosition, area] = await Promise.all([getOverlayWindowPosition(), getOverlayWorkArea()]);
   const restoreSize = overlayLayoutSizes[presentation.restore.layout];
+  const position = planSettingsWindowRestore(presentation, currentPosition, area, taskWindowSpace);
   await appWindow.setSize(new LogicalSize(restoreSize.width, restoreSize.height + taskWindowSpace));
-  await appWindow.setPosition(new LogicalPosition(
-    presentation.restore.position.x,
-    presentation.restore.position.y + (presentation.restore.taskSpace ?? 0) - taskWindowSpace,
-  ));
+  await appWindow.setPosition(new LogicalPosition(position.x, position.y));
+  });
+}
+
+export function planSettingsWindowRestore(presentation: SettingsWindowPresentation, currentPosition: OverlayPosition, area: OverlayWorkArea, taskSpace: number): OverlayPosition {
+  const size = overlayLayoutSizes[presentation.restore.layout];
+  return {
+    x: Math.max(area.left, Math.min(area.left + area.width - size.width, presentation.restore.position.x + currentPosition.x - presentation.windowPosition.x)),
+    y: Math.max(area.top, Math.min(area.top + area.height - size.height - taskSpace, presentation.restore.position.y + currentPosition.y - presentation.windowPosition.y)),
+  };
+}
+
+export async function resizeOverlaySettings(presentation: SettingsWindowPresentation, extraHeight: number): Promise<SettingsWindowPresentation> {
+  return serializeWindowChange(async () => {
+    const appWindow = getCurrentWindow();
+    const [position, area, physicalSize, scale] = await Promise.all([getOverlayWindowPosition(), getOverlayWorkArea(), appWindow.innerSize(), appWindow.scaleFactor()]);
+    const size = physicalSize.toLogical(scale);
+    const next = planSettingsWindowPresentation(presentation.baseLayout, position, area, taskWindowSpace, extraHeight);
+    next.restore = {
+      ...presentation.restore,
+      taskSpace: taskWindowSpace,
+      position: {
+        x: presentation.restore.position.x + position.x - presentation.windowPosition.x,
+        y: presentation.restore.position.y + position.y - presentation.windowPosition.y,
+      },
+    };
+    try {
+      await appWindow.setPosition(new LogicalPosition(next.windowPosition.x, next.windowPosition.y));
+      await appWindow.setSize(new LogicalSize(next.windowSize.width, next.windowSize.height));
+      return next;
+    } catch (error) {
+      await Promise.allSettled([appWindow.setPosition(new LogicalPosition(position.x, position.y)), appWindow.setSize(new LogicalSize(size.width, size.height))]);
+      throw error;
+    }
   });
 }

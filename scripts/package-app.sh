@@ -10,7 +10,10 @@ version=$(node -p "require('./package.json').version")
 bundle_dir="src-tauri/target/release/bundle"
 out_dir="release/macos"
 
-npm run tauri:build
+# The distributable DMG is created below after the runtime is bundled. Asking
+# Tauri for another DMG first duplicates mounting/Finder work and packages an
+# incomplete app that we immediately discard.
+npm run tauri:build -- --bundles app
 
 mkdir -p "$out_dir"
 rm -rf "$out_dir/$app_name.app"

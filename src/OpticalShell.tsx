@@ -4,6 +4,7 @@ interface OpticalShellProps {
   dragging: boolean;
   reducedMotion: boolean;
   opacity: number;
+  controlSurface?: boolean;
 }
 
 const VERTEX_SHADER = `#version 300 es
@@ -22,6 +23,7 @@ uniform float uPixelRatio;
 uniform float uTime;
 uniform float uMotion;
 uniform float uOpacity;
+uniform float uControlSurface;
 
 const float AIR_IOR = 1.0003;
 const float GLASS_IOR = 1.52;
@@ -69,8 +71,103 @@ vec3 spectralRim(float angle, float rim, float phase) {
   return vec3(red, green, blue) * rim;
 }
 
+// The crown and the rolled wall form one height field. Both the front sheet
+// and the wall therefore reflect the same studio lights through their normals.
+float controlElevation(vec2 point, vec2 halfSize, float radius) {
+  float depth = max(-roundedRectSdf(point - uResolution * 0.5, halfSize, radius) / uPixelRatio, 0.0);
+  float roll = sin(PI * saturate(depth / 20.0));
+  vec2 plane = point / uResolution * 2.0 - 1.0;
+  float crown = max(1.0 - plane.x * plane.x, 0.0)
+    * max(1.0 - plane.y * plane.y, 0.0);
+  return 7.8 * roll * roll
+    + 12.0 * crown * smoothstep(4.0, 20.0, depth);
+}
+
+vec3 controlEnvironment(vec3 ray, vec2 point) {
+  vec2 size = uResolution / uPixelRatio;
+  // A finite overhead softbox: intersect the reflected ray with its light plane.
+  // Its footprint bends across the crown and wall instead of lighting a full rim.
+  vec2 hit = point / uPixelRatio + ray.xy * (64.0 / max(ray.z, 0.16));
+  float softbox = exp(-pow((hit.x - size.x * 0.22) / (size.x * 0.24), 4.0)
+    - pow((hit.y + 36.0) / 78.0, 4.0)) * smoothstep(0.08, 0.25, ray.z);
+  float wallSoftbox = exp(-pow((ray.x + 0.34) / 0.48, 4.0)
+    - pow((ray.y + 0.62) / 0.26, 4.0))
+    * exp(-pow((point.x / uResolution.x - 0.17) / 0.30, 2.0));
+  float cyanWall = exp(-pow((ray.x + 0.8) / 0.42, 2.0)
+    - pow((ray.y + 0.05) / 0.8, 2.0));
+  float greenWall = exp(-pow((ray.x - 0.76) / 0.38, 2.0)
+    - pow((ray.y - 0.22) / 0.7, 2.0));
+  return vec3(0.045, 0.12, 0.18)
+    + vec3(0.86, 0.97, 1.0) * (softbox * 13.5 + wallSoftbox * 7.0)
+    + vec3(0.06, 0.64, 0.87) * cyanWall * 1.7
+    + vec3(0.035, 0.68, 0.47) * greenWall * 2.0;
+}
+
+vec4 controlGlass(vec2 fragment) {
+  float ratio = uPixelRatio;
+  vec2 halfSize = uResolution * 0.5 - vec2(0.75 * ratio);
+  float radius = 34.0 * ratio;
+  float sd = roundedRectSdf(fragment - uResolution * 0.5, halfSize, radius);
+  float mask = 1.0 - smoothstep(-max(1.0, ratio), 0.0, sd);
+  if (mask <= 0.0) return vec4(0.0);
+
+  float depth = max(-sd / ratio, 0.0);
+  float roll = max(sin(PI * saturate(depth / 20.0)), 0.0);
+  vec2 slope = vec2(
+    controlElevation(fragment + vec2(ratio, 0.0), halfSize, radius)
+      - controlElevation(fragment - vec2(ratio, 0.0), halfSize, radius),
+    controlElevation(fragment + vec2(0.0, ratio), halfSize, radius)
+      - controlElevation(fragment - vec2(0.0, ratio), halfSize, radius)
+  ) * 0.5;
+  vec3 normal = normalize(vec3(-slope, 1.0));
+  vec3 view = vec3(0.0, 0.0, 1.0);
+  float drift = sin(uTime * 0.24) * 0.035 + uMotion * 0.08;
+  vec3 light = normalize(vec3(-0.58 + drift, -0.72, 0.5));
+  vec3 halfway = normalize(light + view);
+  float nDotV = saturate(dot(normal, view));
+  float f0 = pow((GLASS_IOR - AIR_IOR) / (GLASS_IOR + AIR_IOR), 2.0);
+  float fresnel = fresnelSchlick(nDotV, f0);
+
+  // Beer-Lambert attenuation depends on wall thickness and the viewing angle.
+  float path = (3.4 + 11.0 * roll) / max(nDotV, 0.2);
+  vec3 transmission = exp(-vec3(0.052, 0.019, 0.008) * path);
+  vec3 transmittedRay = refract(-view, normal, AIR_IOR / GLASS_IOR);
+  vec2 refractedUv = fragment / uResolution
+    + transmittedRay.xy * path * ratio / uResolution;
+  float dome = max(1.0 - length((refractedUv - vec2(0.36, -0.15)) * vec2(0.9, 1.25)), 0.0);
+  float lowerDepth = smoothstep(0.4, 1.0, refractedUv.y);
+  vec3 body = vec3(0.014, 0.052, 0.082)
+    + vec3(0.055, 0.13, 0.18) * dome * 0.5;
+  body *= transmission * (1.0 - lowerDepth * 0.32);
+
+  vec3 reflectedRay = reflect(-view, normal);
+  vec3 reflection = controlEnvironment(reflectedRay, fragment);
+  float specular = ggx(0.19, saturate(dot(normal, light)), nDotV,
+    saturate(dot(normal, halfway)));
+  vec3 glass = body * (1.0 - fresnel) + reflection * fresnel;
+  glass += vec3(0.9, 0.985, 1.0) * specular * 0.28;
+
+  float innerBounce = exp(-pow((depth - 15.8) / 5.2, 2.0));
+  float outerGlint = exp(-pow((depth - 1.1) / 0.7, 2.0));
+  float side = smoothstep(0.36, 0.88, fragment.x / uResolution.x);
+  vec3 wallTint = mix(vec3(0.055, 0.56, 0.78), vec3(0.025, 0.68, 0.43), side);
+  glass += wallTint * innerBounce * 0.60;
+  glass += vec3(0.65, 0.9, 0.99) * outerGlint * 0.55;
+  glass += wallTint * roll * 0.10;
+
+  float alpha = mask * clamp(0.84 + fresnel * 0.14 + roll * 0.06, 0.0, 0.98)
+    * mix(0.9, 1.0, uOpacity);
+  vec3 rgb = pow(max(glass, vec3(0.0)), vec3(0.92));
+  // This WebGL context uses premultiplied alpha.
+  return vec4(min(rgb, vec3(1.0)) * alpha, alpha);
+}
+
 void main() {
   vec2 fragment = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y);
+  if (uControlSurface > 0.5) {
+    outColor = controlGlass(fragment);
+    return;
+  }
   vec2 center = uResolution * 0.5;
   vec2 local = fragment - center;
   float ratio = uPixelRatio;
@@ -217,10 +314,11 @@ class OpticalShellRenderer {
       time: requireUniform(gl, program, "uTime"),
       motion: requireUniform(gl, program, "uMotion"),
       opacity: requireUniform(gl, program, "uOpacity"),
+      controlSurface: requireUniform(gl, program, "uControlSurface"),
     };
   }
 
-  render(timeMs: number, dragging: boolean, opacity: number) {
+  render(timeMs: number, dragging: boolean, opacity: number, controlSurface: boolean) {
     const logicalWidth = this.canvas.clientWidth;
     const logicalHeight = this.canvas.clientHeight;
     if (logicalWidth <= 0 || logicalHeight <= 0) return;
@@ -241,6 +339,7 @@ class OpticalShellRenderer {
     gl.uniform1f(uniforms.time, timeMs / 1_000);
     gl.uniform1f(uniforms.motion, dragging ? 1 : 0);
     gl.uniform1f(uniforms.opacity, opacity);
+    gl.uniform1f(uniforms.controlSurface, controlSurface ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
@@ -252,10 +351,11 @@ class OpticalShellRenderer {
   }
 }
 
-export function OpticalShell({ dragging, reducedMotion, opacity }: OpticalShellProps) {
+export function OpticalShell({ dragging, reducedMotion, opacity, controlSurface = false }: OpticalShellProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameStateRef = useRef({ dragging, opacity });
-  frameStateRef.current = { dragging, opacity };
+  const rendererRef = useRef<OpticalShellRenderer | null>(null);
+  const frameStateRef = useRef({ dragging, opacity, controlSurface });
+  frameStateRef.current = { dragging, opacity, controlSurface };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -263,6 +363,7 @@ export function OpticalShell({ dragging, reducedMotion, opacity }: OpticalShellP
     let renderer: OpticalShellRenderer;
     try {
       renderer = new OpticalShellRenderer(canvas);
+      rendererRef.current = renderer;
       canvas.dataset.renderer = "webgl-shell";
     } catch {
       canvas.dataset.renderer = "css-shell";
@@ -275,7 +376,7 @@ export function OpticalShell({ dragging, reducedMotion, opacity }: OpticalShellP
       if (time - lastDraw >= 32 || reducedMotion) {
         lastDraw = time;
         const state = frameStateRef.current;
-        renderer.render(time, state.dragging, state.opacity);
+        renderer.render(time, state.dragging, state.opacity, state.controlSurface);
       }
       if (!reducedMotion) frame = requestAnimationFrame(draw);
     };
@@ -285,15 +386,21 @@ export function OpticalShell({ dragging, reducedMotion, opacity }: OpticalShellP
       ? null
       : new ResizeObserver(() => {
           const state = frameStateRef.current;
-          renderer.render(performance.now(), state.dragging, state.opacity);
+          renderer.render(performance.now(), state.dragging, state.opacity, state.controlSurface);
         });
     resizeObserver?.observe(canvas);
     return () => {
       resizeObserver?.disconnect();
       if (frame !== null) cancelAnimationFrame(frame);
       renderer.destroy();
+      rendererRef.current = null;
     };
   }, [reducedMotion]);
+
+  // Reduced motion pauses the loop, but direct opacity changes still need a frame.
+  useEffect(() => {
+    if (reducedMotion) rendererRef.current?.render(performance.now(), dragging, opacity, controlSurface);
+  }, [dragging, opacity, reducedMotion, controlSurface]);
 
   return <canvas ref={canvasRef} className="optical-shell-canvas" aria-hidden="true" />;
 }

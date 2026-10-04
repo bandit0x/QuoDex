@@ -9,6 +9,7 @@ import type { ChatTask, TaskStatusSnapshot } from "./taskStatusTypes";
 import { FluidReservoir } from "./FluidReservoir";
 import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
+import { SettingsDock, type PreferenceSaveState } from "./SettingsDock";
 import {
   enableTemporaryClickThrough,
   loadDisplayPreferences,
@@ -44,12 +45,15 @@ import {
   getOverlayWindowPosition,
   getOverlayWorkArea,
   openOverlaySettings,
+  resizeOverlaySettings,
+  overlayLayoutSizes,
   setOverlayWindowLayout,
   setOverlayWindowPosition,
   setOverlayTaskSpace,
   TASK_ROW_HEIGHT,
   TASK_POPOVER_HEIGHT,
   SETTINGS_WINDOW_EXTRA_HEIGHT,
+  SETTINGS_ERROR_EXTRA_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -78,6 +82,7 @@ interface AppProps {
   setWindowPosition?: (position: OverlayPosition) => Promise<void>;
   openSettingsWindow?: (layout: OverlayLayout) => Promise<SettingsWindowPresentation>;
   closeSettingsWindow?: (presentation: SettingsWindowPresentation) => Promise<void>;
+  resizeSettingsWindow?: (presentation: SettingsWindowPresentation, extraHeight: number) => Promise<SettingsWindowPresentation>;
   quitApp?: () => Promise<void>;
   motionSessionSeed?: number;
 }
@@ -547,6 +552,7 @@ export function App({
   setWindowPosition = setOverlayWindowPosition,
   openSettingsWindow = openOverlaySettings,
   closeSettingsWindow = closeOverlaySettings,
+  resizeSettingsWindow = resizeOverlaySettings,
   quitApp = quitApplication,
   motionSessionSeed,
 }: AppProps) {
@@ -554,17 +560,7 @@ export function App({
   const [taskPopoverOpen, setTaskPopoverOpen] = useState(false);
   const [taskPopoverPlacement, setTaskPopoverPlacement] = useState<TaskPopoverPlacement>("above");
   const popoverGeneration = useRef(0);
-  const changeTaskPopover = useCallback((open: boolean) => {
-    const generation = ++popoverGeneration.current;
-    if (!open || !isTauri()) { setTaskPopoverOpen(open); return; }
-    void Promise.all([getWindowPosition(), getOverlayWorkArea()]).then(([position, area]) => {
-      if (generation !== popoverGeneration.current) return;
-      setTaskPopoverPlacement(chooseTaskPopoverPlacement(position, area));
-      setTaskPopoverOpen(true);
-    }).catch(() => {
-      if (generation === popoverGeneration.current) { setTaskPopoverPlacement("above"); setTaskPopoverOpen(true); }
-    });
-  }, [getWindowPosition]);
+  const [taskStripGeneration, setTaskStripGeneration] = useState(0);
   const tasks = visibleChatTasks(taskStatus.snapshot.tasks, taskStatus.now);
   const hasTaskArea = tasks.length > 0 || taskStatus.snapshot.sources.some(source => source.health !== "ready") || taskStatus.snapshot.diagnostic !== null;
   const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT + (taskPopoverOpen ? TASK_POPOVER_HEIGHT : 0) : 0;
@@ -572,11 +568,22 @@ export function App({
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
   const [settingsPresentation, setSettingsPresentation] = useState<SettingsWindowPresentation | null>(null);
+  const settingsNativePresentation = useRef<SettingsWindowPresentation | null>(null);
   useEffect(() => {
     if (taskStatus.snapshot.observedAtMs === 0) return;
     void (taskPopoverPlacement === "below" ? setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace, "below") : setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace)).catch(() => setControlMessage("任务区域无法调整；请重新打开 QuoDex · QDT-612"));
   }, [taskSpace, taskPopoverPlacement, setTaskSpace, layoutMode, settingsPresentation?.baseLayout, taskStatus.snapshot.observedAtMs === 0]);
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+  const [preferenceSaveState, setPreferenceSaveState] = useState<PreferenceSaveState>("idle");
+  const [preferenceSaveError, setPreferenceSaveError] = useState<Diagnostic | null>(null);
+  const preferenceSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const preferenceSaveResult = useRef<Promise<unknown>>(Promise.resolve());
+  const preferenceSaveGeneration = useRef(0);
+  const opacityDirty = useRef(false);
+  const settingsResizeGeneration = useRef(0);
+  const settingsResizeRequest = useRef<Promise<SettingsWindowPresentation> | null>(null);
   const zcodePlanPreference = preferences.zcodePlan ?? "start";
   const loadZcodeSnapshotWithPlan = useCallback(
     () => loadZcodeSnapshot(zcodePlanPreference),
@@ -861,49 +868,139 @@ export function App({
     inertiaFrameRef.current = requestAnimationFrame(glide);
   }, [preferences.reducedMotion, publishFluidMotion, setWindowPosition]);
 
-  const updatePreferences = useCallback(
-    (next: DisplayPreferences) => {
-      setPreferences(next);
-      void savePreferences(next).catch(() => setControlMessage("显示设置未保存 · CRV-303"));
-    },
-    [savePreferences],
-  );
+  const persistPreferences = useCallback((next: DisplayPreferences) => {
+    const generation = ++preferenceSaveGeneration.current;
+    setPreferenceSaveState("saving");
+    const write = preferenceSaveQueue.current.then(() => savePreferences(next));
+    preferenceSaveResult.current = write;
+    preferenceSaveQueue.current = write.catch(() => undefined);
+    void write.then(() => {
+      if (generation !== preferenceSaveGeneration.current) return;
+      setPreferenceSaveError(null);
+      setPreferenceSaveState("saved");
+    }).catch((error: Partial<Diagnostic> | null) => {
+      if (generation !== preferenceSaveGeneration.current) return;
+      const structured = typeof error?.code === "string" && typeof error?.message === "string";
+      setPreferenceSaveError({ code: structured ? error.code! : "CRV-303", message: structured ? error.message! : "本地写入失败", detail: structured ? error.detail ?? null : "检查本地存储空间和配置目录写入权限后重试" });
+      setPreferenceSaveState("failed");
+    });
+  }, [savePreferences]);
 
-  const changeLayout = useCallback(
-    (next: OverlayLayout) => {
-      setLayoutMode(next);
-      void setWindowLayout(next).catch(() => setControlMessage("窗口布局未能调整 · CRV-302"));
-    },
-    [setWindowLayout],
-  );
+  const updatePreferences = useCallback((next: DisplayPreferences) => {
+    preferencesRef.current = next;
+    setPreferences(next);
+    opacityDirty.current = false;
+    persistPreferences(next);
+  }, [persistPreferences]);
+
+  const previewOpacity = useCallback((opacity: number) => {
+    preferencesRef.current = { ...preferencesRef.current, opacity };
+    setPreferences(preferencesRef.current);
+    opacityDirty.current = true;
+    preferenceSaveGeneration.current += 1;
+    setPreferenceSaveState("idle");
+  }, []);
+  const commitOpacity = useCallback(() => {
+    if (!opacityDirty.current) return;
+    opacityDirty.current = false;
+    persistPreferences(preferencesRef.current);
+  }, [persistPreferences]);
+
+  useEffect(() => {
+    if (preferenceSaveState !== "saved") return;
+    const timer = window.setTimeout(() => setPreferenceSaveState("idle"), 1_600);
+    return () => window.clearTimeout(timer);
+  }, [preferenceSaveState]);
 
   const openSettings = useCallback(async () => {
     if (settingsTransitionRef.current || settingsPresentation) return;
     settingsTransitionRef.current = true;
     stopWindowInertia();
     try {
+      setTaskStripGeneration(value => value + 1);
+      setTaskPopoverOpen(false);
+      await setTaskSpace(layoutMode, hasTaskArea ? TASK_ROW_HEIGHT : 0);
       const presentation = await openSettingsWindow(layoutMode);
+      settingsNativePresentation.current = presentation;
       setSettingsPresentation(presentation);
     } catch {
       setControlMessage("设置窗口未能打开 · CRV-302");
     } finally {
       settingsTransitionRef.current = false;
     }
-  }, [layoutMode, openSettingsWindow, settingsPresentation, stopWindowInertia]);
+  }, [layoutMode, openSettingsWindow, settingsPresentation, stopWindowInertia, hasTaskArea, setTaskSpace]);
 
   const closeSettings = useCallback(async () => {
-    if (settingsTransitionRef.current || !settingsPresentation) return;
+    if (settingsTransitionRef.current) return false;
+    if (!settingsPresentation) return true;
     settingsTransitionRef.current = true;
+    settingsResizeGeneration.current += 1;
+    commitOpacity();
     try {
-      await closeSettingsWindow(settingsPresentation);
+      const presentation = settingsResizeRequest.current
+        ? await settingsResizeRequest.current.catch(() => settingsNativePresentation.current ?? settingsPresentation)
+        : settingsNativePresentation.current ?? settingsPresentation;
+      await closeSettingsWindow(presentation);
+      settingsNativePresentation.current = null;
       setSettingsPresentation(null);
       settingsButtonRef.current?.focus({ preventScroll: true });
+      return true;
     } catch {
       setControlMessage("设置窗口未能复位 · CRV-302");
+      return false;
     } finally {
       settingsTransitionRef.current = false;
     }
-  }, [closeSettingsWindow, settingsPresentation]);
+  }, [closeSettingsWindow, settingsPresentation, commitOpacity]);
+
+  const settingsExtraHeight = SETTINGS_WINDOW_EXTRA_HEIGHT + (preferenceSaveError ? SETTINGS_ERROR_EXTRA_HEIGHT : 0);
+  useEffect(() => {
+    const generation = ++settingsResizeGeneration.current;
+    if (!settingsPresentation || settingsTransitionRef.current) return;
+    const currentExtra = settingsPresentation.windowSize.height - overlayLayoutSizes[settingsPresentation.baseLayout].height - (settingsPresentation.restore.taskSpace ?? 0);
+    const previous = settingsResizeRequest.current;
+    if (currentExtra === settingsExtraHeight && !previous) return;
+    const request = (previous ? previous.catch(() => settingsNativePresentation.current ?? settingsPresentation) : Promise.resolve(settingsNativePresentation.current ?? settingsPresentation))
+      .then(current => resizeSettingsWindow(current, settingsExtraHeight))
+      .then(next => {
+        settingsNativePresentation.current = next;
+        return next;
+      });
+    settingsResizeRequest.current = request;
+    void request.then(next => {
+      if (generation === settingsResizeGeneration.current) setSettingsPresentation(next);
+    }).catch(() => {
+      if (generation === settingsResizeGeneration.current) setControlMessage("设置窗口未能调整；请收起后重试 · CRV-302");
+    }).finally(() => {
+      if (settingsResizeRequest.current === request) settingsResizeRequest.current = null;
+    });
+    return () => { settingsResizeGeneration.current += 1; };
+  }, [settingsPresentation, settingsExtraHeight, resizeSettingsWindow]);
+
+  const changeLayout = useCallback(async (next: OverlayLayout) => {
+    if (!await closeSettings()) return;
+    setLayoutMode(next);
+    void setWindowLayout(next).catch(() => setControlMessage("窗口布局未能调整 · CRV-302"));
+  }, [closeSettings, setWindowLayout]);
+
+  const changeTaskPopover = useCallback((open: boolean) => {
+    const generation = ++popoverGeneration.current;
+    if (!open) { setTaskPopoverOpen(false); return; }
+    void (async () => {
+      if (settingsPresentation && !await closeSettings()) {
+        setTaskStripGeneration(value => value + 1);
+        return;
+      }
+      if (generation !== popoverGeneration.current) return;
+      if (!isTauri()) { setTaskPopoverOpen(true); return; }
+      const [position, area] = await Promise.all([getWindowPosition(), getOverlayWorkArea()]);
+      if (generation !== popoverGeneration.current) return;
+      setTaskPopoverPlacement(chooseTaskPopoverPlacement(position, area));
+      setTaskPopoverOpen(true);
+    })().catch(() => {
+      if (generation === popoverGeneration.current) { setTaskPopoverPlacement("above"); setTaskPopoverOpen(true); }
+    });
+  }, [getWindowPosition, settingsPresentation, closeSettings]);
 
   const toggleSettings = useCallback(async () => {
     if (settingsPresentation) {
@@ -913,10 +1010,16 @@ export function App({
     await openSettings();
   }, [closeSettings, openSettings, settingsPresentation]);
 
-  // 与托盘"退出"一致：直接退出，不做二次确认（偏好已持久化，无会话数据可丢）
-  const quitMeter = useCallback(() => {
+  // 退出前提交预览并等待最后一笔串行写入；保存失败沿用控制坞的重试入口。
+  const quitMeter = useCallback(async () => {
+    commitOpacity();
+    try {
+      await preferenceSaveResult.current;
+    } catch {
+      return;
+    }
     quitApp().catch(() => setControlMessage("退出未能执行 · CRV-307"));
-  }, [quitApp]);
+  }, [commitOpacity, quitApp]);
 
   useEffect(() => {
     if (!settingsPresentation) return;
@@ -994,7 +1097,7 @@ export function App({
   return (
     <main
       className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${taskPopoverOpen && taskPopoverPlacement === "below" ? " app-frame--task-popover-below" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
-      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${SETTINGS_WINDOW_EXTRA_HEIGHT * 2}px`, "--task-popover-space": `${taskPopoverOpen && taskPopoverPlacement === "above" ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
+      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${settingsExtraHeight * 2}px`, "--task-popover-space": `${taskPopoverOpen && taskPopoverPlacement === "above" ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
       onContextMenu={(event) => {
         event.preventDefault();
         void toggleSettings();
@@ -1004,7 +1107,7 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
-      <TaskStatusStrip key={settingsOpen ? "settings" : "tasks"} tasks={tasks} now={taskStatus.now} capacity={3} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
+      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} capacity={3} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
@@ -1165,97 +1268,22 @@ export function App({
           </>
         )}
 
+        {collapsed && <button ref={settingsButtonRef} className="collapsed-settings" type="button" aria-label="设置" onClick={() => void toggleSettings()}><Icon name="settings" /></button>}
       </div>
 
-      {settingsOpen && (
-        <aside className="settings-popover" role="dialog" aria-modal="false" aria-labelledby="settings-title">
-            <div className="settings-heading">
-              <strong id="settings-title">显示设置</strong>
-              <button type="button" aria-label="关闭设置" onClick={() => void closeSettings()}><Icon name="close" /></button>
-            </div>
-            <label>
-              <span>透明度 {Math.round(preferences.opacity * 100)}%</span>
-              <input
-                aria-label="透明度"
-                type="range"
-                min="0.86"
-                max="1"
-                step="0.02"
-                value={preferences.opacity}
-                onChange={(event) => updatePreferences({ ...preferences, opacity: Number(event.target.value) })}
-              />
-            </label>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={preferences.reducedMotion}
-                onChange={(event) => updatePreferences({ ...preferences, reducedMotion: event.target.checked })}
-              />
-              <span>减少动效</span>
-            </label>
-            <div className="source-row">
-              <span>额度来源</span>
-              <div className="source-segments" role="group" aria-label="额度来源">
-                <button
-                  className="source-segment source-segment--codex"
-                  type="button"
-                  aria-pressed={sourceSelection === "codex"}
-                  onClick={() => updatePreferences({ ...preferences, source: "codex" })}
-                >
-                  Codex
-                </button>
-                <button
-                  className="source-segment source-segment--zcode"
-                  type="button"
-                  aria-pressed={sourceSelection === "zcode"}
-                  onClick={() => updatePreferences({ ...preferences, source: "zcode" })}
-                >
-                  Zcode
-                </button>
-                <button
-                  className="source-segment source-segment--carousel"
-                  type="button"
-                  aria-pressed={sourceSelection === "carousel"}
-                  onClick={() => updatePreferences({ ...preferences, source: "carousel" })}
-                >
-                  轮播
-                </button>
-              </div>
-            </div>
-            {sourceSelection === "zcode" && (
-              <div className="source-row source-row--nested">
-                <span>ZCode 套餐</span>
-                <div
-                  className="source-segments source-segments--nested"
-                  role="group"
-                  aria-label="ZCode 套餐"
-                >
-                  <button
-                    className="source-segment source-segment--zcode-plan"
-                    type="button"
-                    aria-pressed={zcodePlanPreference === "start"}
-                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "start" satisfies ZCodePlanPreference })}
-                  >
-                    体验套餐
-                  </button>
-                  <button
-                    className="source-segment source-segment--zcode-plan"
-                    type="button"
-                    aria-pressed={zcodePlanPreference === "coding"}
-                    onClick={() => updatePreferences({ ...preferences, zcodePlan: "coding" satisfies ZCodePlanPreference })}
-                  >
-                    个人套餐
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="quit-row">
-              <button type="button" className="quit-button" onClick={quitMeter}>
-                退出应用
-              </button>
-            </div>
-        </aside>
-      )}
+      {settingsOpen && <SettingsDock
+        preferences={preferences}
+        source={sourceSelection}
+        dragging={isWindowDragging}
+        saveState={preferenceSaveState}
+        saveError={preferenceSaveError}
+        onChange={updatePreferences}
+        onPreviewOpacity={previewOpacity}
+        onCommitOpacity={commitOpacity}
+        onRetry={() => persistPreferences(preferencesRef.current)}
+        onClose={() => void closeSettings()}
+        onQuit={quitMeter}
+      />}
       {controlMessage && <span className="control-message" role="status">{controlMessage}</span>}
     </main>
   );

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   overlayLayoutSizes,
   planSettingsWindowPresentation,
-  SETTINGS_WINDOW_EXTRA_HEIGHT,
+  planSettingsWindowRestore,
   TASK_ROW_HEIGHT,
 } from "./windowClient";
 
 describe("half-scale overlay layouts", () => {
-  it.each(["compact", "expanded", "collapsed"] as const)("reserves the full ZCode settings content beside tasks from %s", (layout) => {
+  it.each(["compact", "expanded", "collapsed"] as const)("adds the approved 92px dock below tasks and quota from %s", (layout) => {
     for (const y of [30, 700]) {
       const presentation = planSettingsWindowPresentation(
         layout,
@@ -15,11 +15,11 @@ describe("half-scale overlay layouts", () => {
         { left: 0, top: 0, width: 1920, height: 1040 },
         TASK_ROW_HEIGHT,
       );
-      // Native reproduction: the ZCode plan row makes the settings panel 368
-      // CSS pixels tall. At overlay scale .5 it needs at least 184 logical pixels.
       const settingsBudget = presentation.windowSize.height
         - overlayLayoutSizes[presentation.baseLayout].height - TASK_ROW_HEIGHT;
-      expect(settingsBudget).toBeGreaterThanOrEqual(184 + 8); // panel + placement gap
+      expect(settingsBudget).toBe(92); // 86px floating controls + 6px quota gap
+      expect(presentation.placement).toBe("below");
+      expect(presentation.baseLayout).toBe(layout);
       expect(presentation.restore).toEqual({ layout, position: { x: 100, y }, taskSpace: TASK_ROW_HEIGHT });
       expect(presentation.windowPosition.y + presentation.windowSize.height).toBeLessThanOrEqual(1040);
     }
@@ -33,21 +33,21 @@ describe("half-scale overlay layouts", () => {
     });
   });
 
-  it("keeps the quota shell anchored while settings open above it", () => {
+  it("moves the whole window up at the screen bottom while keeping settings below quota", () => {
     const presentation = planSettingsWindowPresentation(
       "compact",
       { x: 1480, y: 840 },
       { left: 0, top: 0, width: 1920, height: 1040 },
     );
 
-    expect(presentation.placement).toBe("above");
+    expect(presentation.placement).toBe("below");
     expect(presentation.windowPosition).toEqual({
       x: 1480,
-      y: 840 - SETTINGS_WINDOW_EXTRA_HEIGHT,
+      y: 818,
     });
     expect(presentation.windowSize).toEqual({
       width: 300,
-      height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT,
+      height: 222,
     });
     expect(presentation.restore).toEqual({
       layout: "compact",
@@ -63,19 +63,34 @@ describe("half-scale overlay layouts", () => {
     );
 
     expect(presentation.placement).toBe("below");
-    expect(presentation.baseLayout).toBe("compact");
+    expect(presentation.baseLayout).toBe("collapsed");
+    expect(presentation.windowSize).toEqual({ width: 260, height: 140 });
     expect(presentation.windowPosition).toEqual({ x: 32, y: 20 });
     expect(presentation.restore.layout).toBe("collapsed");
   });
 
-  it("keeps a widened collapsed presentation inside the work area", () => {
+  it("keeps the original 260px narrow width at the screen right edge", () => {
     const presentation = planSettingsWindowPresentation(
       "collapsed",
       { x: 1660, y: 20 },
       { left: 0, top: 0, width: 1920, height: 1040 },
     );
 
-    expect(presentation.windowPosition.x).toBe(1620);
+    expect(presentation.windowPosition.x).toBe(1660);
     expect(presentation.restore.position).toEqual({ x: 1660, y: 20 });
+  });
+
+  it("grows the error rail inside the screen without widening the narrow quota", () => {
+    const plan = planSettingsWindowPresentation("collapsed", { x: 1660, y: 950 },
+      { left: 0, top: 0, width: 1920, height: 1040 }, 36, 116);
+    expect(plan.windowSize).toEqual({ width: 260, height: 200 });
+    expect(plan.windowPosition).toEqual({ x: 1660, y: 840 });
+  });
+
+  it("restores the original anchor but preserves a user's drag while settings are open", () => {
+    const area = { left: 0, top: 0, width: 1920, height: 1040 };
+    const plan = planSettingsWindowPresentation("compact", { x: 1480, y: 840 }, area);
+    expect(planSettingsWindowRestore(plan, plan.windowPosition, area, 0)).toEqual({ x: 1480, y: 840 });
+    expect(planSettingsWindowRestore(plan, { x: 1500, y: 850 }, area, 0)).toEqual({ x: 1500, y: 872 });
   });
 });

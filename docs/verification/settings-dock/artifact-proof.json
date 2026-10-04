@@ -1,0 +1,97 @@
+{
+  "sourceVersion": "0.2.5",
+  "baseline": "5a817fa",
+  "branch": "codex/task-source-capsules",
+  "recordedAtUtc": "2026-10-04T13:58:09.847369+00:00",
+  "environment": {
+    "os": "macOS 27.0.1 (26A434)",
+    "arch": "arm64",
+    "displayScale": 2,
+    "webview": "Tauri WKWebView"
+  },
+  "appExecutableSha256": "6d7fe1e7ba9a0a658e25721943d19fcbd614da3bc3662bd7b16fb6322635fc56",
+  "dmgSha256": "a7bdcba37cf272da30c2e6167009bd98d0386388dce7660f2eb76639f6ff916a",
+  "qaExecutableSha256": "44982577b2a80251d8e8b25d1af0c3a278090ae9e9275a813dde077d926b3c35",
+  "qaOnlyChanges": [
+    "QA bundle identity",
+    "LSEnvironment points to anonymous fixture data",
+    "ad-hoc re-signing"
+  ],
+  "screenshots": [
+    {
+      "file": "native-curved-closed.png",
+      "physicalPixels": [
+        600,
+        332
+      ],
+      "sha256": "ff722a40b1291612fe070eb8aceca2989d0c78928292586d722c6de5bfbea5a9",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-failed.png",
+      "physicalPixels": [
+        600,
+        564
+      ],
+      "sha256": "ac33330dff3f1996502bf04098e93f375bdbd0eb7cc80e9eadb12f1f10d0a443",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-narrow.png",
+      "physicalPixels": [
+        520,
+        352
+      ],
+      "sha256": "331673d47a8b6743aecd587c2e90c2420a3623313f4f28571e30da1e15fe0713",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-operating.png",
+      "physicalPixels": [
+        600,
+        516
+      ],
+      "sha256": "987311851f07b644fb39b56d41365b73f59a9e86bd139847fa91177f9aff0f9e",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-retried.png",
+      "physicalPixels": [
+        600,
+        516
+      ],
+      "sha256": "708d570dd0e239e923ed7b57cfba6580f261ac8a69818f27d873f4dca352696a",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-saved.png",
+      "physicalPixels": [
+        600,
+        516
+      ],
+      "sha256": "dd7ce83f2a38777f9ce3acd2c1222aa81282e2791bc9a926c4e54f0a9615c331",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-standard.png",
+      "physicalPixels": [
+        600,
+        516
+      ],
+      "sha256": "b68cfa503f216a92ee94cc5844fb42660a883dae4f2cbc1e88309e39195538b1",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    },
+    {
+      "file": "native-curved-task-list.png",
+      "physicalPixels": [
+        520,
+        488
+      ],
+      "sha256": "321c141bd9d1fa9d39e7e6d4110c16ca65ab53505dbc03eb334c74fbddd85bde",
+      "capture": "cua native getScreenshot, final QA bundle, anonymous fixtures; no pixel edits"
+    }
+  ],
+  "materialReviewScope": "M1 reflection/highlight/thickness, white background only",
+  "crossBackgroundTransmission": "Blocked: SCStream -3811/-3812",
+  "userAcceptance": "Acceptance pending"
+}
