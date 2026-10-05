@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useTaskMaterial } from "./useTaskMaterial";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
@@ -75,6 +75,8 @@ interface AppProps {
   loadZcodeSnapshot?: ZcodeSnapshotLoader;
   loadTomatoConnection?: TomatoConnectionLoader;
   loadPreferences?: () => Promise<DisplayPreferences>;
+  loadPinStartupDiagnostic?: () => Promise<Diagnostic | null>;
+  readPinState?: () => Promise<boolean>;
   savePreferences?: (preferences: DisplayPreferences) => Promise<void>;
   enableClickThrough?: (durationMs?: number) => Promise<void>;
   setWindowLayout?: (layout: OverlayLayout) => Promise<void>;
@@ -116,10 +118,21 @@ function normalizeSourceSelection(value: SourceSelection | undefined): SourceSel
 const defaultPreferences: DisplayPreferences = {
   opacity: 0.92,
   reducedMotion: false,
+  alwaysOnTop: true,
   x: null,
   y: null,
   source: "carousel",
 };
+
+async function readPinStartupDiagnostic(): Promise<Diagnostic | null> {
+  return isTauri() ? invoke("read_window_pin_startup_diagnostic") : null;
+}
+
+async function readWindowPinState(): Promise<boolean> {
+  const result = await invoke<{ snapshot: { enabled: boolean } }>("read_window_pin_diagnostics");
+  if (typeof result?.snapshot?.enabled !== "boolean") throw new Error("窗口置顶读回缺少 enabled 状态");
+  return result.snapshot.enabled;
+}
 const REFRESH_INTERVAL_MS = 5_000;
 const CAROUSEL_INTERVAL_MS = 10_000;
 const CLICK_THROUGH_DURATION_MS = 10_000;
@@ -545,6 +558,8 @@ export function App({
   loadZcodeSnapshot = readZcodeQuotaSnapshot,
   loadTomatoConnection = readTomatoConnection,
   loadPreferences = loadDisplayPreferences,
+  loadPinStartupDiagnostic = readPinStartupDiagnostic,
+  readPinState = readWindowPinState,
   savePreferences = saveDisplayPreferences,
   enableClickThrough = enableTemporaryClickThrough,
   setWindowLayout = setOverlayWindowLayout,
@@ -574,14 +589,28 @@ export function App({
     void (taskPopoverPlacement === "below" ? setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace, "below") : setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace)).catch(() => setControlMessage("任务区域无法调整；请重新打开 QuoDex · QDT-612"));
   }, [taskSpace, taskPopoverPlacement, setTaskSpace, layoutMode, settingsPresentation?.baseLayout, taskStatus.snapshot.observedAtMs === 0]);
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const [confirmedAlwaysOnTop, setConfirmedAlwaysOnTop] = useState<boolean | null>(true);
+  const confirmedPinRef = useRef<boolean | null>(true);
+  const pinRetryRequest = useRef<boolean | null>(null);
+  const pinRetryDiagnostic = useRef<Diagnostic | null>(null);
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
   const [preferenceSaveState, setPreferenceSaveState] = useState<PreferenceSaveState>("idle");
+  const [pendingPreferenceSaves, setPendingPreferenceSaves] = useState(0);
   const [preferenceSaveError, setPreferenceSaveError] = useState<Diagnostic | null>(null);
   const preferenceSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
   const preferenceSaveResult = useRef<Promise<unknown>>(Promise.resolve());
   const preferenceSaveGeneration = useRef(0);
   const opacityDirty = useRef(false);
+  const acceptPinState = useCallback((applied: boolean | null) => {
+    confirmedPinRef.current = applied;
+    setConfirmedAlwaysOnTop(applied);
+    if (applied !== null) {
+      const current = { ...preferencesRef.current, alwaysOnTop: applied };
+      preferencesRef.current = current;
+      setPreferences(current);
+    }
+  }, []);
   const settingsResizeGeneration = useRef(0);
   const settingsResizeRequest = useRef<Promise<SettingsWindowPresentation> | null>(null);
   const zcodePlanPreference = preferences.zcodePlan ?? "start";
@@ -705,10 +734,46 @@ export function App({
   }, [sourceSelection]);
 
   useEffect(() => {
-    void loadPreferences()
-      .then((loaded) => setPreferences({ ...loaded, source: normalizeSourceSelection(loaded.source) }))
-      .catch(() => undefined);
-  }, [loadPreferences]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const loaded = await loadPreferences();
+        if (cancelled) return;
+        const alwaysOnTop = loaded.alwaysOnTop ?? true;
+        const restored = { ...loaded, alwaysOnTop, source: normalizeSourceSelection(loaded.source) };
+        preferencesRef.current = restored;
+        setPreferences(restored);
+        acceptPinState(alwaysOnTop);
+        const diagnostic = await loadPinStartupDiagnostic();
+        if (cancelled || !diagnostic) return;
+        pinRetryRequest.current = alwaysOnTop;
+        pinRetryDiagnostic.current = diagnostic;
+        setPreferenceSaveError(diagnostic);
+        setPreferenceSaveState("failed");
+        try {
+          const applied = await readPinState();
+          if (!cancelled) acceptPinState(applied);
+        } catch {
+          if (!cancelled) {
+            acceptPinState(null);
+            const unconfirmed = { ...diagnostic, message: "窗口置顶状态未确认；请重试或重新打开 QuoDex" };
+            pinRetryDiagnostic.current = unconfirmed;
+            setPreferenceSaveError(unconfirmed);
+          }
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const diagnostic = error as Partial<Diagnostic> | null;
+        setPreferenceSaveError({
+          code: typeof diagnostic?.code === "string" ? diagnostic.code : "CRV-309",
+          message: typeof diagnostic?.message === "string" ? diagnostic.message : "无法恢复显示设置；请重新打开 QuoDex",
+          detail: diagnostic?.detail ?? null,
+        });
+        setPreferenceSaveState("failed");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadPreferences, loadPinStartupDiagnostic, readPinState, acceptPinState]);
 
   useEffect(() => {
     if (clickThroughSeconds <= 0) return;
@@ -868,42 +933,88 @@ export function App({
     inertiaFrameRef.current = requestAnimationFrame(glide);
   }, [preferences.reducedMotion, publishFluidMotion, setWindowPosition]);
 
-  const persistPreferences = useCallback((next: DisplayPreferences) => {
+  const persistPreferences = useCallback((next: DisplayPreferences, requestedPin?: boolean) => {
     const generation = ++preferenceSaveGeneration.current;
     setPreferenceSaveState("saving");
-    const write = preferenceSaveQueue.current.then(() => savePreferences(next));
+    setPendingPreferenceSaves(count => count + 1);
+    const write = preferenceSaveQueue.current.then(async () => {
+      const attemptedPin = requestedPin ?? confirmedPinRef.current ?? next.alwaysOnTop ?? true;
+      try {
+        if (requestedPin === undefined && confirmedPinRef.current === null) {
+          throw { code: "CRV-308", message: "窗口置顶状态未确认；请点击重试或重新打开 QuoDex", detail: null };
+        }
+        const accepted = { ...next, alwaysOnTop: requestedPin ?? confirmedPinRef.current! };
+        await savePreferences(accepted);
+        acceptPinState(accepted.alwaysOnTop);
+        if (requestedPin !== undefined) {
+          pinRetryRequest.current = null;
+          pinRetryDiagnostic.current = null;
+        }
+        if (generation !== preferenceSaveGeneration.current) return;
+        setPreferenceSaveError(pinRetryDiagnostic.current);
+        setPreferenceSaveState(pinRetryRequest.current !== null ? "failed" : opacityDirty.current ? "idle" : "saved");
+      } catch (error) {
+        const failure = error as Partial<Diagnostic> | null;
+        const structured = typeof failure?.code === "string" && typeof failure?.message === "string";
+        let diagnostic: Diagnostic = { code: structured ? failure.code! : "CRV-303", message: structured ? failure.message! : "本地写入失败", detail: structured ? failure.detail ?? null : "检查本地存储空间和配置目录写入权限后重试" };
+        if (requestedPin !== undefined) {
+          pinRetryRequest.current = requestedPin;
+        } else if (diagnostic.code === "CRV-308" && pinRetryRequest.current === null) {
+          pinRetryRequest.current = attemptedPin;
+        }
+        if (diagnostic.code === "CRV-308") {
+          acceptPinState(null);
+          try {
+            acceptPinState(await readPinState());
+          } catch {
+            diagnostic = { ...diagnostic, message: "窗口置顶状态未确认；请重试或重新打开 QuoDex" };
+          }
+        } else {
+          acceptPinState(confirmedPinRef.current);
+        }
+        if (requestedPin !== undefined || diagnostic.code === "CRV-308") {
+          pinRetryDiagnostic.current = diagnostic;
+        }
+        if (generation === preferenceSaveGeneration.current || requestedPin !== undefined) {
+          setPreferenceSaveError(diagnostic);
+          setPreferenceSaveState("failed");
+        }
+        throw diagnostic;
+      } finally {
+        setPendingPreferenceSaves(count => count - 1);
+      }
+    });
     preferenceSaveResult.current = write;
     preferenceSaveQueue.current = write.catch(() => undefined);
-    void write.then(() => {
-      if (generation !== preferenceSaveGeneration.current) return;
-      setPreferenceSaveError(null);
-      setPreferenceSaveState("saved");
-    }).catch((error: Partial<Diagnostic> | null) => {
-      if (generation !== preferenceSaveGeneration.current) return;
-      const structured = typeof error?.code === "string" && typeof error?.message === "string";
-      setPreferenceSaveError({ code: structured ? error.code! : "CRV-303", message: structured ? error.message! : "本地写入失败", detail: structured ? error.detail ?? null : "检查本地存储空间和配置目录写入权限后重试" });
-      setPreferenceSaveState("failed");
-    });
-  }, [savePreferences]);
+  }, [savePreferences, readPinState, acceptPinState]);
 
   const updatePreferences = useCallback((next: DisplayPreferences) => {
+    const requestedPin = (next.alwaysOnTop ?? true) !== (preferencesRef.current.alwaysOnTop ?? true) ? next.alwaysOnTop ?? true : undefined;
     preferencesRef.current = next;
     setPreferences(next);
     opacityDirty.current = false;
-    persistPreferences(next);
+    persistPreferences(next, requestedPin);
   }, [persistPreferences]);
 
   const previewOpacity = useCallback((opacity: number) => {
     preferencesRef.current = { ...preferencesRef.current, opacity };
     setPreferences(preferencesRef.current);
     opacityDirty.current = true;
-    preferenceSaveGeneration.current += 1;
-    setPreferenceSaveState("idle");
+    setPreferenceSaveState(current => current === "failed" ? "failed" : "idle");
   }, []);
   const commitOpacity = useCallback(() => {
     if (!opacityDirty.current) return;
     opacityDirty.current = false;
     persistPreferences(preferencesRef.current);
+  }, [persistPreferences]);
+
+  const retryPreferences = useCallback(() => {
+    const requestedPin = pinRetryRequest.current;
+    const next = { ...preferencesRef.current, alwaysOnTop: requestedPin ?? preferencesRef.current.alwaysOnTop };
+    preferencesRef.current = next;
+    setPreferences(next);
+    opacityDirty.current = false;
+    persistPreferences(next, requestedPin ?? undefined);
   }, [persistPreferences]);
 
   useEffect(() => {
@@ -1273,14 +1384,16 @@ export function App({
 
       {settingsOpen && <SettingsDock
         preferences={preferences}
+        appliedAlwaysOnTop={confirmedAlwaysOnTop ?? undefined}
+        pinStateUnconfirmed={confirmedAlwaysOnTop === null}
         source={sourceSelection}
         dragging={isWindowDragging}
-        saveState={preferenceSaveState}
+        saveState={pendingPreferenceSaves > 0 ? "saving" : preferenceSaveState}
         saveError={preferenceSaveError}
         onChange={updatePreferences}
         onPreviewOpacity={previewOpacity}
         onCommitOpacity={commitOpacity}
-        onRetry={() => persistPreferences(preferencesRef.current)}
+        onRetry={retryPreferences}
         onClose={() => void closeSettings()}
         onQuit={quitMeter}
       />}

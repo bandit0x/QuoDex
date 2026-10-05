@@ -44,13 +44,12 @@
   position: relative;
   z-index: 2;
   margin-top: 12px;
-  height: 88px;
+  height: 152px;
   padding: 12px 22px;
-  display: grid;
-  grid-template-columns: 124px minmax(0,1fr) 84px 44px 36px;
-  grid-template-rows: 64px;
-  align-items: center;
-  column-gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   background: rgba(8,10,12,calc(var(--surface-opacity,.92) * .32));
   box-shadow: 0 10px 24px rgba(0,3,8,.54),
     inset 0 1px 0 rgba(243,247,249,.62),
@@ -62,13 +61,14 @@
   animation: none;
   text-shadow: 0 2px 7px rgba(0,2,7,.94), 0 0 1px #000;
 }
-.dock-controls--simple { grid-template-columns: minmax(0,1fr) 84px 44px 36px; }
-.dock-controls--error { height:136px; grid-template-rows:64px 40px; row-gap:8px; }
+.dock-controls--error { height:200px; }
 .dock-controls::before { background:linear-gradient(128deg,rgba(255,255,255,.82),rgba(213,223,229,.58) 14%,rgba(241,245,247,.3) 37%,rgba(53,60,66,.18) 56%,rgba(213,223,229,.52) 84%,rgba(255,255,255,.78)); }
 .dock-controls::after { border-color:rgba(230,237,241,.5); box-shadow:0 0 0 1px rgba(0,5,10,.78), 0 3px 14px rgba(202,216,225,.18), inset 0 15px 22px rgba(237,242,245,.13), inset 0 -16px 23px rgba(0,2,6,.68), inset 10px 0 18px rgba(202,216,225,.12), inset -10px 0 18px rgba(202,216,225,.12); }
 .dock-controls:has(.optical-shell-canvas[data-renderer="webgl-shell"])::before,
 .dock-controls:has(.optical-shell-canvas[data-renderer="webgl-shell"])::after { content:none; }
-.dock-preferences, .dock-actions { display: contents; }
+.dock-preferences { display:grid; grid-template-columns:124px minmax(0,1fr); align-items:center; gap:12px; height:60px; flex-shrink:0; }
+.dock-preferences--simple { grid-template-columns:minmax(0,1fr); }
+.dock-actions { display:grid; grid-template-columns:100px 112px minmax(0,1fr) 44px 36px; align-items:center; column-gap:12px; height:60px; flex-shrink:0; }
 .dock-plan, .dock-opacity, .dock-motion, .dock-quiet, .dock-collapse { position:relative; z-index:5; min-width:0; }
 .dock-control-label, .dock-opacity, .dock-motion { color:#eaf8fc; font-size:18px; font-weight:540; }
 .dock-plan { display:grid; grid-template-rows:24px 36px; align-items:center; }
@@ -89,22 +89,26 @@
 .dock-opacity input::-moz-range-thumb { width:24px; height:24px; border:1px solid rgba(225,251,255,.6); border-radius:50%; background:radial-gradient(circle at 30% 23%,#ecf9fc,#91c5d2 27%,#2d6378 70%,#8fcad3); }
 .dock-motion { display:grid; grid-template-rows:24px 36px; justify-items:start; align-items:center; height:60px; white-space:nowrap; cursor:pointer; }
 .dock-motion input { position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0; cursor:pointer; }
+.dock-pin--saving { opacity:.58; cursor:default; }
+.dock-pin input:disabled { cursor:default; }
 .dock-switch { width:60px; height:28px; border:0; border-radius:999px; background:rgba(0,10,18,.45); box-shadow:inset 0 3px 5px rgba(0,3,8,.7), 0 1px rgba(205,243,255,.25); pointer-events:none; }
 .dock-switch::before { content:""; display:block; width:24px; height:24px; margin:2px; border-radius:50%; border:1px solid rgba(225,251,255,.6); background:radial-gradient(circle at 30% 23%,#ecf9fc,#91c5d2 27%,#2d6378 70%,#8fcad3); box-shadow:0 3px 6px rgba(0,3,8,.65), inset 0 1px 2px rgba(255,255,255,.6); transition:transform 160ms var(--ease-out-expo); }
 .dock-motion input:checked + .dock-switch { background:rgba(32,123,99,.48); }
 .dock-motion input:checked + .dock-switch::before { transform:translateX(32px); }
 .dock-motion input:focus-visible + .dock-switch { outline:2px solid var(--cyan); outline-offset:3px; }
-.dock-save-state { position:absolute; z-index:6; top:12px; right:30px; display:flex; align-items:center; color:#9ff3cd; pointer-events:none; }
+.dock-save-state { position:relative; z-index:6; display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; color:#9ff3cd; font-size:16px; white-space:nowrap; pointer-events:none; }
 .dock-save-state svg { width:16px; height:16px; }
-.dock-save-state > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.dock-controls[data-save-state="saving"] .dock-save-state { color:#bcd9e4; }
 .dock-quiet, .dock-collapse { display:grid; place-items:center; height:60px; padding:0; border:0; border-radius:12px; background:transparent; color:#afc3d2; font-size:18px; text-shadow:inherit; }
 .dock-quiet:hover, .dock-collapse:hover { color:#f6fcff; background:rgba(205,243,255,.05); }
-.dock-error { position:relative; z-index:5; grid-column:1 / -1; display:flex; align-items:center; gap:10px; height:40px; padding:0; border:0; border-top:1px solid rgba(255,197,181,.16); border-radius:0; background:linear-gradient(90deg,rgba(120,42,22,.10),transparent); color:#ffd1c7; font-size:18px; }
-.dock-error > span { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dock-error button { height:36px; padding:0 4px; border:0; border-radius:8px; background:transparent; color:#f3fbff; font-size:18px; text-shadow:inherit; }
+.dock-error { position:relative; z-index:5; display:flex; align-items:center; gap:10px; height:40px; flex-shrink:0; padding:0; border:0; border-top:1px solid rgba(255,197,181,.16); border-radius:0; background:linear-gradient(90deg,rgba(120,42,22,.10),transparent); color:#ffd1c7; font-size:18px; }
+.dock-error-message { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dock-error-code { flex-shrink:0; white-space:nowrap; }
+.dock-error button { height:36px; flex-shrink:0; padding:0 4px; border:0; border-radius:8px; background:transparent; color:#f3fbff; font-size:18px; text-shadow:inherit; }
 .dock-error button:hover { background:rgba(205,243,255,.05); }
 .dock-error button:disabled { opacity:.6; cursor:default; }
 .dock-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-.app-frame--collapsed .dock-controls { padding-left:16px; padding-right:16px; grid-template-columns:112px minmax(0,1fr) 84px 44px 36px; column-gap:8px; }
-.app-frame--collapsed .dock-controls--simple { grid-template-columns:minmax(0,1fr) 84px 44px 36px; }
-.app-frame--collapsed .dock-save-state { right:24px; }
+.app-frame--collapsed .dock-controls { padding-left:16px; padding-right:16px; }
+.app-frame--collapsed .dock-actions { grid-template-columns:100px 112px minmax(0,1fr) 44px 36px; column-gap:8px; }
+.app-frame--collapsed .dock-preferences { grid-template-columns:112px minmax(0,1fr); gap:8px; }
+.app-frame--collapsed .dock-preferences--simple { grid-template-columns:minmax(0,1fr); }

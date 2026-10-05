@@ -53,6 +53,8 @@ export type ZCodePlanPreference = "start" | "coding";
 export interface DisplayPreferences {
   opacity: number;
   reducedMotion: boolean;
+  /** 旧配置缺省时保持置顶。原生保存成功后才视为已生效。 */
+  alwaysOnTop?: boolean;
   x: number | null;
   y: number | null;
   source?: SourceSelection;

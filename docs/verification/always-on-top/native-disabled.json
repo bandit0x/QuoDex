@@ -1,0 +1,26 @@
+{
+  "sampleReason": "preferences-saved",
+  "sampledAtMs": 1791201806237,
+  "platform": "macos",
+  "requestedAlwaysOnTop": false,
+  "policyMatchesRequested": true,
+  "snapshot": {
+    "level": 0,
+    "collectionBehavior": 0,
+    "enabled": false
+  },
+  "initialSnapshot": {
+    "level": 5,
+    "collectionBehavior": 0,
+    "enabled": true
+  },
+  "startupDiagnostic": null,
+  "macOs": {
+    "majorVersion": 27,
+    "windowNumber": 1734,
+    "visible": true,
+    "onActiveSpace": true,
+    "unoccluded": true,
+    "keyWindow": true
+  }
+}

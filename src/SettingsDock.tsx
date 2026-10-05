@@ -11,6 +11,8 @@ interface SettingsDockProps {
   dragging: boolean;
   saveState: PreferenceSaveState;
   saveError: Diagnostic | null;
+  appliedAlwaysOnTop?: boolean;
+  pinStateUnconfirmed?: boolean;
   onChange: (next: DisplayPreferences) => void;
   onPreviewOpacity: (opacity: number) => void;
   onCommitOpacity: () => void;
@@ -19,7 +21,8 @@ interface SettingsDockProps {
   onQuit: () => void;
 }
 
-export function SettingsDock({ preferences, source, dragging, saveState, saveError, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit }: SettingsDockProps) {
+export function SettingsDock({ preferences, source, dragging, saveState, saveError, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit }: SettingsDockProps) {
+  const shownAlwaysOnTop = saveState === "saving" ? (preferences.alwaysOnTop ?? true) : (appliedAlwaysOnTop ?? preferences.alwaysOnTop ?? true);
   return <aside className="settings-dock" role="dialog" aria-label="显示设置">
     <GlassLensCanvas reducedMotion={preferences.reducedMotion} />
     <div className="dock-sources" role="group" aria-label="额度来源">
@@ -49,15 +52,19 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
         </label>
       </div>
       <div className="dock-actions">
+        <label className={`dock-motion dock-pin${saveState === "saving" || pinStateUnconfirmed ? " dock-pin--saving" : ""}`} title={pinStateUnconfirmed ? "窗口置顶状态未确认；请重试或重新打开 QuoDex" : "开启后保持窗口置顶"}>
+          <span>置于顶层</span><input type="checkbox" checked={shownAlwaysOnTop} disabled={saveState === "saving" || pinStateUnconfirmed} onChange={event => onChange({ ...preferences, alwaysOnTop: event.target.checked })} />
+          <span className="dock-switch" aria-hidden="true" />
+        </label>
         <label className="dock-motion">
           <span>减少动效</span><input type="checkbox" checked={preferences.reducedMotion} onChange={event => onChange({ ...preferences, reducedMotion: event.target.checked })} />
           <span className="dock-switch" aria-hidden="true" />
         </label>
-        <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : <span className="dock-sr-only">{saveState === "saving" ? "正在保存" : ""}</span>}</span>
+        <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
         <button className="dock-quiet" type="button" aria-label="退出应用" onClick={onQuit}>退出</button>
         <button className="dock-collapse" type="button" aria-label="关闭设置" title="收起设置 · Esc" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg></button>
       </div>
-      {saveError && <div className="dock-error" role="alert"><span title={[saveError.detail, "检查本地存储空间和配置目录写入权限后重试"].filter(Boolean).join("；")}>{saveError.message} · {saveError.code}</span><button type="button" aria-label="重试保存" disabled={saveState === "saving"} onClick={onRetry}>{saveState === "saving" ? "保存中" : "重试"}</button></div>}
+      {saveError && <div className="dock-error" role="alert"><span className="dock-error-message" title={[saveError.message, saveError.detail].filter(Boolean).join("；")}>{saveError.message}</span><span className="dock-error-code"> · {saveError.code}</span><button type="button" aria-label="重试保存" disabled={saveState === "saving"} onClick={onRetry}>{saveState === "saving" ? "保存中" : "重试"}</button></div>}
     </div>
   </aside>;
 }

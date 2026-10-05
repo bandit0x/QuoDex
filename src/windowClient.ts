@@ -9,8 +9,8 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
   expanded: { width: 300, height: 160 },
 };
 
-// Floating dock: 36px lenses + 6px gap + 44px controls + 6px quota gap.
-export const SETTINGS_WINDOW_EXTRA_HEIGHT = 92;
+// Floating dock: 36px lenses + 6px gap + 76px controls + 6px quota gap.
+export const SETTINGS_WINDOW_EXTRA_HEIGHT = 124;
 export const SETTINGS_ERROR_EXTRA_HEIGHT = 24;
 export const TASK_ROW_HEIGHT = 44;
 export const TASK_POPOVER_HEIGHT = 160;

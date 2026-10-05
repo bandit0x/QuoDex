@@ -6,6 +6,7 @@ mod preferences;
 mod task_material;
 mod task_status;
 mod tomato_cloud;
+mod window_pin;
 mod zcode_quota;
 mod zcode_resets;
 mod zcode_tasks;
@@ -183,14 +184,12 @@ fn load_display_preferences(store: State<'_, PreferencesStore>) -> DisplayPrefer
 }
 
 #[tauri::command]
-fn save_display_preferences(
+async fn save_display_preferences(
+    window: WebviewWindow,
     store: State<'_, PreferencesStore>,
-    mut preferences: DisplayPreferences,
+    preferences: DisplayPreferences,
 ) -> Result<(), Diagnostic> {
-    let current = store.load();
-    preferences.x = current.x;
-    preferences.y = current.y;
-    store.save(preferences)
+    window_pin::save(&window, &store, preferences).await
 }
 
 #[tauri::command]
@@ -228,24 +227,28 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     configure_bundled_webview2_runtime();
 
-    // macOS 的 set_activation_policy 需要 mut；其余平台不使用，抑制 unused_mut
-    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut app = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(CapacityService::from_environment())
         .manage(TomatoCloudService::new())
         .manage(ZCodeQuotaService::from_environment())
+        .manage(window_pin::WindowPinState::default())
         .setup(|app| {
+            // Agent application policy allows a floating window to join another app's Space.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             #[cfg(all(target_os = "windows", not(debug_assertions)))]
             if let Err(error) = desktop_shortcut::replace_desktop_shortcut() {
                 eprintln!("failed to create the QuoDex desktop shortcut: {error}");
             }
             let store = PreferencesStore::new(app.handle());
+            app.manage(store);
             app.manage(TaskStatusService::from_environment(app.handle()));
             if let Some(window) = app.get_webview_window("main") {
+                let store = window.state::<PreferencesStore>();
+                window_pin::initialize(&window, store.load().always_on_top);
                 restore_window_position(&window, &store);
             }
             setup_tray(app)?;
-            app.manage(store);
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -257,6 +260,18 @@ pub fn run() {
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
+            }
+            WindowEvent::Focused(focused) => {
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    window_pin::export_diagnostics(
+                        &webview,
+                        if *focused {
+                            "focus-gained"
+                        } else {
+                            "focus-lost"
+                        },
+                    );
+                }
             }
             _ => {}
         })
@@ -271,15 +286,13 @@ pub fn run() {
             read_zcode_quota_snapshot,
             load_display_preferences,
             save_display_preferences,
+            window_pin::read_window_pin_diagnostics,
+            window_pin::read_window_pin_startup_diagnostic,
             enable_temporary_click_through,
             quit_app
         ])
         .build(tauri::generate_context!())
         .expect("failed to build QuoDex");
-
-    // skipTaskbar 在 macOS 的等价物：不进 Dock，只保留菜单栏托盘图标
-    #[cfg(target_os = "macos")]
-    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
     app.run(|_, event| {
         if let tauri::RunEvent::ExitRequested {

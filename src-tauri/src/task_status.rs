@@ -1224,10 +1224,7 @@ mod tests {
             let (pipe, _) = listener.accept().await.unwrap();
             let (mut reader, mut writer) = pipe.into_split();
             let requests = tokio::spawn(async move {
-                loop {
-                    let Ok(length) = reader.read_u32_le().await else {
-                        break;
-                    };
+                while let Ok(length) = reader.read_u32_le().await {
                     let mut bytes = vec![0; length as usize];
                     if reader.read_exact(&mut bytes).await.is_err() {
                         break;

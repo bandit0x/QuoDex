@@ -7,7 +7,7 @@ import {
 } from "./windowClient";
 
 describe("half-scale overlay layouts", () => {
-  it.each(["compact", "expanded", "collapsed"] as const)("adds the approved 92px dock below tasks and quota from %s", (layout) => {
+  it.each(["compact", "expanded", "collapsed"] as const)("adds the approved 124px dock below tasks and quota from %s", (layout) => {
     for (const y of [30, 700]) {
       const presentation = planSettingsWindowPresentation(
         layout,
@@ -17,7 +17,7 @@ describe("half-scale overlay layouts", () => {
       );
       const settingsBudget = presentation.windowSize.height
         - overlayLayoutSizes[presentation.baseLayout].height - TASK_ROW_HEIGHT;
-      expect(settingsBudget).toBe(92); // 86px floating controls + 6px quota gap
+      expect(settingsBudget).toBe(124); // 36px lenses + 6px gap + 76px controls + 6px quota gap
       expect(presentation.placement).toBe("below");
       expect(presentation.baseLayout).toBe(layout);
       expect(presentation.restore).toEqual({ layout, position: { x: 100, y }, taskSpace: TASK_ROW_HEIGHT });
@@ -43,11 +43,11 @@ describe("half-scale overlay layouts", () => {
     expect(presentation.placement).toBe("below");
     expect(presentation.windowPosition).toEqual({
       x: 1480,
-      y: 818,
+      y: 786,
     });
     expect(presentation.windowSize).toEqual({
       width: 300,
-      height: 222,
+      height: 254,
     });
     expect(presentation.restore).toEqual({
       layout: "compact",
@@ -64,7 +64,7 @@ describe("half-scale overlay layouts", () => {
 
     expect(presentation.placement).toBe("below");
     expect(presentation.baseLayout).toBe("collapsed");
-    expect(presentation.windowSize).toEqual({ width: 260, height: 140 });
+    expect(presentation.windowSize).toEqual({ width: 260, height: 172 });
     expect(presentation.windowPosition).toEqual({ x: 32, y: 20 });
     expect(presentation.restore.layout).toBe("collapsed");
   });
@@ -82,15 +82,15 @@ describe("half-scale overlay layouts", () => {
 
   it("grows the error rail inside the screen without widening the narrow quota", () => {
     const plan = planSettingsWindowPresentation("collapsed", { x: 1660, y: 950 },
-      { left: 0, top: 0, width: 1920, height: 1040 }, 36, 116);
-    expect(plan.windowSize).toEqual({ width: 260, height: 200 });
-    expect(plan.windowPosition).toEqual({ x: 1660, y: 840 });
+      { left: 0, top: 0, width: 1920, height: 1040 }, 36, 148);
+    expect(plan.windowSize).toEqual({ width: 260, height: 232 });
+    expect(plan.windowPosition).toEqual({ x: 1660, y: 808 });
   });
 
   it("restores the original anchor but preserves a user's drag while settings are open", () => {
     const area = { left: 0, top: 0, width: 1920, height: 1040 };
     const plan = planSettingsWindowPresentation("compact", { x: 1480, y: 840 }, area);
     expect(planSettingsWindowRestore(plan, plan.windowPosition, area, 0)).toEqual({ x: 1480, y: 840 });
-    expect(planSettingsWindowRestore(plan, { x: 1500, y: 850 }, area, 0)).toEqual({ x: 1500, y: 872 });
+    expect(planSettingsWindowRestore(plan, { x: 1500, y: 850 }, area, 0)).toEqual({ x: 1500, y: 904 });
   });
 });

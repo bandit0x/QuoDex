@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { App, applyRouteGate } from "./App";
-import { overlayLayoutSizes, type SettingsWindowPresentation } from "./windowClient";
+import { overlayLayoutSizes, SETTINGS_WINDOW_EXTRA_HEIGHT, SETTINGS_ERROR_EXTRA_HEIGHT, type SettingsWindowPresentation } from "./windowClient";
 import type {
   CapacitySnapshot,
   DisplayPreferences,
@@ -16,6 +16,8 @@ const inertPreferences = {
   loadTaskStatus: async () => ({ tasks: [], sources: readyTaskSources(Date.now()), observedAtMs: Date.now(), diagnostic: null }),
   setTaskSpace: async () => undefined,
   loadPreferences: async () => ({ opacity: 0.92, reducedMotion: false, x: null, y: null }),
+  loadPinStartupDiagnostic: async () => null,
+  readPinState: async () => true,
   savePreferences: async () => undefined,
   enableClickThrough: async () => undefined,
   setWindowLayout: async () => undefined,
@@ -23,7 +25,7 @@ const inertPreferences = {
     baseLayout: "compact" as const,
     placement: "below" as const,
     windowPosition: { x: 0, y: 0 },
-    windowSize: { width: 300, height: 222 },
+    windowSize: { width: 300, height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT },
     restore: { layout: "compact" as const, position: { x: 0, y: 0 } },
   }),
   resizeSettingsWindow: async (presentation: SettingsWindowPresentation, extraHeight: number) => ({
@@ -39,6 +41,209 @@ const inertPreferences = {
     diagnostic: null,
   }),
 };
+
+describe("window pin preferences", () => {
+  it("retries native startup failure without overwriting restored display preferences", async () => {
+    const stored: DisplayPreferences = { opacity: .88, reducedMotion: true, alwaysOnTop: false, source: "zcode", zcodePlan: "coding", x: 120, y: 240 };
+    const savePreferences = vi.fn().mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot}
+      loadPreferences={async () => stored}
+      loadPinStartupDiagnostic={async () => ({ code: "CRV-307", message: "无法应用窗口置顶；请重新打开 QuoDex", detail: null })}
+      savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
+    expect(screen.queryByText("已保存")).not.toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "透明度" })).toHaveValue("0.88");
+    expect(screen.getByRole("checkbox", { name: "减少动效" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "ZCode 套餐" })).toHaveValue("coding");
+    expect(screen.getByRole("checkbox", { name: "置于顶层" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences).toHaveBeenCalledWith(stored);
+    expect(screen.getByRole("checkbox", { name: "置于顶层" })).not.toBeChecked();
+  });
+
+  it("keeps pin changes serialized while opacity is previewed", async () => {
+    let finishSave: () => void = () => undefined;
+    const pending = new Promise<void>(resolve => { finishSave = resolve; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    fireEvent.click(pin);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    expect(pin).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "减少动效" }));
+    expect(savePreferences).toHaveBeenCalledTimes(1);
+    await act(async () => { finishSave(); await pending; });
+    await screen.findByText("已保存");
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: false, opacity: .9, reducedMotion: true });
+    expect(pin).not.toBeChecked();
+  });
+
+  it("restores the applied pin on failure and retries the requested value", async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    const pending = new Promise<void>((_, reject) => { failSave = reject; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    expect(pin).toBeChecked();
+    fireEvent.click(pin);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    expect(pin).toBeDisabled();
+    expect(savePreferences.mock.calls[0][0]).toMatchObject({ alwaysOnTop: false });
+    await act(async () => { failSave({ code: "CRV-307", message: "系统拒绝设置窗口层级；请重试" }); await pending.catch(() => undefined); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
+    expect(pin).toBeChecked();
+    expect(pin).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: false });
+    expect(pin).not.toBeChecked();
+  });
+
+  it("keeps a failed pin request separate from ordinary settings until explicit retry", async () => {
+    const savePreferences = vi.fn()
+      .mockRejectedValueOnce({ code: "CRV-307", message: "系统拒绝设置窗口层级；请重试" })
+      .mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    fireEvent.click(pin);
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
+    expect(pin).toBeChecked();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(2));
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: true, reducedMotion: true });
+    await waitFor(() => expect(pin).toBeEnabled());
+    fireEvent.click(within(screen.getByRole("group", { name: "额度来源" })).getByRole("button", { name: "ZCode" }));
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(3));
+    expect(savePreferences.mock.calls[2][0]).toMatchObject({ alwaysOnTop: true, reducedMotion: true, source: "zcode" });
+    await waitFor(() => expect(pin).toBeEnabled());
+    const slider = screen.getByRole("slider", { name: "透明度" });
+    fireEvent.change(slider, { target: { value: "0.9" } });
+    fireEvent.pointerUp(slider);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(4));
+    expect(savePreferences.mock.calls[3][0]).toMatchObject({ alwaysOnTop: true, reducedMotion: true, source: "zcode", opacity: .9 });
+    await waitFor(() => expect(pin).toBeEnabled());
+    expect(screen.getByRole("alert")).toHaveTextContent("CRV-307");
+
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences.mock.calls[4][0]).toMatchObject({ alwaysOnTop: false, reducedMotion: true, source: "zcode", opacity: .9 });
+    expect(pin).not.toBeChecked();
+  });
+
+  it.each(["uncommitted", "queued"] as const)("preserves pin failure during an %s opacity edit", async (opacityEdit) => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    const pending = new Promise<void>((_, reject) => { failSave = reject; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    fireEvent.click(pin);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    const slider = screen.getByRole("slider", { name: "透明度" });
+    fireEvent.change(slider, { target: { value: "0.9" } });
+    if (opacityEdit === "queued") fireEvent.pointerUp(slider);
+    expect(pin).toBeDisabled();
+    expect(savePreferences).toHaveBeenCalledTimes(1);
+    await act(async () => { failSave({ code: "CRV-307", message: "系统拒绝设置窗口层级；请重试" }); await pending.catch(() => undefined); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
+    await waitFor(() => expect(pin).toBeEnabled());
+    expect(pin).toBeChecked();
+    expect(slider).toHaveValue("0.9");
+    if (opacityEdit === "queued") {
+      expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: true, opacity: .9 });
+    } else {
+      expect(savePreferences).toHaveBeenCalledTimes(1);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ alwaysOnTop: false, opacity: .9 }));
+    expect(pin).not.toBeChecked();
+  });
+
+  it("shows a pending ordinary save failure while opacity is still previewed", async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    const pending = new Promise<void>((_, reject) => { failSave = reject; });
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    const slider = screen.getByRole("slider", { name: "透明度" });
+    fireEvent.change(slider, { target: { value: "0.9" } });
+    await act(async () => { failSave({ code: "CRV-304", message: "无法保存显示偏好；检查目录权限后重试" }); await pending.catch(() => undefined); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("CRV-304");
+    expect(slider).toHaveValue("0.9");
+    expect(screen.getByRole("checkbox", { name: "减少动效" })).toBeChecked();
+    expect(savePreferences).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ alwaysOnTop: true, reducedMotion: true, opacity: .9 }));
+  });
+
+  it("reads actual pin state after rollback failure before saving queued ordinary changes", async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    const pending = new Promise<void>((_, reject) => { failSave = reject; });
+    let finishRead: (enabled: boolean) => void = () => undefined;
+    const nativeRead = new Promise<boolean>(resolve => { finishRead = resolve; });
+    const readPinState = vi.fn(() => nativeRead);
+    const savePreferences = vi.fn().mockImplementationOnce(() => pending).mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      savePreferences={savePreferences} readPinState={readPinState} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    fireEvent.click(pin);
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("checkbox", { name: "减少动效" }));
+    await act(async () => { failSave({ code: "CRV-308", message: "设置未保存，窗口置顶也未能恢复；请重新打开 QuoDex 后检查开关" }); await pending.catch(() => undefined); });
+    await waitFor(() => expect(readPinState).toHaveBeenCalled());
+    expect(savePreferences).toHaveBeenCalledTimes(1);
+    expect(pin).toBeDisabled();
+    await act(async () => { finishRead(false); await nativeRead; });
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(2));
+    expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: false, reducedMotion: true });
+    await waitFor(() => expect(pin).toBeEnabled());
+    expect(pin).not.toBeChecked();
+    expect(screen.getByRole("alert")).toHaveTextContent("CRV-308");
+  });
+
+  it("marks pin state unconfirmed and disables the switch if rollback state cannot be read", async () => {
+    const readPinState = vi.fn().mockRejectedValue(new Error("fixture native window unavailable"));
+    const savePreferences = vi.fn()
+      .mockRejectedValueOnce({ code: "CRV-308", message: "设置未保存，窗口置顶也未能恢复；请重新打开 QuoDex 后检查开关" })
+      .mockResolvedValue(undefined);
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      savePreferences={savePreferences} readPinState={readPinState} />);
+    await screen.findByText("76%", { exact: false });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
+    fireEvent.click(pin);
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => expect(alert).toHaveTextContent("未确认"));
+    expect(alert).toHaveTextContent("CRV-308");
+    expect(pin).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    await screen.findByText("已保存");
+    expect(savePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ alwaysOnTop: false }));
+    expect(pin).toBeEnabled();
+    expect(pin).not.toBeChecked();
+  });
+});
 
 describe("mixed task row", () => {
   it("shows both applications' tasks under ZCode quota and opens the matching project", async () => {
@@ -522,14 +727,14 @@ describe("Codex capacity overlay", () => {
     const savePreferences = vi.fn().mockRejectedValueOnce(new Error("fixture write failed")).mockImplementationOnce(() => retry);
     const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow);
     render(<App {...inertPreferences} initialLayout="collapsed" loadSnapshot={async () => healthySnapshot}
-      openSettingsWindow={async () => ({ baseLayout: "collapsed", placement: "below", windowPosition: { x: 0, y: 0 }, windowSize: { width: 260, height: 140 }, restore: { layout: "collapsed", position: { x: 0, y: 0 } } })}
+      openSettingsWindow={async () => ({ baseLayout: "collapsed", placement: "below", windowPosition: { x: 0, y: 0 }, windowSize: { width: 260, height: 48 + SETTINGS_WINDOW_EXTRA_HEIGHT }, restore: { layout: "collapsed", position: { x: 0, y: 0 } } })}
       savePreferences={savePreferences} resizeSettingsWindow={resizeSettingsWindow} />);
     fireEvent.click(await screen.findByRole("button", { name: "设置" }));
     const slider = await screen.findByRole("slider", { name: "透明度" });
     fireEvent.change(slider, { target: { value: "0.9" } });
     fireEvent.pointerUp(slider);
     expect(await screen.findByRole("alert")).toHaveTextContent("本地写入失败 · CRV-303");
-    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), 116));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT));
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
     expect(screen.getByRole("alert")).toHaveTextContent("CRV-303");
     expect(screen.getByRole("button", { name: "重试保存" })).toBeDisabled();
@@ -537,7 +742,7 @@ describe("Codex capacity overlay", () => {
     await act(async () => { finishRetry(); await retry; });
     expect(await screen.findByText("已保存")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), 92));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), SETTINGS_WINDOW_EXTRA_HEIGHT));
     expect(savePreferences.mock.calls[1][0]).toMatchObject({ opacity: .9 });
   });
 
@@ -568,13 +773,13 @@ describe("Codex capacity overlay", () => {
     await waitFor(() => expect(resizeSettingsWindow).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "关闭设置" }));
     expect(closeSettingsWindow).not.toHaveBeenCalled();
-    const resized: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 246 } };
+    const resized: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT } };
     await act(async () => { finishResize(resized); await resizing; });
     await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledWith(resized));
     expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument();
   });
 
-  it("converges to 92px when retry succeeds before the error expansion finishes", async () => {
+  it("converges to the approved dock height when retry succeeds before the error expansion finishes", async () => {
     let finishExpansion: (next: SettingsWindowPresentation) => void = () => undefined;
     const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
     const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow).mockImplementationOnce(() => expansion);
@@ -586,9 +791,9 @@ describe("Codex capacity overlay", () => {
     await waitFor(() => expect(resizeSettingsWindow).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
     await screen.findByText("已保存");
-    const expanded: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 246 } };
+    const expanded: SettingsWindowPresentation = { ...await inertPreferences.openSettingsWindow(), windowPosition: { x: 0, y: 20 }, windowSize: { width: 300, height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT } };
     await act(async () => { finishExpansion(expanded); await expansion; });
-    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expanded, 92));
+    await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expanded, SETTINGS_WINDOW_EXTRA_HEIGHT));
   });
 
   it("preserves a late backend diagnostic without resizing a closing settings window", async () => {
@@ -613,8 +818,8 @@ describe("Codex capacity overlay", () => {
   });
 
   it("restores from the last native success if a queued shrink fails", async () => {
-    const initial: SettingsWindowPresentation = { baseLayout: "compact", placement: "below", windowPosition: { x: 100, y: 818 }, windowSize: { width: 300, height: 222 }, restore: { layout: "compact", position: { x: 100, y: 840 } } };
-    const expanded = { ...initial, windowPosition: { x: 100, y: 794 }, windowSize: { width: 300, height: 246 } };
+    const initial: SettingsWindowPresentation = { baseLayout: "compact", placement: "below", windowPosition: { x: 100, y: 786 }, windowSize: { width: 300, height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT }, restore: { layout: "compact", position: { x: 100, y: 840 } } };
+    const expanded = { ...initial, windowPosition: { x: 100, y: 762 }, windowSize: { width: 300, height: 130 + SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT } };
     let finishExpansion: (next: SettingsWindowPresentation) => void = () => undefined;
     const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
     const resizeSettingsWindow = vi.fn().mockImplementationOnce(() => expansion).mockRejectedValueOnce(new Error("fixture resize failed"));
@@ -689,7 +894,7 @@ describe("Codex capacity overlay", () => {
       baseLayout: "collapsed" as const,
       placement: "below" as const,
       windowPosition: { x: 80, y: 400 },
-      windowSize: { width: 260, height: 140 },
+      windowSize: { width: 260, height: 48 + SETTINGS_WINDOW_EXTRA_HEIGHT },
       restore: { layout: "collapsed" as const, position: { x: 80, y: 400 } },
     }));
     const closeSettingsWindow = vi.fn(async () => undefined);
