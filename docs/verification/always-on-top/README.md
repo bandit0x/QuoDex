@@ -14,12 +14,20 @@
 
 ## 实现与来源
 
-- 来源基线：`aa6cc96dbfb9d230ac83879818929596ed8ddbf0`；实现版本为包含本记录的本地 `codex/always-on-top` 提交，产品版本 `0.3.0`。
+- 来源基线：`aa6cc96dbfb9d230ac83879818929596ed8ddbf0`；实现版本：`0815a34e9de42f8f08339546d0adbee3e8cb56f2`，后续提交仅更新交付记录，产品版本 `0.3.0`。
 - 设置面板新增默认开启的“置于顶层”；兼容没有该字段的旧偏好，并在重启时恢复选择。
 - 原生主线程应用策略、读回确认后原子保存；保存失败精确回滚。启动诊断独立于偏好读取，避免重试覆盖其他选择。
 - 失败置顶意图与普通编辑隔离；回滚失败后读回真实状态，无法确认时提示并禁用开关，保留显式重试。
 - 交付包：`release/macos/QuoDex-always-on-top.app`，含现有打包流程要求的 Codex runtime；ad-hoc 签名校验通过。
 - 应用可执行文件 SHA-256：`f7a32063bd337c072b80f1a25b366301f3f7c877fd2b9fbd5cc4c0384bdcd85c`。
+
+### v0.3.0 热修安装包
+
+本次热修沿用现有 [v0.3.0 发布页](https://github.com/bandit0x/QuoDex/releases/tag/v0.3.0)，仅更新 macOS 安装包。原 `v0.3.0` 标签及 Windows 安装器保留原始来源 `4ff14fd8cc2451ecff99a64379cff5c4d69c70df`；GitHub 自动生成的标签源码压缩包仍对应该原始版本。热修源码见上述实现提交，发布页另提供其固定提交源码链接。
+
+安装包 `QuoDex_0.3.0_aarch64.dmg` 为 `101631743` 字节，SHA-256 为 `df7876ecd3f4ffffbfe44cde4d41cd762f192cf55a7b0b2eb9e31a3a61dc020e`。`hdiutil verify` 通过；只读挂载后验证 arm64 架构、产品版本 `0.3.0`、包内可执行文件哈希与交付 App 一致，严格签名通过，Codex runtime 为 `0.147.0`，安装入口正确指向 `/Applications`，未包含测试环境配置。机器可读证据见 [release-package.json](release-package.json)。
+
+Windows 安装包保留原资产及 SHA-256：`1490e2bd8001f1408ba3b81df76bf367e71b365b5893043ceeac8971d81fdaa4`。热修发布结果与远程校验信息以发布页为准；本记录的游戏验收状态不因发布改变。
 
 ## 验证环境与检查
 

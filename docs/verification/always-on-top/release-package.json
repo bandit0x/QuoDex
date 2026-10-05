@@ -1,0 +1,16 @@
+{
+  "asset": "QuoDex_0.3.0_aarch64.dmg",
+  "size": 101631743,
+  "sha256": "df7876ecd3f4ffffbfe44cde4d41cd762f192cf55a7b0b2eb9e31a3a61dc020e",
+  "executableSha256": "f7a32063bd337c072b80f1a25b366301f3f7c877fd2b9fbd5cc4c0384bdcd85c",
+  "architecture": "arm64",
+  "version": "0.3.0",
+  "signature": "Verified",
+  "runtimeVersion": "codex-cli 0.147.0",
+  "dmgIntegrity": "Verified",
+  "gameAcceptance": "pending",
+  "sourceCommit": "0815a34e9de42f8f08339546d0adbee3e8cb56f2",
+  "originalTagSource": "4ff14fd8cc2451ecff99a64379cff5c4d69c70df",
+  "windowsAsset": "QuoDex-0.3.0-win-x64-setup.exe",
+  "windowsSha256": "1490e2bd8001f1408ba3b81df76bf367e71b365b5893043ceeac8971d81fdaa4"
+}
