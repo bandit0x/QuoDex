@@ -199,6 +199,37 @@ export function calendarGrid(iso) {
   return cells;
 }
 
+/**
+ * 多周热力墙（周为列、周一起始）：从 startIso 所在周的周一开始按 7 天分列，
+ * 区间 [start, endExclusive) 之外的格位为 null。columns 为"新列优先追加"的
+ * 列数组；monthLabels 给出需要绘制月份标签的列号与文案。
+ */
+export function periodHeatColumns(startIso, endExclusiveIso, limitColumns = 120) {
+  if (!startIso) return { columns: [], monthLabels: [] };
+  const startWeekMonday = addDays(startIso, -weekdayIndex(startIso));
+  const columns = [];
+  const monthLabels = [];
+  let cursor = startWeekMonday;
+  let lastMonth = null;
+  while (cursor < endExclusiveIso) {
+    if (columns.length >= limitColumns) throw new Error("period too long");
+    const column = [];
+    for (let row = 0; row < 7; row += 1) {
+      const day = addDays(cursor, row);
+      column.push(day >= startIso && day < endExclusiveIso ? day : null);
+    }
+    const month = cursor.slice(0, 7);
+    if (month !== lastMonth) {
+      const moment = parseDay(cursor);
+      monthLabels.push({ column: columns.length, label: `${moment.getUTCMonth() + 1}月` });
+      lastMonth = month;
+    }
+    columns.push(column);
+    cursor = addDays(cursor, 7);
+  }
+  return { columns, monthLabels };
+}
+
 /** 快照里单来源某日的记录与覆盖。 */
 export function sourceDayInfo(sourceSnapshot, dayIso, todayIso) {
   const hasRecord = Object.prototype.hasOwnProperty.call(sourceSnapshot.daily || {}, dayIso);

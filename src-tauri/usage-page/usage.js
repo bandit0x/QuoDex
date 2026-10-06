@@ -8,6 +8,7 @@
 
 import {
   abbrevTokens,
+  addDays,
   calendarGrid,
   eachDay,
   formatDayTitle,
@@ -16,6 +17,7 @@ import {
   mergeDayClass,
   monthTitle,
   niceTicks,
+  periodHeatColumns,
   periodRange,
   sourceDayInfo,
   sumRange,
@@ -368,6 +370,12 @@ function renderCoverage() {
   const range = currentRange();
   const { codex, zcode } = snapshotSources();
   const rows = [];
+  // 本地留存保证：账本独立于来源应用的历史清理策略。
+  const ledgerRow = document.createElement("div");
+  ledgerRow.className = "coverage-row coverage-row--ledger";
+  const counts = [codex, zcode].map(source => source?.requestCount ?? 0);
+  ledgerRow.textContent = `本地账本长期保存 · 已记录 ${formatTokens(counts[0])} + ${formatTokens(counts[1])} 条请求；来源应用只保留近期记录，保持 QuoDex 运行即自动补采`;
+  rows.push(ledgerRow);
   for (const [key, name] of SOURCES) {
     const source = key === "codex" ? codex : zcode;
     const row = document.createElement("div");
@@ -410,12 +418,29 @@ function renderCoverage() {
   els.coverage.replaceChildren(...rows);
 }
 
-/* ---------------- 月历 ---------------- */
+/* ---------------- 日历 / 期间热力 ---------------- */
 
-function monthDataset() {
+const PERIOD_HEAT_RANGES = new Set(["3m", "6m", "1y", "total"]);
+
+function calendarDataset() {
   const today = todayKey();
   const { codex, zcode } = snapshotSources();
-  const days = calendarGrid(today);
+  const periodHeat = PERIOD_HEAT_RANGES.has(state.range);
+  const range = currentRange();
+  let days;
+  let columns;
+  let monthLabels;
+  if (periodHeat) {
+    if (!range.start) {
+      return { mode: "period", today, days: [], columns: [], monthLabels: [], codexInfo: new Map(), zcodeInfo: new Map(), scale: heatScale([]) };
+    }
+    const heat = periodHeatColumns(range.start, range.endExclusive, MAX_RANGE_DAYS / 7 + 2);
+    columns = heat.columns;
+    monthLabels = heat.monthLabels;
+    days = heat.columns.flat().filter(Boolean);
+  } else {
+    days = calendarGrid(today);
+  }
   const codexInfo = new Map();
   const zcodeInfo = new Map();
   const values = [];
@@ -428,38 +453,182 @@ function monthDataset() {
     if (infoA.cls === "value") values.push(infoA.value);
     if (infoB.cls === "value") values.push(infoB.value);
   }
-  return { today, days, codexInfo, zcodeInfo, scale: heatScale(values) };
+  return {
+    mode: periodHeat ? "period" : "month",
+    today,
+    days,
+    columns,
+    monthLabels,
+    codexInfo,
+    zcodeInfo,
+    scale: heatScale(values),
+  };
 }
 
 function renderCalendar() {
-  const dataset = monthDataset();
-  els["calendar-month"].textContent = monthTitle(dataset.today);
+  const dataset = calendarDataset();
+  // 去重计数：两来源都有记录的同一天只算一天
+  const recordedDays = dataset.days.filter(day => day && mergeDayClass([
+    dataset.codexInfo.get(day).cls,
+    dataset.zcodeInfo.get(day).cls,
+  ]) === "value").length;
   const monthTotal = [...dataset.codexInfo.values()].reduce((sum, info) => sum + (info.cls === "value" ? info.value : 0), 0)
     + [...dataset.zcodeInfo.values()].reduce((sum, info) => sum + (info.cls === "value" ? info.value : 0), 0);
-  els["month-total"].textContent = formatTokens(monthTotal);
-  els["month-total-note"].textContent = anyStale() ? "（含未更新数据）" : "";
+
+  const head = document.querySelector(".calendar-section .section-head");
+  const monthLabel = document.getElementById("calendar-month");
+  const note = head?.querySelector(".section-note");
+  const totalWrap = document.querySelector(".month-total");
+  if (dataset.mode === "period") {
+    const range = currentRange();
+    if (monthLabel) monthLabel.textContent = range.start
+      ? `期间热力 · ${range.start.replaceAll("-", ".")} — ${range.today.replaceAll("-", ".")}`
+      : "期间热力 · 暂无起点";
+    if (note) note.textContent = "同一日期的用量随区间范围积累展示";
+    if (totalWrap) {
+      totalWrap.replaceChildren(
+        document.createTextNode(`本期已记录 ${formatTokens(recordedDays)} 天 · 合计 `),
+      );
+      const strong = document.createElement("strong");
+      strong.id = "month-total";
+      strong.textContent = formatTokens(monthTotal);
+      totalWrap.append(strong, document.createTextNode(" tokens"));
+      const staleNote = document.createElement("span");
+      staleNote.id = "month-total-note";
+      staleNote.className = "section-note";
+      staleNote.textContent = anyStale() ? "（含未更新数据）" : "";
+      totalWrap.append(staleNote);
+    }
+  } else {
+    if (monthLabel) monthLabel.textContent = monthTitle(dataset.today);
+    if (note) note.textContent = "本月已记录用量，与上方区间独立";
+    if (totalWrap) {
+      totalWrap.replaceChildren(document.createTextNode("本月合计 "));
+      const strong = document.createElement("strong");
+      strong.id = "month-total";
+      strong.textContent = formatTokens(monthTotal);
+      totalWrap.append(strong, document.createTextNode(" tokens"));
+      const staleNote = document.createElement("span");
+      staleNote.id = "month-total-note";
+      staleNote.className = "section-note";
+      staleNote.textContent = anyStale() ? "（含未更新数据）" : "";
+      totalWrap.append(staleNote);
+    }
+  }
 
   const grid = els.calendar;
   grid.replaceChildren();
-  for (const label of ["一", "二", "三", "四", "五", "六", "日"]) {
-    const head = document.createElement("span");
-    head.className = "calendar-weekday";
-    head.setAttribute("role", "columnheader");
-    head.textContent = label;
-    grid.append(head);
-  }
-  for (const day of dataset.days) {
-    if (!day) {
-      const pad = document.createElement("span");
-      pad.className = "calendar-cell calendar-cell--pad";
-      pad.setAttribute("aria-hidden", "true");
-      grid.append(pad);
-      continue;
+  if (dataset.mode === "period") {
+    renderPeriodHeat(grid, dataset);
+  } else {
+    grid.removeAttribute("data-mode");
+    for (const label of ["一", "二", "三", "四", "五", "六", "日"]) {
+      const head = document.createElement("span");
+      head.className = "calendar-weekday";
+      head.setAttribute("role", "columnheader");
+      head.textContent = label;
+      grid.append(head);
     }
-    grid.append(calendarCell(day, dataset));
+    for (const day of dataset.days) {
+      if (!day) {
+        const pad = document.createElement("span");
+        pad.className = "calendar-cell calendar-cell--pad";
+        pad.setAttribute("aria-hidden", "true");
+        grid.append(pad);
+        continue;
+      }
+      grid.append(calendarCell(day, dataset));
+    }
   }
   renderDayDetail(dataset);
   renderLegend(dataset);
+}
+
+function renderPeriodHeat(grid, dataset) {
+  grid.setAttribute("data-mode", "period");
+  const wrap = document.createElement("div");
+  wrap.className = "heat-wrap";
+  const months = document.createElement("div");
+  months.className = "heat-months";
+  months.setAttribute("aria-hidden", "true");
+  months.style.width = `${Math.max(dataset.columns.length, 1) * 18}px`;
+  for (const { column, label } of dataset.monthLabels) {
+    const span = document.createElement("span");
+    span.style.left = `${column * 18}px`;
+    span.textContent = label;
+    months.append(span);
+  }
+  const body = document.createElement("div");
+  body.className = "heat-body";
+  const weekdays = document.createElement("div");
+  weekdays.className = "heat-weekdays";
+  for (const label of ["一", "二", "三", "四", "五", "六", "日"]) {
+    const item = document.createElement("span");
+    item.textContent = label;
+    weekdays.append(item);
+  }
+  // 月份标签与格子放在同一个横向滚动容器里，随格子一起滚动、一起裁剪。
+  const scroll = document.createElement("div");
+  scroll.className = "heat-scroll";
+  scroll.append(months);
+  const columns = document.createElement("div");
+  columns.className = "heat-columns";
+  columns.style.gridTemplateColumns = `repeat(${Math.max(dataset.columns.length, 1)}, 15px)`;
+  for (const column of dataset.columns) {
+    for (const day of column) {
+      if (!day) {
+        const pad = document.createElement("span");
+        pad.className = "heat-cell heat-cell--pad";
+        pad.setAttribute("aria-hidden", "true");
+        columns.append(pad);
+        continue;
+      }
+      columns.append(heatCell(day, dataset));
+    }
+  }
+  scroll.append(columns);
+  body.append(weekdays, scroll);
+  wrap.append(body);
+  grid.append(wrap);
+  // 切换区间后停在最新一端（右侧）：空白的更早历史不必是第一眼。
+  const heatKey = `${state.range}|${state.view}`;
+  if (lastHeatScrollKey !== heatKey) {
+    lastHeatScrollKey = heatKey;
+    requestAnimationFrame(() => {
+      scroll.scrollLeft = scroll.scrollWidth;
+    });
+  }
+}
+
+let lastHeatScrollKey = null;
+
+function heatCell(day, dataset) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "heat-cell";
+  button.dataset.day = day;
+  const codexInfo = dataset.codexInfo.get(day);
+  const zcodeInfo = dataset.zcodeInfo.get(day);
+  const merged = mergeDayClass([codexInfo.cls, zcodeInfo.cls]);
+  button.dataset.state = merged;
+  if (merged === "value") {
+    const total = (codexInfo.cls === "value" ? codexInfo.value : 0) + (zcodeInfo.cls === "value" ? zcodeInfo.value : 0);
+    button.dataset.level = dataset.scale.level(total);
+    button.title = `${formatDayTitle(day)}：${formatTokens(total)} tokens`;
+  } else if (merged === "zero") {
+    button.title = `${formatDayTitle(day)}：已确认 0`;
+  } else {
+    button.title = `${formatDayTitle(day)}：无可核对记录`;
+  }
+  const selected = state.selectedDay === day;
+  button.dataset.selected = selected;
+  button.setAttribute("aria-pressed", selected);
+  button.setAttribute("aria-label", button.title);
+  button.addEventListener("click", () => {
+    state.selectedDay = day;
+    render();
+  });
+  return button;
 }
 
 function calendarCell(day, dataset) {
@@ -594,7 +763,9 @@ function renderDayDetail(dataset) {
   title.textContent = formatDayTitle(day);
   const sub = document.createElement("span");
   sub.className = "day-detail-sub";
-  sub.textContent = "本月日期详情，不随上方区间筛选";
+  sub.textContent = dataset.mode === "period"
+    ? "期间日期详情，点击热力格切换日期"
+    : "本月日期详情，不随上方区间筛选";
   detail.append(title, sub);
 
   const merged = mergeDayClass([codexInfo.cls, zcodeInfo.cls]);
@@ -659,9 +830,13 @@ function renderLegend(dataset) {
   legend.className = "legend";
   const caption = document.createElement("span");
   caption.className = "legend-caption";
-  caption.textContent = dataset.scale.peak > 0
-    ? (state.view === "split" ? "两来源共用五档阈值 · 按本月已记录日峰值" : "按本月已记录日峰值")
-    : "本月已记录用量均为 0 或缺失";
+  if (dataset.scale.peak > 0) {
+    caption.textContent = dataset.mode === "period"
+      ? (state.view === "split" ? "两来源共用五档阈值 · 按所选期间已记录日峰值" : "按所选期间已记录日峰值")
+      : (state.view === "split" ? "两来源共用五档阈值 · 按本月已记录日峰值" : "按本月已记录日峰值");
+  } else {
+    caption.textContent = dataset.mode === "period" ? "所选期间已记录用量均为 0 或缺失" : "本月已记录用量均为 0 或缺失";
+  }
   const scale = document.createElement("div");
   scale.className = "legend-scale";
   const low = document.createElement("span");
@@ -791,8 +966,9 @@ function mergedTrendChart(codexSeries, zcodeSeries, days) {
   card.append(buildChartSvg(
     days,
     [
-      { series: codexSeries, color: "rgba(94, 211, 255, 0.55)", edge: "rgba(94, 211, 255, 0.9)", baselineOf: point => 0 },
+      { name: "Codex", series: codexSeries, color: "rgba(94, 211, 255, 0.55)", edge: "rgba(94, 211, 255, 0.9)", baselineOf: point => 0 },
       {
+        name: "ZCode",
         series: zcodeSeries,
         color: "rgba(88, 242, 171, 0.5)",
         edge: "rgba(88, 242, 171, 0.9)",
@@ -833,7 +1009,7 @@ function trendChart(sourceKey, name, series, sharedMax, days) {
   }
   head.append(title, time, recent);
   card.append(head);
-  card.append(buildChartSvg(days, [{ series, color: sourceKey === "codex" ? "rgba(94, 211, 255, 0.5)" : "rgba(88, 242, 171, 0.5)", edge: sourceKey === "codex" ? "rgba(94, 211, 255, 0.9)" : "rgba(88, 242, 171, 0.9)", baselineOf: () => 0 }], Math.max(sharedMax, 1), sourceKey));
+  card.append(buildChartSvg(days, [{ name, series, color: sourceKey === "codex" ? "rgba(94, 211, 255, 0.5)" : "rgba(88, 242, 171, 0.5)", edge: sourceKey === "codex" ? "rgba(94, 211, 255, 0.9)" : "rgba(88, 242, 171, 0.9)", baselineOf: () => 0 }], Math.max(sharedMax, 1), sourceKey));
   return card;
 }
 
@@ -977,6 +1153,108 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     label.style.fontVariantNumeric = "tabular-nums";
     wrapper.append(label);
   }
+
+  /* ---- 悬停/触摸/键盘交互：十字线 + 来源标记点 + 精确数浮层 ---- */
+  wrapper.tabIndex = 0;
+  wrapper.setAttribute("aria-label", "每日用量趋势；聚焦后用左右方向键逐日查看精确数值");
+  const crosshair = document.createElement("div");
+  crosshair.className = "trend-crosshair";
+  crosshair.hidden = true;
+  body.append(crosshair);
+  const markers = layers.map(() => {
+    const dot = document.createElement("div");
+    dot.className = "trend-dot";
+    dot.hidden = true;
+    body.append(dot);
+    return dot;
+  });
+  const tooltip = document.createElement("div");
+  tooltip.className = "trend-tooltip";
+  tooltip.hidden = true;
+  tooltip.setAttribute("role", "status");
+  wrapper.append(tooltip);
+  let activeIndex = null;
+
+  const setActive = index => {
+    if (index === null || !days.length) {
+      activeIndex = null;
+      crosshair.hidden = true;
+      markers.forEach(dot => { dot.hidden = true; });
+      tooltip.hidden = true;
+      return;
+    }
+    activeIndex = Math.max(0, Math.min(days.length - 1, index));
+    const fraction = days.length > 1 ? activeIndex / (days.length - 1) : 0.5;
+    crosshair.hidden = false;
+    crosshair.style.left = `${fraction * 100}%`;
+    const rows = [];
+    let total = 0;
+    let totalKnown = false;
+    layers.forEach((layer, position) => {
+      const point = layer.series.points[activeIndex];
+      const dot = markers[position];
+      if (point.cls === "value") {
+        dot.hidden = false;
+        dot.style.left = `${fraction * 100}%`;
+        dot.style.top = `${(yAt(layer.baselineOf(point) + point.value) / height) * 100}%`;
+        rows.push(`${layer.name} ${formatTokens(point.value)}`);
+        total += point.value;
+        totalKnown = true;
+      } else if (point.cls === "zero") {
+        dot.hidden = true;
+        rows.push(`${layer.name} 0（已确认）`);
+      } else {
+        dot.hidden = true;
+        rows.push(`${layer.name} 无可核对记录`);
+      }
+    });
+    const day = days[activeIndex];
+    const lines = [`${day.replaceAll("-", ".")} ${formatDayTitle(day).split(" · ")[1] ?? ""}`, ...rows];
+    if (layers.length > 1 && totalKnown) lines.push(`合计 ${formatTokens(total)}`);
+    tooltip.textContent = lines.join(" · ");
+    tooltip.hidden = false;
+    tooltip.style.visibility = "hidden";
+    requestAnimationFrame(() => {
+      const bodyWidth = body.clientWidth;
+      const width = tooltip.offsetWidth;
+      const x = Math.max(0, Math.min(fraction * bodyWidth + 10, bodyWidth - width - 2));
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = "6px";
+      tooltip.style.visibility = "visible";
+    });
+  };
+
+  body.addEventListener("pointermove", event => {
+    if (!days.length) return;
+    const rect = body.getBoundingClientRect();
+    const fraction = (event.clientX - rect.left) / rect.width;
+    setActive(Math.round(fraction * (days.length - 1)));
+  });
+  body.addEventListener("pointerleave", () => {
+    if (document.activeElement !== wrapper) setActive(null);
+  });
+  wrapper.addEventListener("keydown", event => {
+    if (!days.length) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setActive((activeIndex ?? days.length - 1) - 1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setActive((activeIndex ?? days.length - 2) + 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActive(days.length - 1);
+    } else if (event.key === "Escape") {
+      setActive(null);
+    }
+  });
+  wrapper.addEventListener("focus", () => {
+    if (activeIndex === null) setActive(days.length - 1);
+  });
+  wrapper.addEventListener("blur", () => setActive(null));
   return wrapper;
 }
 

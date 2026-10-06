@@ -10,6 +10,7 @@ import {
   mergeDayClass,
   minusMonthsClamped,
   niceTicks,
+  periodHeatColumns,
   periodRange,
   sourceDayInfo,
   sumRange,
@@ -176,6 +177,37 @@ describe("月历网格与星期", () => {
   it("todayKey 取本机日期而非 UTC", () => {
     const now = new Date(2026, 9, 6, 23, 30);
     expect(todayKey(now)).toBe("2026-10-06");
+  });
+});
+
+describe("periodHeatColumns 多周热力墙", () => {
+  it("从起始周的周一开始分列，区间外补 null，月份标签落在新月首列", () => {
+    // 2026-10-05 是周一；从 10-05 起两周：第一列 10-05..10-11，第二列 10-12..10-15（区间止于 10-16）
+    const heat = periodHeatColumns("2026-10-05", "2026-10-16");
+    expect(heat.columns).toHaveLength(2);
+    expect(heat.columns[0][0]).toBe("2026-10-05");
+    expect(heat.columns[0][6]).toBe("2026-10-11");
+    expect(heat.columns[1][0]).toBe("2026-10-12");
+    expect(heat.columns[1][3]).toBe("2026-10-15");
+    expect(heat.columns[1][4]).toBeNull();
+    expect(heat.monthLabels).toEqual([{ column: 0, label: "10月" }]);
+  });
+
+  it("起始日非周一：前导 null 对齐周一，跨越月份时补月份标签", () => {
+    // 2026-10-01 是周四：首列前三个格位为 null
+    const heat = periodHeatColumns("2026-10-01", "2026-11-04");
+    expect(heat.columns[0][0]).toBeNull();
+    expect(heat.columns[0][1]).toBeNull();
+    expect(heat.columns[0][2]).toBeNull();
+    expect(heat.columns[0][3]).toBe("2026-10-01");
+    expect(heat.columns[4][6]).toBe("2026-11-01");
+    const labels = heat.monthLabels.map(item => item.label);
+    expect(labels).toContain("10月");
+    expect(labels).toContain("11月");
+  });
+
+  it("空起点返回空结构", () => {
+    expect(periodHeatColumns(null, "2026-10-07")).toEqual({ columns: [], monthLabels: [] });
   });
 });
 
