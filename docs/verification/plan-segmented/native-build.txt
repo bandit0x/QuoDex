@@ -1,0 +1,2 @@
+   Compiling codex-credits-view v0.3.0 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
+    Finished `release` profile [optimized] target(s) in 24.60s

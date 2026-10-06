@@ -1,0 +1,24 @@
+{
+  "feature": "ZCode 套餐切换 · 液体玻璃分段控件（替换原生 select）",
+  "sourceVersion": "0.3.0",
+  "baseline": "e5a3328e6eb582e69c4b8891a2135da4881838e0",
+  "environment": "macOS 27.0 arm64, Retina 2x; 隔离 QA 副本 (fixtures/task-capsules-macos.py --launch-services), 匿名夹具数据, 生产 release 二进制 (cargo build --release --features tauri/custom-protocol)",
+  "screenshots": [
+    { "file": "native-coding.png", "sha256": "19a47fdda7e41d056ca7e7bd3b8f6e9d3df63c083aa251c992d23b4c43c9e513", "origin": "最终打包 QA App 真实窗口, 个人套餐选中, 无裁剪重绘" },
+    { "file": "native-start.png", "sha256": "4bc526d0350c2eaa525e25645ebd7c1eadbbb58dec54ff0cd1e4637b8e221f9a", "origin": "最终打包 QA App 真实窗口, 体验套餐选中, 无裁剪重绘" }
+  ],
+  "checks": [
+    "tsc --noEmit 通过",
+    "vitest 12 文件 144 项全部通过 (含更新的两处套餐断言: radiogroup/radio 角色)",
+    "vite 生产构建通过; cargo release (custom-protocol) 通过",
+    "原生旅程: 右键开设置 -> 点 ZCode 透镜 -> 套餐分段控件出现, 个人选中态与夹具 zcodePlan=coding 一致",
+    "原生点击体验段: 指示器滑至体验, display-preferences.json 落盘 zcodePlan=start",
+    "原生键盘: 焦点在控件上按右方向键, 落盘偏好翻回 zcodePlan=coding (radiogroup 方向键导航)",
+    "QA App 通过自身退出按钮关闭, fixture 进程干净退出"
+  ],
+  "knownLimitations": [
+    "控制仅展示于 zcode 来源的展开设置面板 (沿用原 select 的显示条件)",
+    "分段文案为体验/个人两字短标签, 完整名称由 aria-label 提供给读屏",
+    "未覆盖 Windows WebView2 下的原生渲染截图 (本机为 macOS)"
+  ]
+}

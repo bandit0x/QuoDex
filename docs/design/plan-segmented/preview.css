@@ -1,0 +1,22 @@
+body { margin: 0; background: #07131d; }
+.design-board { display: flex; flex-direction: column; gap: 28px; padding: 32px 40px 48px; }
+.design-board header h1 { margin: 0 0 6px; font-size: 22px; color: #f0fbff; }
+.design-board header p { margin: 0; font-size: 13px; color: #afc3d2; }
+.board-row { display: flex; gap: 28px; align-items: flex-start; }
+.board-row figure { margin: 0; display: grid; gap: 10px; }
+.board-row figcaption { font-size: 13px; color: #8fa9b8; }
+.board-window {
+  position: relative; width: 600px; height: 352px; overflow: hidden;
+  border-radius: 18px; border: 1px solid rgba(120, 180, 210, .22);
+  background: radial-gradient(ellipse at 50% -10%, #10344a, #061521 68%);
+}
+.dock-stage { position: relative; width: 600px; height: 352px; transform-origin: top left; }
+.dock-stage-clip { width: 600px; height: 352px; overflow: hidden; }
+.board-zoom { display: flex; gap: 20px; }
+.board-zoom-half {
+  width: 480px; height: 300px; overflow: hidden; border-radius: 18px;
+  border: 1px solid rgba(120, 180, 210, .22);
+  background: radial-gradient(ellipse at 50% -10%, #10344a, #061521 68%);
+}
+.board-zoom-half .dock-stage-clip { width: 600px; height: 352px; }
+.dock-stage-mask { position: absolute; inset: 0; top: 190px; background: linear-gradient(180deg, transparent, #07131d 84%); pointer-events: none; }
