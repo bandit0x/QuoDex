@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'" />
+  <title>QuoDex · 用量统计</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="/usage.css" />
+</head>
+<body>
+  <div class="ocean-backdrop" aria-hidden="true">
+    <div class="ocean-band ocean-band--1"></div>
+    <div class="ocean-band ocean-band--2"></div>
+    <div class="ocean-band ocean-band--3"></div>
+    <div class="ocean-floor"></div>
+  </div>
+
+  <main class="page" id="app">
+    <header class="page-header">
+      <div class="brand">
+        <span class="brand-name">QuoDex</span>
+        <h1 class="page-title">用量统计</h1>
+        <span class="scope">本机所有项目 · 已记录用量</span>
+      </div>
+      <div class="header-status">
+        <span id="updated-line" class="updated-line" role="status"></span>
+        <button id="refresh-btn" class="pill pill--action" type="button">刷新</button>
+      </div>
+    </header>
+
+    <nav class="controls" aria-label="统计区间与显示模式">
+      <div class="range-group" role="group" aria-label="时间区间" id="range-group"></div>
+      <span class="controls-divider" aria-hidden="true"></span>
+      <div class="view-group" role="group" aria-label="显示模式" id="view-group"></div>
+      <span id="range-dates" class="range-dates"></span>
+    </nav>
+
+    <section id="banner" class="banner" hidden></section>
+
+    <section class="glass-panel totals" aria-live="polite">
+      <div class="totals-main">
+        <span class="totals-label" id="totals-label">已记录用量</span>
+        <div class="totals-value">
+          <span class="totals-number" id="totals-number">—</span>
+          <span class="totals-unit">tokens</span>
+        </div>
+        <span class="totals-note" id="totals-note"></span>
+      </div>
+      <div class="source-figures" id="source-figures"></div>
+    </section>
+
+    <section class="coverage" id="coverage" aria-live="polite"></section>
+
+    <section class="glass-panel calendar-section">
+      <div class="section-head">
+        <h2>本月日历 · <span id="calendar-month"></span></h2>
+        <span class="section-note">本月已记录用量，与上方区间独立</span>
+        <span class="month-total">本月合计 <strong id="month-total">—</strong> tokens<span id="month-total-note" class="section-note"></span></span>
+      </div>
+      <div class="calendar-layout">
+        <div class="calendar" id="calendar" role="grid" aria-label="本月用量日历"></div>
+        <aside class="day-detail" id="day-detail"></aside>
+      </div>
+    </section>
+
+    <section class="glass-panel trend-section">
+      <div class="section-head">
+        <h2>区间趋势</h2>
+        <span class="section-note" id="trend-gap-note"></span>
+        <span class="section-note" id="trend-dates" style="margin-left:auto"></span>
+      </div>
+      <div class="trend-charts" id="trend-charts"></div>
+      <p class="trend-caption">仅统计本机仍留存的记录；缺失历史不等于零用量。精确数字以千位分隔显示，图表刻度为缩写。</p>
+    </section>
+  </main>
+
+  <footer class="page-footer" aria-hidden="true"></footer>
+  <noscript>本页需要启用 JavaScript 才能显示用量统计。</noscript>
+  <script type="module" src="/usage.js"></script>
+</body>
+</html>

@@ -6,6 +6,10 @@ mod preferences;
 mod task_material;
 mod task_status;
 mod tomato_cloud;
+mod usage_ledger;
+mod usage_server;
+mod usage_service;
+mod usage_sources;
 mod window_pin;
 mod zcode_quota;
 mod zcode_resets;
@@ -222,6 +226,49 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// 用量统计入口：确保本机只读服务已启动，并把页面交给系统默认浏览器。
+/// 准备失败报 QUT-701，派发失败报 QUT-702；网页自身的诊断走 QDU-7xx。
+#[tauri::command]
+async fn usage_page_open(runtime: State<'_, UsageRuntime>) -> Result<String, Diagnostic> {
+    let needs_start = runtime
+        .server
+        .lock()
+        .expect("usage server lock")
+        .is_none();
+    if needs_start {
+        let server =
+            usage_server::UsageServer::start(std::sync::Arc::clone(&runtime.service)).await?;
+        *runtime.server.lock().expect("usage server lock") = Some(server);
+    }
+    let url = runtime
+        .server
+        .lock()
+        .expect("usage server lock")
+        .as_ref()
+        .expect("usage server present")
+        .url
+        .clone();
+    open::that(&url).map_err(|error| {
+        Diagnostic::new("QUT-702", "无法打开默认浏览器；请检查系统默认浏览器后重试")
+            .with_detail(error.to_string())
+    })?;
+    Ok(url)
+}
+
+/// 用量统计运行时：共享采集服务与懒启动的本机服务。
+struct UsageRuntime {
+    service: std::sync::Arc<usage_service::UsageService>,
+    server: std::sync::Mutex<Option<usage_server::UsageServer>>,
+}
+
+fn usage_home_dir() -> std::path::PathBuf {
+    std::env::var_os("ZCODE_DATA_BASE_DIR")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .or_else(|| std::env::var_os("HOME"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -248,6 +295,36 @@ pub fn run() {
                 window_pin::initialize(&window, store.load().always_on_top);
                 restore_window_position(&window, &store);
             }
+            // 用量统计：账本落在配置目录，来源按本机 home 解析；启动即开始采集，
+            // 本机只读服务随之常驻（127.0.0.1 随机端口），入口点击仅在未就绪时兜底。
+            let config_dir = std::env::var_os("CODEX_CREDITS_CONFIG_DIR")
+                .map(std::path::PathBuf::from)
+                .or_else(|| app.path().app_config_dir().ok())
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let usage_service = std::sync::Arc::new(usage_service::UsageService::new(
+                usage_home_dir(),
+                config_dir.join("usage-ledger.sqlite"),
+            ));
+            let _ = usage_service.spawn_refresh_loop();
+            app.manage(UsageRuntime {
+                service: usage_service.clone(),
+                server: std::sync::Mutex::new(None),
+            });
+            let usage_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match usage_server::UsageServer::start(usage_service).await {
+                    Ok(server) => {
+                        *usage_handle
+                            .state::<UsageRuntime>()
+                            .server
+                            .lock()
+                            .expect("usage server lock") = Some(server);
+                    }
+                    Err(diagnostic) => {
+                        eprintln!("usage page server failed to start: {diagnostic}");
+                    }
+                }
+            });
             setup_tray(app)?;
             Ok(())
         })
@@ -289,6 +366,7 @@ pub fn run() {
             window_pin::read_window_pin_diagnostics,
             window_pin::read_window_pin_startup_diagnostic,
             enable_temporary_click_through,
+            usage_page_open,
             quit_app
         ])
         .build(tauri::generate_context!())

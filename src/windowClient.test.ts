@@ -17,7 +17,7 @@ describe("half-scale overlay layouts", () => {
       );
       const settingsBudget = presentation.windowSize.height
         - overlayLayoutSizes[presentation.baseLayout].height - TASK_ROW_HEIGHT;
-      expect(settingsBudget).toBe(124); // 36px lenses + 6px gap + 76px controls + 6px quota gap
+      expect(settingsBudget).toBe(164); // 36px lenses + 6px gap + 116px controls (three rows incl. usage entry) + 6px quota gap
       expect(presentation.placement).toBe("below");
       expect(presentation.baseLayout).toBe(layout);
       expect(presentation.restore).toEqual({ layout, position: { x: 100, y }, taskSpace: TASK_ROW_HEIGHT });
@@ -43,11 +43,11 @@ describe("half-scale overlay layouts", () => {
     expect(presentation.placement).toBe("below");
     expect(presentation.windowPosition).toEqual({
       x: 1480,
-      y: 786,
+      y: 746,
     });
     expect(presentation.windowSize).toEqual({
       width: 300,
-      height: 254,
+      height: 294,
     });
     expect(presentation.restore).toEqual({
       layout: "compact",
@@ -64,7 +64,7 @@ describe("half-scale overlay layouts", () => {
 
     expect(presentation.placement).toBe("below");
     expect(presentation.baseLayout).toBe("collapsed");
-    expect(presentation.windowSize).toEqual({ width: 260, height: 172 });
+    expect(presentation.windowSize).toEqual({ width: 260, height: 212 });
     expect(presentation.windowPosition).toEqual({ x: 32, y: 20 });
     expect(presentation.restore.layout).toBe("collapsed");
   });
@@ -91,6 +91,6 @@ describe("half-scale overlay layouts", () => {
     const area = { left: 0, top: 0, width: 1920, height: 1040 };
     const plan = planSettingsWindowPresentation("compact", { x: 1480, y: 840 }, area);
     expect(planSettingsWindowRestore(plan, plan.windowPosition, area, 0)).toEqual({ x: 1480, y: 840 });
-    expect(planSettingsWindowRestore(plan, { x: 1500, y: 850 }, area, 0)).toEqual({ x: 1500, y: 904 });
+    expect(planSettingsWindowRestore(plan, { x: 1500, y: 850 }, area, 0)).toEqual({ x: 1500, y: 910 });
   });
 });

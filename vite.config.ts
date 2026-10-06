@@ -12,6 +12,8 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: true,
+    // .scratch 是研究/发布模拟产物，不是产品测试；其中的 mock 应用包无法被解析。
+    exclude: ["**/node_modules/**", "**/.scratch/**"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

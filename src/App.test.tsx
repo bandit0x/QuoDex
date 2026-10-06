@@ -57,7 +57,7 @@ describe("window pin preferences", () => {
     expect(screen.queryByText("已保存")).not.toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "透明度" })).toHaveValue("0.88");
     expect(screen.getByRole("checkbox", { name: "减少动效" })).toBeChecked();
-    expect(screen.getByRole("combobox", { name: "ZCode 套餐" })).toHaveValue("coding");
+    expect(screen.getByRole("radio", { name: "个人套餐" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "置于顶层" })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
     await screen.findByText("已保存");
@@ -1180,12 +1180,11 @@ describe("dual quota sources", () => {
 
     await user.click(screen.getByRole("button", { name: "展开重置详情" }));
     await user.click(screen.getByRole("button", { name: "设置" }));
-    const planSelect = screen.getByRole("combobox", { name: "ZCode 套餐" });
-    expect(planSelect).toHaveValue("start");
+    expect(screen.getByRole("radio", { name: "体验套餐" })).toBeChecked();
 
     // 万一用户不想盯体验套餐的消耗：切到个人套餐后立即按新偏好重探
-    await user.selectOptions(planSelect, "coding");
-    expect(planSelect).toHaveValue("coding");
+    await user.click(screen.getByRole("radio", { name: "个人套餐" }));
+    expect(screen.getByRole("radio", { name: "个人套餐" })).toBeChecked();
     expect(saved[saved.length - 1].zcodePlan).toBe("coding");
     await waitFor(() => expect(zcodeCalls).toEqual(["start", "coding"]));
   });

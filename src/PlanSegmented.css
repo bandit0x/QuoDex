@@ -1,0 +1,49 @@
+/* 套餐分段选择：凹陷轨道 + 薄荷绿玻璃透镜滑块，语言对齐 dock 顶部的 glass-lens 源切换。 */
+.plan-segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  height: 36px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 10, 18, .45);
+  box-shadow: inset 0 3px 6px rgba(0, 3, 8, .72), inset 0 -1px 0 rgba(205, 243, 255, .16), 0 1px 0 rgba(205, 243, 255, .22);
+}
+.plan-segmented-indicator {
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  border: 1px solid rgba(88, 242, 171, .55);
+  background: radial-gradient(ellipse at 50% 112%, rgba(88, 242, 171, .38), transparent 72%), linear-gradient(180deg, rgba(190, 244, 255, .14), rgba(8, 40, 44, .55));
+  box-shadow: inset 0 1px 1px rgba(240, 255, 250, .55), inset 0 -5px 7px rgba(88, 242, 171, .42), 0 3px 6px rgba(0, 5, 14, .45);
+  transition: transform 200ms var(--ease-out-expo);
+}
+.plan-segmented[data-plan="coding"] .plan-segmented-indicator { transform: translateX(100%); }
+.plan-segmented button {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #afc3d2;
+  font-size: 20px;
+  font-weight: 500;
+  text-shadow: inherit;
+  white-space: nowrap;
+  transition: color 130ms ease-out;
+}
+.plan-segmented button:hover { color: #d9edf6; }
+.plan-segmented button[aria-checked="true"] { color: #f0fbff; font-weight: 620; }
+.plan-segmented button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .plan-segmented-indicator { transition: none; }
+}

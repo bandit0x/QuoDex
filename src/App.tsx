@@ -9,7 +9,7 @@ import type { ChatTask, TaskStatusSnapshot } from "./taskStatusTypes";
 import { FluidReservoir } from "./FluidReservoir";
 import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
-import { SettingsDock, type PreferenceSaveState } from "./SettingsDock";
+import { SettingsDock, type PreferenceSaveState, type UsageEntryState } from "./SettingsDock";
 import {
   enableTemporaryClickThrough,
   loadDisplayPreferences,
@@ -18,6 +18,7 @@ import {
   saveDisplayPreferences,
 } from "./capacityClient";
 import { readTomatoConnection } from "./tomatoClient";
+import { openUsagePage } from "./usageClient";
 import { readZcodeQuotaSnapshot } from "./zcodeClient";
 import type {
   CapacitySnapshot,
@@ -52,8 +53,7 @@ import {
   setOverlayTaskSpace,
   TASK_ROW_HEIGHT,
   TASK_POPOVER_HEIGHT,
-  SETTINGS_WINDOW_EXTRA_HEIGHT,
-  SETTINGS_ERROR_EXTRA_HEIGHT,
+  planSettingsExtraHeight,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -598,6 +598,26 @@ export function App({
   const [preferenceSaveState, setPreferenceSaveState] = useState<PreferenceSaveState>("idle");
   const [pendingPreferenceSaves, setPendingPreferenceSaves] = useState(0);
   const [preferenceSaveError, setPreferenceSaveError] = useState<Diagnostic | null>(null);
+  // 用量统计入口：idle → opening（防重复派发）→ requested（1.6s 后复位）；失败走独立错误轨。
+  const [usageEntryState, setUsageEntryState] = useState<UsageEntryState>("idle");
+  const [usageOpenError, setUsageOpenError] = useState<Diagnostic | null>(null);
+  const usageEntryTimer = useRef<number | null>(null);
+  const openUsagePageEntry = useCallback(() => {
+    if (usageEntryState === "opening") return;
+    setUsageOpenError(null);
+    setUsageEntryState("opening");
+    openUsagePage().then(() => {
+      setUsageEntryState("requested");
+      if (usageEntryTimer.current !== null) window.clearTimeout(usageEntryTimer.current);
+      usageEntryTimer.current = window.setTimeout(() => setUsageEntryState("idle"), 1600);
+    }).catch((error: unknown) => {
+      setUsageEntryState("idle");
+      setUsageOpenError(normalizeDiagnostic(error, "用量统计"));
+    });
+  }, [usageEntryState]);
+  useEffect(() => () => {
+    if (usageEntryTimer.current !== null) window.clearTimeout(usageEntryTimer.current);
+  }, []);
   const preferenceSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
   const preferenceSaveResult = useRef<Promise<unknown>>(Promise.resolve());
   const preferenceSaveGeneration = useRef(0);
@@ -1064,7 +1084,7 @@ export function App({
     }
   }, [closeSettingsWindow, settingsPresentation, commitOpacity]);
 
-  const settingsExtraHeight = SETTINGS_WINDOW_EXTRA_HEIGHT + (preferenceSaveError ? SETTINGS_ERROR_EXTRA_HEIGHT : 0);
+  const settingsExtraHeight = planSettingsExtraHeight(Boolean(preferenceSaveError), Boolean(usageOpenError));
   useEffect(() => {
     const generation = ++settingsResizeGeneration.current;
     if (!settingsPresentation || settingsTransitionRef.current) return;
@@ -1394,6 +1414,9 @@ export function App({
         onPreviewOpacity={previewOpacity}
         onCommitOpacity={commitOpacity}
         onRetry={retryPreferences}
+        usageEntryState={usageEntryState}
+        usageError={usageOpenError}
+        onOpenUsage={openUsagePageEntry}
         onClose={() => void closeSettings()}
         onQuit={quitMeter}
       />}
