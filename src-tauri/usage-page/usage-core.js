@@ -200,6 +200,31 @@ export function calendarGrid(iso) {
 }
 
 /**
+ * 把热力墙的列分组为月份：返回每月的列范围与日期列表。
+ * 跨列的月份以实际包含该月日期的首末列为准，保证柱条与日期对齐。
+ */
+export function monthGroupsFor(columns) {
+  const groups = [];
+  const index = new Map();
+  columns.forEach((column, columnIndex) => {
+    for (const day of column) {
+      if (!day) continue;
+      const key = day.slice(0, 7);
+      let group = index.get(key);
+      if (!group) {
+        const moment = parseDay(`${key}-01`);
+        group = { key, label: `${moment.getUTCMonth() + 1}月`, startColumn: columnIndex, endColumn: columnIndex + 1, days: [] };
+        index.set(key, group);
+        groups.push(group);
+      }
+      group.days.push(day);
+      group.endColumn = columnIndex + 1;
+    }
+  });
+  return groups;
+}
+
+/**
  * 多周热力墙（周为列、周一起始）：从 startIso 所在周的周一开始按 7 天分列，
  * 区间 [start, endExclusive) 之外的格位为 null。columns 为"新列优先追加"的
  * 列数组；monthLabels 给出需要绘制月份标签的列号与文案。

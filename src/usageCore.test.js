@@ -9,6 +9,7 @@ import {
   heatScale,
   mergeDayClass,
   minusMonthsClamped,
+  monthGroupsFor,
   niceTicks,
   periodHeatColumns,
   periodRange,
@@ -208,6 +209,27 @@ describe("periodHeatColumns 多周热力墙", () => {
 
   it("空起点返回空结构", () => {
     expect(periodHeatColumns(null, "2026-10-07")).toEqual({ columns: [], monthLabels: [] });
+  });
+
+  it("monthGroupsFor 按月分组并给出精确列范围", () => {
+    const heat = periodHeatColumns("2026-09-28", "2026-11-02");
+    const groups = monthGroupsFor(heat.columns);
+    // 09-28 是周一：9 月只有 09-28..09-30 三天，位于第 0 列；10 月跨多列；
+    // 排他终点 11-02 使 11-01 归入 11 月
+    expect(groups.map(group => group.label)).toEqual(["9月", "10月", "11月"]);
+    expect(groups[0].days).toEqual(["2026-09-28", "2026-09-29", "2026-09-30"]);
+    expect(groups[0].startColumn).toBe(0);
+    expect(groups[0].endColumn).toBe(1);
+    const october = groups[1];
+    expect(october.days[0]).toBe("2026-10-01");
+    expect(october.days.at(-1)).toBe("2026-10-31");
+    expect(october.startColumn).toBe(0);
+    expect(october.endColumn).toBe(5);
+    expect(groups[2].days).toEqual(["2026-11-01"]);
+  });
+
+  it("monthGroupsFor 空列返回空数组", () => {
+    expect(monthGroupsFor([])).toEqual([]);
   });
 });
 

@@ -399,7 +399,7 @@ button.calendar-cell:active { transform: translateY(1px); }
 /* ---- 期间热力墙（3个月/6个月/1年/合计） ---- */
 /* period 模式下 .calendar 不再使用七列网格布局 */
 .calendar[data-mode="period"] { display: block; }
-.heat-wrap { min-width: 0; }
+.heat-wrap { min-width: 0; position: relative; }
 .heat-months { position: relative; height: 18px; margin-bottom: 4px; }
 .heat-months span {
   position: absolute;
@@ -411,7 +411,7 @@ button.calendar-cell:active { transform: translateY(1px); }
 .heat-body { display: flex; gap: 8px; }
 .heat-weekdays {
   display: grid;
-  grid-template-rows: repeat(7, 15px);
+  grid-template-rows: repeat(7, var(--heat-cell, 15px));
   gap: 3px;
   margin-top: 22px;
   color: var(--text-faint);
@@ -419,29 +419,31 @@ button.calendar-cell:active { transform: translateY(1px); }
   text-align: right;
   flex: none;
 }
-.heat-weekdays span { line-height: 15px; }
-.heat-scroll { overflow-x: auto; padding-bottom: 4px; }
+.heat-weekdays span { line-height: var(--heat-cell, 15px); }
+.heat-scroll { flex: 1; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
 .heat-columns {
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(7, 15px);
-  grid-auto-columns: 15px;
+  grid-template-rows: repeat(7, var(--heat-cell, 15px));
+  grid-auto-columns: var(--heat-cell, 15px);
   gap: 3px;
   width: max-content;
 }
 .heat-cell {
-  width: 15px;
-  height: 15px;
+  width: var(--heat-cell, 15px);
+  height: var(--heat-cell, 15px);
   padding: 0;
   border: 0;
   border-radius: 4px;
   background: var(--lv0);
   box-shadow: inset 0 1px 1px rgba(233, 250, 255, 0.12);
 }
+button.heat-cell { cursor: pointer; }
 button.heat-cell:hover { filter: brightness(1.18); }
 .heat-cell--pad { background: transparent; box-shadow: none; pointer-events: none; }
-.heat-cell[data-state="future"] { background: rgba(10, 34, 44, 0.55); cursor: default; }
-.heat-cell[data-state="unknown"] {
+span.heat-cell { cursor: default; }
+.heat-cell--future { background: rgba(10, 34, 44, 0.55); }
+.heat-cell--unknown {
   background:
     repeating-linear-gradient(135deg, rgba(190, 226, 240, 0.09) 0 4px, rgba(190, 226, 240, 0) 4px 8px),
     var(--lv0);
@@ -453,6 +455,57 @@ button.heat-cell:hover { filter: brightness(1.18); }
 .heat-cell[data-level="5"] { background: var(--lv5); }
 .heat-cell[data-selected="true"] {
   box-shadow: 0 0 0 2px rgba(158, 240, 220, 0.75), 0 4px 12px rgba(70, 210, 180, 0.35);
+}
+
+/* 月度合计柱条：与热力格同一坐标轴 */
+.heat-bars {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 3px;
+  height: 118px;
+  margin-top: 12px;
+  align-items: end;
+}
+.heat-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+}
+.heat-bar-value {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+.heat-bar-fill {
+  width: 100%;
+  height: var(--bar-h, 2px);
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, rgba(88, 242, 171, 0.8), rgba(46, 150, 140, 0.4));
+  box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.45), 0 4px 14px rgba(48, 190, 150, 0.18);
+}
+.heat-bar:hover .heat-bar-fill { filter: brightness(1.2); }
+
+/* 热力墙悬停浮层：当日 / 本周 / 本月 */
+.heat-tip {
+  position: absolute;
+  z-index: 6;
+  max-width: min(420px, 92%);
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: rgba(6, 20, 28, 0.95);
+  box-shadow: inset 0 1px 0 rgba(238, 251, 255, 0.2), 0 10px 24px rgba(1, 8, 14, 0.55);
+  color: #eaf8fc;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  word-break: break-word;
 }
 
 /* ---- 趋势图交互层 ---- */
