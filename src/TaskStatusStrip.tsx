@@ -53,6 +53,12 @@ function taskLabel(task: ChatTask, now: number): string {
   return `${taskTitle(task)} · ${taskStateLabel(task, now)}`;
 }
 
+const dismissible = (state: ChatTask["state"]) => state === "failed" || state === "completed";
+
+function dismissAriaLabel(task: ChatTask): string {
+  return `移除 ${taskTitle(task)} 的${task.state === "failed" ? "报错" : "完成"}提醒`;
+}
+
 const sourceNames: Record<TaskSource, string> = { codex: "Codex", zcode: "ZCode" };
 const statePriority = { running: 0, waiting: 1, failed: 2, unknown: 3, completed: 4 };
 const tasksPerSource = 5;
@@ -130,7 +136,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
       {commonDiagnostic && <div className="task-details"><strong>任务提醒记录异常</strong><p className="task-detail-reason" role="status">{commonDiagnostic.message} · {commonDiagnostic.code}</p></div>}
       {hovered && !activeGroup && <div className="task-details"><small>{sourceNames[hovered.source]}</small><strong>{taskTitle(hovered)}</strong><span>{taskStateLabel(hovered, now)}</span>
         {hovered.detail && <span className="task-detail-reason">{hovered.detail}</span>}
-        {hovered.state === "failed" && <button type="button" onClick={() => { onDismiss(hovered); close(); }}>移除提醒</button>}
+        {dismissible(hovered.state) && <button type="button" onClick={() => { onDismiss(hovered); close(); }}>移除提醒</button>}
         {hovered.projectPath && <span>{hovered.projectPath}</span>}
         <small>{hovered.source === "zcode" ? "点击圆圈打开 ZCode 项目" : "点击圆圈打开 Codex 聊天"}</small></div>}
       {activeGroup && <div className="task-list"><strong>{sourceNames[activeGroup.source]} · 全部 {activeGroup.tasks.length} 项</strong>
@@ -138,7 +144,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
         {activeGroup.tasks.length === 0 && <span>{activeGroup.status?.health === "ready" ? "暂无任务" : "等待来源恢复后自动同步"}</span>}
         {activeGroup.tasks.map(task => <div className="task-list-row" key={key(task)}><button type="button" className="task-list-entry" aria-label={taskLabel(task, now)}
           onClick={() => { onOpen(task); close(); }}><TaskCircle task={task} now={now} reducedMotion={reducedMotion} /><span>{taskTitle(task)}<small>{taskStateLabel(task, now)}</small></span></button>
-          {task.state === "failed" && <button type="button" className="task-list-dismiss" aria-label={`移除 ${taskTitle(task)} 的报错提醒`} onClick={() => onDismiss(task)}>移除提醒</button>}</div>)}
+          {dismissible(task.state) && <button type="button" className="task-list-dismiss" aria-label={dismissAriaLabel(task)} onClick={() => onDismiss(task)}>移除提醒</button>}</div>)}
       </div>}
     </aside>}
   </>;

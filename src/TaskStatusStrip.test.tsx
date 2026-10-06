@@ -172,4 +172,23 @@ describe("approved chat task indicators", () => {
     fireEvent.click(screen.getByRole("button", { name: "移除提醒" }));
     expect(onDismiss).toHaveBeenCalledWith(failed);
   });
+
+  it("lets the user dismiss a completed reminder from its details like a failure", () => {
+    const onDismiss = vi.fn();
+    render(<TaskStatusStrip tasks={[success]} now={now + 120_000} onOpen={vi.fn()} onDismiss={onDismiss} onPopoverChange={vi.fn()} />);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 12 分钟前" }));
+    expect(screen.getByText("已完成 · 12 分钟前")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "移除提醒" }));
+    expect(onDismiss).toHaveBeenCalledWith(success);
+  });
+
+  it("offers completed reminder removal in the overflow list with per-chat labels", () => {
+    const tasks = Array.from({ length: 6 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
+    const onDismiss = vi.fn();
+    render(<TaskStatusStrip tasks={tasks} now={now} onOpen={vi.fn()} onDismiss={onDismiss} onPopoverChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 1 个任务" }));
+    const list = screen.getByRole("dialog", { name: "Codex 任务列表" });
+    fireEvent.click(within(list).getByRole("button", { name: "移除 聊天 5 的完成提醒" }));
+    expect(onDismiss).toHaveBeenCalledWith(tasks[5]);
+  });
 });

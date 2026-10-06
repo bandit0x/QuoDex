@@ -241,7 +241,7 @@ impl TaskStatusService {
         snapshot.diagnostic = None;
         let reminders = self.reminders.lock().expect("task reminders lock");
         snapshot.tasks.retain(|task| {
-            !(matches!(task.state, TaskState::Failed | TaskState::Unknown)
+            !(matches!(task.state, TaskState::Failed | TaskState::Unknown | TaskState::Completed)
                 && reminders
                     .as_ref()
                     .is_ok_and(|items| items.get(&task.id) == Some(&task.turn_id)))
@@ -279,12 +279,13 @@ impl TaskStatusService {
             .read_snapshot()
             .tasks
             .iter()
-            .any(|task| task.id == id && task.turn_id == turn_id && task.state == TaskState::Failed)
+            .any(|task| {
+                task.id == id
+                    && task.turn_id == turn_id
+                    && matches!(task.state, TaskState::Failed | TaskState::Completed)
+            })
         {
-            return Err(Diagnostic::new(
-                "QDT-613",
-                "提醒已更新；请刷新后移除当前报错提醒",
-            ));
+            return Err(Diagnostic::new("QDT-613", "提醒已更新；请刷新后移除当前提醒"));
         }
         let mut reminders = self.reminders.lock().expect("task reminders lock");
         let mut next = reminders.as_ref().map_err(Clone::clone)?.clone();
@@ -1968,5 +1969,82 @@ mod source_isolation_tests {
         assert_eq!(result.sources[1].health, "ready");
         assert!(result.sources[1].diagnostic.is_none());
         assert!(result.sources[1].observed_at_ms > 1234);
+    }
+}
+
+#[cfg(test)]
+mod reminder_dismissal_tests {
+    use super::*;
+
+    fn service_with_completed_task(
+        reminders: HashMap<String, String>,
+        reminders_path: PathBuf,
+    ) -> TaskStatusService {
+        TaskStatusService {
+            zcode: None,
+            snapshot: Arc::new(Mutex::new(SourceTaskSnapshot {
+                tasks: vec![ChatTask {
+                    source: TaskSource::Codex,
+                    id: "sample-chat".into(),
+                    turn_id: "sample-turn".into(),
+                    title: "整理文档".into(),
+                    state: TaskState::Completed,
+                    completed_at_ms: Some(now_ms() - 120_000),
+                    expires_at_ms: None,
+                    detail: None,
+                    project_path: None,
+                    project_name: None,
+                }],
+                observed_at_ms: now_ms(),
+                diagnostic: None,
+            })),
+            reminders: Mutex::new(Ok(reminders)),
+            reminders_path,
+            stop: None,
+        }
+    }
+
+    #[test]
+    fn completed_reminders_are_dismissible_and_persist_like_failures() {
+        let root = std::env::temp_dir().join(format!(
+            "quodex-dismiss-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let service = service_with_completed_task(HashMap::new(), root.join("reminders.json"));
+        assert_eq!(service.read_snapshot().tasks.len(), 1);
+        service.dismiss_failure("sample-chat", "sample-turn").unwrap();
+        assert!(
+            service.read_snapshot().tasks.is_empty(),
+            "dismissed completed reminder must not stay visible"
+        );
+        let stored: HashMap<String, String> =
+            serde_json::from_slice(&std::fs::read(root.join("reminders.json")).unwrap()).unwrap();
+        assert_eq!(
+            stored.get("sample-chat").map(String::as_str),
+            Some("sample-turn")
+        );
+        std::fs::remove_file(root.join("reminders.json")).unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn a_dismissed_previous_turn_does_not_hide_a_new_completed_turn() {
+        let root = std::env::temp_dir().join(format!(
+            "quodex-dismiss-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let service = service_with_completed_task(
+            [("sample-chat".to_owned(), "old-turn".to_owned())].into(),
+            root.join("reminders.json"),
+        );
+        assert_eq!(
+            service.read_snapshot().tasks.len(),
+            1,
+            "a new turn must stay visible after the previous turn's reminder was dismissed"
+        );
+        assert!(service.dismiss_failure("sample-chat", "old-turn").is_err());
+        std::fs::remove_dir(root).unwrap();
     }
 }

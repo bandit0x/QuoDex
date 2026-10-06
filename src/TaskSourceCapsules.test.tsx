@@ -16,7 +16,7 @@ it("keeps each source visible and opens only its own task list when it overflows
   const list = screen.getByRole("dialog", { name: "Codex 任务列表" });
   expect(within(list).getByText("Codex · 全部 6 项")).toBeInTheDocument();
   expect(within(list).queryByText("ZCode 同名标识")).toBeNull();
-  fireEvent.click(within(list).getByRole("button", { name: /Codex 聊天 5/ }));
+  fireEvent.click(within(list).getByRole("button", { name: /^Codex 聊天 5/ }));
   expect(open).toHaveBeenCalledWith(codex[5]);
   fireEvent.click(within(right).getByRole("button", { name: /ZCode 同名标识/ }));
   expect(open).toHaveBeenLastCalledWith(zcode);
