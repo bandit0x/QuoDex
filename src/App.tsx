@@ -1114,9 +1114,24 @@ export function App({
     void setWindowLayout(next).catch(() => setControlMessage("窗口布局未能调整 · CRV-302"));
   }, [closeSettings, setWindowLayout]);
 
+  // 关闭浮层时需要"原生窗口先回落、CSS 后复位"，读最新值的 ref 避免闭包陈旧。
+  const taskSpaceRef = useRef({ placement: taskPopoverPlacement, hasArea: hasTaskArea, layout: settingsPresentation?.baseLayout ?? layoutMode });
+  taskSpaceRef.current = { placement: taskPopoverPlacement, hasArea: hasTaskArea, layout: settingsPresentation?.baseLayout ?? layoutMode };
   const changeTaskPopover = useCallback((open: boolean) => {
     const generation = ++popoverGeneration.current;
-    if (!open) { setTaskPopoverOpen(false); return; }
+    if (!open) {
+      void (async () => {
+        const snapshot = taskSpaceRef.current;
+        const next = snapshot.hasArea ? TASK_ROW_HEIGHT : 0;
+        await (snapshot.placement === "below"
+          ? setTaskSpace(snapshot.layout, next, "below")
+          : setTaskSpace(snapshot.layout, next));
+        // 等待期间用户再次悬停（generation 前进）则放弃复位，避免关掉新浮层。
+        if (generation !== popoverGeneration.current) return;
+        setTaskPopoverOpen(false);
+      })().catch(() => setTaskPopoverOpen(false));
+      return;
+    }
     void (async () => {
       if (settingsPresentation && !await closeSettings()) {
         setTaskStripGeneration(value => value + 1);
