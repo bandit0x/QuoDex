@@ -69,8 +69,8 @@
 .dock-controls:has(.optical-shell-canvas[data-renderer="webgl-shell"])::after { content:none; }
 .dock-preferences { display:grid; grid-template-columns:200px minmax(0,1fr); align-items:center; gap:12px; height:60px; flex-shrink:0; }
 .dock-preferences--simple { grid-template-columns:minmax(0,1fr); }
-.dock-actions { display:grid; grid-template-columns:100px 112px minmax(0,1fr) 44px 36px; align-items:center; column-gap:12px; height:60px; flex-shrink:0; }
-.dock-plan, .dock-opacity, .dock-motion, .dock-quiet, .dock-collapse { position:relative; z-index:5; min-width:0; }
+.dock-actions { display:grid; grid-template-columns:100px 112px minmax(0,1fr) 108px 36px; align-items:center; column-gap:12px; height:60px; flex-shrink:0; }
+.dock-plan, .dock-opacity, .dock-motion, .dock-quiet, .dock-quit, .dock-collapse { position:relative; z-index:5; min-width:0; }
 .dock-control-label, .dock-opacity, .dock-motion { color:#eaf8fc; font-size:18px; font-weight:540; }
 .dock-plan { display:grid; grid-template-rows:24px 36px; align-items:center; }
 .dock-control-label { color:#afc3d2; }
@@ -141,11 +141,24 @@
 }
 @keyframes dock-usage-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .dock-usage, .dock-usage:hover, .dock-usage:active { transform:none; }
+  .dock-usage, .dock-usage:hover, .dock-usage:active, .dock-quit, .dock-quit:hover, .dock-quit:active { transform:none; }
   .dock-usage-spinner { animation-duration: 2.4s; }
 }
 .dock-quiet, .dock-collapse { display:grid; place-items:center; height:60px; padding:0; border:0; border-radius:12px; background:transparent; color:#afc3d2; font-size:18px; text-shadow:inherit; }
 .dock-quiet:hover, .dock-collapse:hover { color:#f6fcff; background:rgba(205,243,255,.05); }
+/* 退出按钮：108×48 实体胶囊，全仓唯一暖色（danger 珊瑚系）——既是主操作级热区，
+   也用色温与青绿开关区分「离开应用」的语义。窗口高度预算不变（60px 行内居中）。 */
+.dock-quit {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; height:48px; padding:0 14px;
+  border:1px solid rgba(255,128,103,.44); border-radius:12px;
+  color:#ffc4b2; font-size:20px; font-weight:620; text-shadow:inherit;
+  background:linear-gradient(180deg,rgba(255,128,103,.16),rgba(46,14,8,.30));
+  box-shadow:inset 0 1px 1px rgba(255,224,212,.26), inset 0 -7px 12px rgba(64,16,6,.34), 0 4px 10px rgba(0,5,12,.32);
+  transition:transform 130ms var(--ease-out-expo), box-shadow 130ms ease-out, background 130ms ease-out, border-color 130ms ease-out;
+}
+.dock-quit svg { width:20px; height:20px; flex-shrink:0; }
+.dock-quit:hover { color:#ffd7c8; border-color:rgba(255,150,124,.78); transform:translateY(-1px); background:linear-gradient(180deg,rgba(255,128,103,.26),rgba(58,16,8,.34)); box-shadow:inset 0 1px 1px rgba(255,232,222,.5), inset 0 -7px 12px rgba(64,16,6,.34), 0 0 14px rgba(255,128,103,.22), 0 6px 14px rgba(0,5,12,.36); }
+.dock-quit:active { transform:translateY(1px); background:linear-gradient(180deg,rgba(255,128,103,.10),rgba(30,9,5,.38)); box-shadow:inset 0 3px 8px rgba(20,4,1,.6), inset 0 -2px 4px rgba(255,170,146,.25), 0 2px 6px rgba(0,5,12,.3); }
 .dock-error { position:relative; z-index:5; display:flex; align-items:center; gap:10px; height:40px; flex-shrink:0; padding:0; border:0; border-top:1px solid rgba(255,197,181,.16); border-radius:0; background:linear-gradient(90deg,rgba(120,42,22,.10),transparent); color:#ffd1c7; font-size:18px; }
 .dock-error-message { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dock-error-code { flex-shrink:0; white-space:nowrap; }
@@ -154,6 +167,6 @@
 .dock-error button:disabled { opacity:.6; cursor:default; }
 .dock-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .app-frame--collapsed .dock-controls { padding-left:16px; padding-right:16px; }
-.app-frame--collapsed .dock-actions { grid-template-columns:100px 112px minmax(0,1fr) 44px 36px; column-gap:8px; }
+.app-frame--collapsed .dock-actions { grid-template-columns:100px 112px minmax(0,1fr) 108px 36px; column-gap:8px; }
 .app-frame--collapsed .dock-preferences { grid-template-columns:188px minmax(0,1fr); gap:8px; }
 .app-frame--collapsed .dock-preferences--simple { grid-template-columns:minmax(0,1fr); }

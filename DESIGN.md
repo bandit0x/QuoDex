@@ -26,6 +26,10 @@ typography:
   action:
     fontFamily: '"Segoe UI Variable", "Segoe UI", -apple-system, "SF Pro Text", system-ui, sans-serif'
     fontSize: "18px"
+  quit-label:
+    fontFamily: '"Segoe UI Variable", "Segoe UI", -apple-system, "SF Pro Text", system-ui, sans-serif'
+    fontSize: "20px"
+    fontWeight: 620
 rounded:
   glass: "34px"
   lens: "999px"
@@ -71,11 +75,15 @@ components:
     width: "60px"
     height: "28px"
   quit-action:
-    textColor: "{colors.text-secondary}"
-    typography: "{typography.action}"
+    icon: "power"
+    textColor: "#ffc4b2"
+    hover-text-color: "#ffd7c8"
+    typography: "{typography.quit-label}"
     rounded: "{rounded.action}"
-    padding: "0"
-    height: "60px"
+    accent-border: "rgba(255, 128, 103, .44)"
+    padding: "0 14px"
+    height: "48px"
+    width: "108px"
   collapse-action:
     textColor: "{colors.text-secondary}"
     rounded: "{rounded.action}"
@@ -111,7 +119,7 @@ components:
 
 ### Secondary
 
-- **保存薄荷 / 错误珊瑚**：只承担对应的保存反馈与真实诊断，不替换来源选择色。
+- **保存薄荷 / 错误珊瑚**：只承担对应的保存反馈、真实诊断与「退出应用」这一离开性操作；不替换来源选择色。
 
 ### Neutral
 
