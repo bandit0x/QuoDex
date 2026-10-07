@@ -2,6 +2,10 @@
 use crate::capacity::Diagnostic;
 use serde::Deserialize;
 use tauri::WebviewWindow;
+#[cfg(target_os = "macos")]
+use objc2::{rc::Retained, runtime::AnyObject};
+#[cfg(target_os = "macos")]
+use objc2_foundation::{NSPoint, NSRect, NSSize};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,8 +67,7 @@ fn apply(
     regions: &[MaterialRegion],
     _: &[MaterialRegion],
 ) -> Result<(), Diagnostic> {
-    use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
+    use objc2::msg_send;
     use std::cell::RefCell;
     thread_local! { static VIEWS: RefCell<Vec<Retained<AnyObject>>> = const { RefCell::new(Vec::new()) }; }
     let root = window
@@ -82,54 +85,81 @@ fn apply(
     unsafe {
         let bounds: NSRect = msg_send![root, bounds];
         let flipped: bool = msg_send![root, isFlipped];
-        let mut next = Vec::with_capacity(regions.len());
-        for r in regions {
+        let frames: Vec<NSRect> = regions.iter().map(|r| {
             let origin_y = if flipped {
                 r.y
             } else {
                 bounds.size.height - r.y - r.height
             };
-            let frame = NSRect::new(NSPoint::new(r.x, origin_y), NSSize::new(r.width, r.height));
-            let allocated: *mut AnyObject = msg_send![class!(NSVisualEffectView), alloc];
-            let view: *mut AnyObject = msg_send![allocated, initWithFrame: frame];
-            let Some(view) = Retained::from_raw(view) else {
-                return Err(Diagnostic::new(
-                    "QDT-631",
-                    "macOS 背景材质创建失败；请重新打开 QuoDex",
-                ));
-            };
-            let _: () = msg_send![&*view, setMaterial: 13isize]; // HUDWindow, macOS 10.14+
-            let _: () = msg_send![&*view, setBlendingMode: 0isize]; // behindWindow
-            let _: () = msg_send![&*view, setState: 1isize]; // active even when floating window is unfocused
-            // Keep the desktop visible instead of stacking an opaque HUD tint
-            // beneath the web surface. Text and state icons retain their own contrast.
-            let _: () = msg_send![&*view, setAlphaValue: 0.14f64];
-            let mask_alloc: *mut AnyObject = msg_send![class!(NSImage), alloc];
-            let mask: *mut AnyObject = msg_send![mask_alloc, initWithSize: frame.size];
-            let Some(mask) = Retained::from_raw(mask) else {
-                return Err(Diagnostic::new(
-                    "QDT-631",
-                    "macOS 材质遮罩创建失败；请重新打开 QuoDex",
-                ));
-            };
-            let _: () = msg_send![&*mask, lockFocus];
-            let color: *mut AnyObject = msg_send![class!(NSColor), blackColor];
-            let _: () = msg_send![color, set];
-            let mask_rect = NSRect::new(NSPoint::new(0.0, 0.0), frame.size);
-            let path: *mut AnyObject = msg_send![class!(NSBezierPath), bezierPathWithRoundedRect: mask_rect, xRadius: r.radius, yRadius: r.radius];
-            let _: () = msg_send![path, fill];
-            let _: () = msg_send![&*mask, unlockFocus];
-            let _: () = msg_send![&*view, setMaskImage: &*mask];
-            next.push(view);
-        }
-        VIEWS.with(|views| {
+            NSRect::new(NSPoint::new(r.x, origin_y), NSSize::new(r.width, r.height))
+        }).collect();
+        VIEWS.with(|views| -> Result<(), Diagnostic> {
             let mut views = views.borrow_mut();
-            for view in views.drain(..) { let _: () = msg_send![&*view, removeFromSuperview]; }
-            for view in &next { let _: () = msg_send![root, addSubview: &**view, positioned: -1isize, relativeTo: std::ptr::null::<AnyObject>()]; }
-            *views = next;
-        });
+            // Reuse live views and only update geometry/masks; tearing the glass
+            // layer down between popover transitions reads as a whole-window flash.
+            for (index, (r, frame)) in regions.iter().zip(frames.iter()).enumerate() {
+                let existing = views.get(index).cloned();
+                let view: Retained<AnyObject> = match existing {
+                    Some(view) => view,
+                    None => {
+                        let created = create_glass_view(*frame)?;
+                        let _: () = msg_send![root, addSubview: &*created, positioned: -1isize, relativeTo: std::ptr::null::<AnyObject>()];
+                        views.push(created.clone());
+                        created
+                    }
+                };
+                let _: () = msg_send![&*view, setFrame: *frame];
+                let mask = draw_rounded_mask(frame.size, r.radius)?;
+                let _: () = msg_send![&*view, setMaskImage: &*mask];
+            }
+            for view in views.drain(regions.len()..) {
+                let _: () = msg_send![&*view, removeFromSuperview];
+            }
+            Ok(())
+        })?;
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn create_glass_view(frame: NSRect) -> Result<Retained<AnyObject>, Diagnostic> {
+    use objc2::{class, msg_send};
+    let allocated: *mut AnyObject = msg_send![class!(NSVisualEffectView), alloc];
+    let view: *mut AnyObject = msg_send![allocated, initWithFrame: frame];
+    let Some(view) = Retained::from_raw(view) else {
+        return Err(Diagnostic::new(
+            "QDT-631",
+            "macOS 背景材质创建失败；请重新打开 QuoDex",
+        ));
+    };
+    let _: () = msg_send![&*view, setMaterial: 13isize]; // HUDWindow, macOS 10.14+
+    let _: () = msg_send![&*view, setBlendingMode: 0isize]; // behindWindow
+    let _: () = msg_send![&*view, setState: 1isize]; // active even when floating window is unfocused
+    // Keep the desktop visible instead of stacking an opaque HUD tint
+    // beneath the web surface. Text and state icons retain their own contrast.
+    let _: () = msg_send![&*view, setAlphaValue: 0.14f64];
+    Ok(view)
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn draw_rounded_mask(size: NSSize, radius: f64) -> Result<Retained<AnyObject>, Diagnostic> {
+    use objc2::{class, msg_send};
+    let mask_alloc: *mut AnyObject = msg_send![class!(NSImage), alloc];
+    let mask: *mut AnyObject = msg_send![mask_alloc, initWithSize: size];
+    let Some(mask) = Retained::from_raw(mask) else {
+        return Err(Diagnostic::new(
+            "QDT-631",
+            "macOS 材质遮罩创建失败；请重新打开 QuoDex",
+        ));
+    };
+    let _: () = msg_send![&*mask, lockFocus];
+    let color: *mut AnyObject = msg_send![class!(NSColor), blackColor];
+    let _: () = msg_send![color, set];
+    let mask_rect = NSRect::new(NSPoint::new(0.0, 0.0), size);
+    let path: *mut AnyObject = msg_send![class!(NSBezierPath), bezierPathWithRoundedRect: mask_rect, xRadius: radius, yRadius: radius];
+    let _: () = msg_send![path, fill];
+    let _: () = msg_send![&*mask, unlockFocus];
+    Ok(mask)
 }
 
 #[cfg(windows)]

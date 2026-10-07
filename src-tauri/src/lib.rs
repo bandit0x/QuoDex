@@ -294,6 +294,7 @@ pub fn run() {
                 let store = window.state::<PreferencesStore>();
                 window_pin::initialize(&window, store.load().always_on_top);
                 restore_window_position(&window, &store);
+                platform::enable_hover_mouse_moves(&window);
             }
             // 用量统计：账本落在配置目录，来源按本机 home 解析；启动即开始采集，
             // 本机只读服务随之常驻（127.0.0.1 随机端口），入口点击仅在未就绪时兜底。
@@ -355,6 +356,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_task_status,
             task_material::set_task_material_regions,
+            platform::is_cursor_inside_window,
+            platform::cursor_viewport_position,
             dismiss_task_failure,
             open_codex_chat,
             open_task_chat,

@@ -1,5 +1,5 @@
-import { currentMonitor, cursorPosition, getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { currentMonitor, getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
 
 export type OverlayLayout = "collapsed" | "compact" | "expanded";
 
@@ -23,12 +23,54 @@ export function planSettingsExtraHeight(saveErrorVisible: boolean, usageErrorVis
 export const TASK_ROW_HEIGHT = 44;
 export const TASK_POPOVER_HEIGHT = 160;
 
+// 指针是否悬停在任务条/浮层上，由 webview 自己的 pointermove 维护。
+// 之前用原生 cursorPosition−innerPosition 换算 + elementFromPoint 判定，
+// 窗口为 popover 扩展/回落期间换算系统性偏差，稳定悬停也被判为离开。
+// 只听 pointermove（真实指针移动才派发）而非 pointerover：布局变化时
+// WebKit 会按过渡帧几何合成 pointerover 命中空白，把标志错误刷成 false。
+// 移出窗口后事件投给别的 app、leave 事件不再可靠，出窗与否由 Rust 端
+// 的 NSEvent mouseLocation 原生查询兜底。
+let pointerOverTaskArea = false;
+let lastRealPointerMoveAt = 0;
+if (typeof document !== "undefined") {
+  const markInside = (event: Event) => {
+    pointerOverTaskArea = event.target instanceof Element && event.target.closest(".task-strip,.task-popover") !== null;
+    lastRealPointerMoveAt = performance.now();
+  };
+  document.addEventListener("pointermove", markInside, { capture: true, passive: true });
+  const markOutside = () => { pointerOverTaskArea = false; };
+  document.documentElement.addEventListener("pointerleave", markOutside);
+  document.documentElement.addEventListener("mouseleave", markOutside);
+}
+async function isCursorInWindow(): Promise<boolean> {
+  if (!isTauri()) return true;
+  return invoke<boolean>("is_cursor_inside_window").catch(() => true);
+}
 export async function isOverlayTaskPointerInside(): Promise<boolean> {
-  if (!isTauri()) return false;
-  const appWindow = getCurrentWindow();
-  const [cursor, origin, scale] = await Promise.all([cursorPosition(), appWindow.innerPosition(), appWindow.scaleFactor()]);
-  const target = document.elementFromPoint((cursor.x - origin.x) / scale, (cursor.y - origin.y) / scale);
-  return target?.closest(".task-strip,.task-popover") !== null && target !== null;
+  if (!pointerOverTaskArea) return false;
+  return isCursorInWindow();
+}
+
+// 悬停补偿：overlay 非激活（用户在其他 app 前台）时 macOS 不投递鼠标移动，
+// WKWebView 的 hover 完全失灵。轮询原生光标位置，命中任务区且真实事件流
+// 已停摆时，向命中元素补发 mouse 事件驱动同一套 React 处理。
+if (typeof document !== "undefined" && isTauri()) {
+  window.setInterval(() => {
+    void (async () => {
+      if (performance.now() - lastRealPointerMoveAt < 400) return;
+      const position = await invoke<[number, number] | null>("cursor_viewport_position").catch(() => null);
+      if (!position) return;
+      const target = document.elementFromPoint(position[0], position[1]);
+      const hit = target !== null && target.closest(".task-strip,.task-popover") !== null;
+      // 窗口内但不在任务区：真实事件流停摆时无人更新标志，这里负责归 false，
+      // 打开期间的仲裁轮询据此收起浮层。
+      pointerOverTaskArea = hit;
+      if (!hit) return;
+      const options = { clientX: position[0], clientY: position[1], bubbles: true };
+      target.dispatchEvent(new MouseEvent("mousemove", options));
+      target.dispatchEvent(new MouseEvent("mouseover", options));
+    })();
+  }, 200);
 }
 let taskWindowSpace = 0;
 let taskWindowAboveSpace = 0;

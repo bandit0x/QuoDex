@@ -101,7 +101,8 @@ describe("approved chat task indicators", () => {
     expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
     isPointerInside.mockResolvedValue(false);
     fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
-    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    // 400ms 的主动仲裁轮询可能在两段确认链中途重置计时；放宽推进量直到链走完。
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     vi.useRealTimers();
   });

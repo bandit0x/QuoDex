@@ -20,6 +20,7 @@ interface TaskStatusStripProps {
 
 const stateLabels = { running: "运行中", waiting: "等待你操作", completed: "已完成", failed: "执行报错", unknown: "状态未知" };
 
+
 export function visibleChatTasks(tasks: ChatTask[], now: number): ChatTask[] {
   return tasks.flatMap(task => {
     if (task.expiresAtMs != null && task.expiresAtMs <= now) return [];
@@ -102,6 +103,17 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     closeTimer.current = window.setTimeout(confirmClose, 160);
   };
   useEffect(() => { onPopoverChange(isOpen); }, [isOpen, onPopoverChange]);
+  // 非激活窗口收不到 mouseleave（光标离开后事件投给前台 app），打开期间
+  // 由原生光标查询主动仲裁；补偿轮询会把标志/坐标维护为最新值。
+  const scheduleCloseRef = useRef(scheduleClose);
+  scheduleCloseRef.current = scheduleClose;
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setInterval(() => {
+      void isPointerInside().then(inside => { if (!inside) scheduleCloseRef.current(); }).catch(() => undefined);
+    }, 400);
+    return () => window.clearInterval(timer);
+  }, [isOpen, isPointerInside]);
   useEffect(() => () => { closeGeneration.current += 1; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); }, []);
   useEffect(() => {
     if (!isOpen) return;
