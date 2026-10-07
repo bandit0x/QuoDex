@@ -1,0 +1,31 @@
+{
+  "status": "Verified",
+  "sourceCommit": "25d99abcd832a00de4ca68b01a1c78ac6dfc2f4e",
+  "buildVerifiedSha256": "a7cc51e178d4c97c82eb69ffa1ad60c50795ed6b02d8ed2281ac7ce5e0901e25",
+  "stagedApp": "/Users/Admin/Documents/projects/QuoDex/.scratch/usage-web-refinement/local-install-6j9f_9pp/staged/QuoDex.app",
+  "installedApp": "/Applications/QuoDex.app",
+  "backupApp": "/Users/Admin/Documents/projects/QuoDex/.scratch/usage-web-refinement/local-install-6j9f_9pp/previous/QuoDex.app",
+  "oldExecutableSha256": "6ce00d81b941347bc112aff6d9e0a22b285d6fefa5f6824ea3067bd42ca9d74f",
+  "newExecutableSha256": "862c5d4cbafbc1dc46a9d7412c934dcea10857e046b03a18f2585c4b8cc625de",
+  "runtimePreservedSha256": "9ebc2056da80936b0e7e61b08b006c7315db842d131ab4a35c7263b6c4f358f7",
+  "stagedSignatureVerified": true,
+  "installedAt": "2026-10-07T05:14:44.836250+00:00",
+  "installedSignatureVerified": true,
+  "installedExecutableSha256": "862c5d4cbafbc1dc46a9d7412c934dcea10857e046b03a18f2585c4b8cc625de",
+  "originalAppMovedTo": "/Users/Admin/Documents/projects/QuoDex/.scratch/usage-web-refinement/local-install-6j9f_9pp/replaced/QuoDex.app",
+  "runtimePreserved": true,
+  "configurationDirectoryTouchedByInstaller": false,
+  "launchVerified": true,
+  "nativeUsageEntryVerified": true,
+  "defaultBrowser": "Google Chrome",
+  "nativeObservedUsageUrl": "http://127.0.0.1:54739/",
+  "installedHttpAssetsMatchSource": {
+    "index.html": true,
+    "usage.css": true,
+    "usage.js": true,
+    "usage-material.js": true,
+    "usage-core.js": true
+  },
+  "verificationCompletedAt": "2026-10-07T05:26:34.205655+00:00",
+  "realUserDataSaved": false
+}

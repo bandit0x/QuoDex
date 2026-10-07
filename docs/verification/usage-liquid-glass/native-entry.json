@@ -1,9 +1,21 @@
 {
-  "status": "Blocked",
-  "check": "native settings usage button opens the real loopback page in default browser",
-  "observationSource": "cua.getState()",
-  "reason": "Native apps: Error: The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing.",
-  "performedClicks": false,
-  "nextStep": "After manual unlock, start a new isolated QA app, click its existing usage entry, then verify the default browser URL and page.",
-  "qaAppStoppedAfterWebVerification": true
+  "status": "Verified",
+  "check": "installed native settings usage button opens the real loopback page in default browser",
+  "sourceCommit": "25d99abcd832a00de4ca68b01a1c78ac6dfc2f4e",
+  "installedApp": "/Applications/QuoDex.app",
+  "observationSource": "Computer Use QuoDex and Google Chrome accessibility states",
+  "performedClicks": true,
+  "nativeButtonState": "已请求浏览器打开",
+  "defaultBrowser": "Google Chrome",
+  "observedPageTitle": "QuoDex · 用量统计",
+  "observedUrl": "http://127.0.0.1:54739/",
+  "pageHeadingVerified": true,
+  "rangeAndViewControlsVerified": true,
+  "calendarAndTrendVerified": true,
+  "installedHttpAssetsMatchSource": true,
+  "realUserDataSaved": false,
+  "previousAttempt": {
+    "status": "Blocked",
+    "reason": "Native apps: Error: The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing."
+  }
 }

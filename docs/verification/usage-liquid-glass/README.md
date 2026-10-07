@@ -1,6 +1,6 @@
 # 用量网页改版验证
 
-当前状态：**Blocked**。网页实施与自动检查为 **Verified**；原生设置入口的点击检查因 macOS 锁屏未执行，不能把整体验收报为通过。用户于 2026-10-07 批准效果图并要求执行，视觉验收仍由用户决定。本文件是本轮实施与验证状态的唯一入口。
+当前状态：**Acceptance pending**。网页、签名、本地安装及原生设置入口检查为 **Verified**。用户于 2026-10-07 要求更新本地 App，安装已完成；随后要求重新设计月合计柱形区域，该处将先出一张效果图，批准前不修改产品。本文件是本轮实施与验证状态的唯一入口。
 
 ## 实施范围
 
@@ -11,7 +11,7 @@
 ## 来源、产物与环境
 
 - 源码基线：`15b1cf68a84ebf47dec481c6ca50cd8b8ba2c289`；本地分支：`codex/usage-liquid-glass`。最终变更由包含本记录的本地提交确定。
-- 原生构建产物：`src-tauri/target/release/bundle/macos/QuoDex.app`。二进制与嵌入网页文件的 SHA-256 见 [artifact.json](artifact.json)。未发布或替换已安装的应用。
+- 原生构建产物：`src-tauri/target/release/bundle/macos/QuoDex.app`。构建二进制与嵌入网页文件的 SHA-256 见 [artifact.json](artifact.json)。本次以实现提交 `25d99ab` 的该产物为基础，补齐原安装包的 Codex runtime 后重签，已更新并启动 `/Applications/QuoDex.app`。安装后签名和二进制指纹见 [local-install.json](local-install.json)；未发布远端。
 - 实测环境：macOS 27.0.1 / arm64；Node v22.23.2 / npm 10.9.8；Google Chrome 154.0.8037.98，Asia/Shanghai。
 - 网页检查时间：2026-10-07 13:01:15–13:01:50。桌面 1440×1080、DPR 1；窄屏 390×844、DPR 1，独立触摸环境 `maxTouchPoints=1`。
 
@@ -36,7 +36,8 @@ GUI 应用、Chrome 及本机监听须能在当前执行环境启动。脚本使
 | 真实应用启动、网页及交互 | 12 项通过；浏览器错误为 0 | [verification.json](verification.json) |
 | 规范审查 | 原轮询焦点问题已定点复核修复 | `usage.js:738` 与 `usageCore.test.js:457` |
 | 方案审查 | 点击保留周高亮与无新增轮询保留节点已定点复核修复，范围未扩展 | `usage.js:729` 与对应 DOM 回归测试 |
-| 原生设置 → 用量统计 → 默认浏览器 | **Blocked**，系统锁屏 | [native-entry.json](native-entry.json) |
+| 原生设置 → 用量统计 → 默认浏览器 | **Verified**，安装版实际点击后在 Google Chrome 显示用量网页 | [native-entry.json](native-entry.json) |
+| 本地更新与启动 | **Verified**，运行时保留、整包严格签名及 HTTP 静态资源核对通过 | [local-install.json](local-install.json) |
 
 真实应用检查启动当前 `.app` 内的二进制，通过其 PID 查找随机 loopback 端口，并等待实际 `/api/usage` 双来源就绪；没有静态预览服务器。每次新建匿名来源与配置目录，不使用真实账号或聊天。夹具覆盖过去 20 日，其中两日缺失，每源 18 日、36 个请求，含 Codex 精确重放去重和 ZCode 匿名子请求。
 
@@ -69,4 +70,4 @@ GUI 应用、Chrome 及本机监听须能在当前执行环境启动。脚本使
 
 ## 已知限制与下一步
 
-原生入口的源码连接未改动，真实应用服务已启动，但目前不能证明本次按钮点击已打开默认浏览器：Computer Use 返回“The Mac is locked and automatic unlock could not unlock it”。待用户手动解锁后，仅补该入口的实际点击检查和用户视觉验收。本次未进行 Windows 原生构建或人工浏览器跨平台验收。
+首次原生入口检查曾被系统锁屏阻止。2026-10-07 系统解锁后已补验：通过 Computer Use 启动安装版 QuoDex，右键打开显示设置，点击“用量统计”，在系统默认 Google Chrome 观察到实际 loopback 地址及完整网页。随后只读获取安装版服务的 HTML、CSS、应用 JS、统计核心和材质 JS，逐一确认与当前源码字节一致；没有保存真实用量或任务内容。旧安装包保留在本机 ignored 的 `.scratch/usage-web-refinement/local-install-6j9f_9pp/` 中，安装器未触碰配置目录。本次未进行 Windows 原生构建或人工浏览器跨平台验收。用户视觉验收尚未通过：月合计展示需按最新反馈重做，批准前保留现有产品。
