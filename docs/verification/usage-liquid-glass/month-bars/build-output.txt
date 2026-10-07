@@ -1,0 +1,26 @@
+
+> quodex@0.3.0 tauri:build
+> tauri build --config src-tauri/tauri.macos.conf.json --bundles app
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> quodex@0.3.0 build
+> tsc && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 57 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.39 kB │ gzip:  0.27 kB
+dist/assets/index-BtPhI31u.css   41.12 kB │ gzip:  9.74 kB
+dist/assets/index-C_zHO3rw.js   311.82 kB │ gzip: 97.40 kB
+✓ built in 566ms
+   Compiling codex-credits-view v0.3.0 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
+    Finished `release` profile [optimized] target(s) in 24.92s
+       Built application at: /Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/codex-credits-view
+    Bundling QuoDex.app (/Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app)
+    Finished 1 bundle at:
+        /Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app
+

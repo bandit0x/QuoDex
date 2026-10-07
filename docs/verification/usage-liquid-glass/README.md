@@ -1,6 +1,35 @@
 # 用量网页改版验证
 
-当前状态：**Acceptance pending**。网页、签名、本地安装及原生设置入口检查为 **Verified**。用户于 2026-10-07 要求更新本地 App，安装已完成；随后要求重新设计月合计柱形区域，该处将先出一张效果图，批准前不修改产品。本文件是本轮实施与验证状态的唯一入口。
+当前状态：**Acceptance pending**。用户于 2026-10-07 批准月度柱状图局部方案并要求更新 App；该方案已实施，本地 `/Applications/QuoDex.app` 已更新并重新启动。构建、相关测试、真实应用界面、安装及签名检查为 **Verified**，待用户实际使用验收。本文件是当前实施与验证状态的唯一入口。
+
+## 本次月度柱状图
+
+源码提交：`6646519ee99471dde4b31e19ee5721d3b8df429d`，本地分支 `codex/usage-liquid-glass`。月度图脱离热力墙周列，使用独立等宽月份分组、相同柱宽和共同基线；数值在柱顶、年月在底部，以“月度已记录用量 / 所选期间内 · tokens”解释统计范围。正值按真实比例展示，去掉旧有 5% 最小柱高；未知 `—` 的斜纹短桩与确认零 `0` 区分。月预览、离开恢复日期、轮询保留节点继续工作；窄屏和较长期间独立横向滚动，聚焦月份自动进入可视区域。统计接口、来源、六个期间、合并/分开、日/周详情及趋势均保留。
+
+批准图：[月度柱状图方案](month-bars/approved-month-bars.png)。真实产物：[桌面 3 个月](month-bars/installed/page-desktop-3m-hover.png)、[390px 一年月图](month-bars/installed/page-390-month-bars.png)。图中演示热格及柱高不作为统计实现依据；实际柱高由月合计计算。匿名数据 9 月为 12,009,000，10 月为 6,822,000，比例约 56.8%。
+
+| 检查 | 实际结果 | 证据 |
+| --- | --- | --- |
+| 前端测试 | 12 文件，164 项通过；其中用量 DOM/core 38 项 | [输出](month-bars/frontend-tests-output.txt) |
+| 生产前端与原生构建 | `tsc`、Vite、Rust release、`.app` 打包通过 | [构建输出](month-bars/build-output.txt)、[产物指纹](month-bars/artifact.json) |
+| 新构建 App 的匿名真实旅程 | 13 项通过，0 浏览器错误 | [报告](month-bars/verification.json) |
+| 安装版在全新匿名目录的真实旅程 | 13 项通过，0 浏览器错误 | [安装版报告](month-bars/installed/verification.json) |
+| 月图几何与操作 | 桌面等宽月份、64px 柱宽、无重叠、共同基线和实际比例；跨年标签；390px 36px 柱宽，月图横滚/聚焦不改变热力墙滚动，整页无横向溢出 | 同上报告中的 `monthChartGeometry` 与 `mobileMonthChartGeometry` |
+| 规范与方案独立审查 | 相对 `d263d7d` 的两个审查轴均未发现具体缺陷 | 本地实现提交及 `src/usageCore.test.js`、`scripts/verify-usage-ui.mjs` 的针对性回归 |
+| 本地安装、签名和启动 | 严格签名通过，旧包已备份，Codex runtime 指纹保持；实际用户配置 App 已重新启动并读到额度/任务，设置入口显示已请求浏览器打开；静态网页五文件逐字节匹配源码 | [安装记录](month-bars/local-install.json) |
+
+实测环境仍为 macOS arm64、Google Chrome 154、Asia/Shanghai；桌面 1440×1080，触摸窄屏 390×844。安装版匿名验证于 2026-10-07 14:00 开始。两次 QA 均从新建来源/账本目录启动真实 `.app`，只结束各自创建的测试进程，不依赖用户缓存、不保存真实用量或聊天。构建原包与补齐 runtime 后重签的安装包指纹分别记录，不能混用。
+
+本轮可复现命令：
+
+```sh
+npm test
+npm run tauri:build -- --config src-tauri/tauri.macos.conf.json --bundles app
+node scripts/verify-usage-ui.mjs --output docs/verification/usage-liquid-glass/month-bars
+node scripts/verify-usage-ui.mjs --app /Applications/QuoDex.app/Contents/MacOS/codex-credits-view --output docs/verification/usage-liquid-glass/month-bars/installed
+```
+
+与批准图逐项对照：独立窄柱及年月/柱顶数字已呈现；水流背景和玻璃面板保持；未知使用斜纹短桩；右侧详情无覆盖；窄屏月图内部滚动、年月可见。实拍已经逐张查看。批准图为局部裁切，真实截图保留整页，因此页头、总量和趋势仍可核对。
 
 ## 实施范围
 
@@ -8,14 +37,14 @@
 
 六个区间、合并/分开、刷新、现有日期边界、热度色阶、未知/零/未来区分、来源诊断和重试均保留。未修改 `usage-core.js`、来源采集、生产账本计算或原生设置面板；服务仅增加 `/usage-material.js` 静态资源，查询仍使用原有接口。`usage_ledger.rs` 的变化只在测试模块内，用进程号和计数器隔离并行测试，修复同毫秒临时路径碰撞。
 
-## 来源、产物与环境
+## 上一轮水流改版的来源、产物与环境
 
 - 源码基线：`15b1cf68a84ebf47dec481c6ca50cd8b8ba2c289`；本地分支：`codex/usage-liquid-glass`。最终变更由包含本记录的本地提交确定。
-- 原生构建产物：`src-tauri/target/release/bundle/macos/QuoDex.app`。构建二进制与嵌入网页文件的 SHA-256 见 [artifact.json](artifact.json)。本次以实现提交 `25d99ab` 的该产物为基础，补齐原安装包的 Codex runtime 后重签，已更新并启动 `/Applications/QuoDex.app`。安装后签名和二进制指纹见 [local-install.json](local-install.json)；未发布远端。
+- 原生构建产物：`src-tauri/target/release/bundle/macos/QuoDex.app`。上一轮实现提交 `25d99ab` 的指纹见 [artifact.json](artifact.json)，上一轮安装证据见 [local-install.json](local-install.json)。当前月图安装使用上节 `month-bars/` 下的新产物记录；未发布远端。
 - 实测环境：macOS 27.0.1 / arm64；Node v22.23.2 / npm 10.9.8；Google Chrome 154.0.8037.98，Asia/Shanghai。
 - 网页检查时间：2026-10-07 13:01:15–13:01:50。桌面 1440×1080、DPR 1；窄屏 390×844、DPR 1，独立触摸环境 `maxTouchPoints=1`。
 
-## 执行与结果
+## 上一轮水流改版的执行与结果
 
 在项目根目录复现：
 
@@ -50,9 +79,9 @@ GUI 应用、Chrome 及本机监听须能在当前执行环境启动。脚本使
 
 首轮网页检查曾捕获原 HTML 的 `style="margin-left:auto"` 被 `style-src 'self'` 拦截。该属性已移入 CSS；最终检查没有放宽 CSP，浏览器错误为零。首次并行账本测试也暴露临时路径碰撞，修复测试隔离后保持并行执行，22 个测试通过。
 
-## 真实截图与批准图对照
+## 上一轮整体页面的截图与批准图对照
 
-批准的唯一设计图：[approved-desktop.png](approved-desktop.png)。以下三张来自当前真实应用服务的匿名数据页面，不是新设计稿：
+上一轮整体设计图：[approved-desktop.png](approved-desktop.png)。以下三张为上一轮真实应用匿名数据截图；月图最新实拍见本文首节：
 
 - [桌面：3个月合并、整周悬停](page-desktop-3m-hover.png)
 - [桌面：30天分开](page-desktop-split.png)
@@ -70,4 +99,4 @@ GUI 应用、Chrome 及本机监听须能在当前执行环境启动。脚本使
 
 ## 已知限制与下一步
 
-首次原生入口检查曾被系统锁屏阻止。2026-10-07 系统解锁后已补验：通过 Computer Use 启动安装版 QuoDex，右键打开显示设置，点击“用量统计”，在系统默认 Google Chrome 观察到实际 loopback 地址及完整网页。随后只读获取安装版服务的 HTML、CSS、应用 JS、统计核心和材质 JS，逐一确认与当前源码字节一致；没有保存真实用量或任务内容。旧安装包保留在本机 ignored 的 `.scratch/usage-web-refinement/local-install-6j9f_9pp/` 中，安装器未触碰配置目录。本次未进行 Windows 原生构建或人工浏览器跨平台验收。用户视觉验收尚未通过：月合计展示需按最新反馈重做，批准前保留现有产品。
+首次原生入口检查曾被系统锁屏阻止，上一轮已在系统解锁后补验完整默认浏览器入口。本次原生入口也实际点击，观察到“已请求浏览器打开”，并核对新服务的静态资源；当前安装包另经 Chrome 全新匿名环境验证。旧包位置见本次 [安装记录](month-bars/local-install.json)，安装器未触碰配置目录。本次未进行 Windows 原生构建或人工浏览器跨平台验收。月图方案已获批准并实施，最终使用验收仍待用户确认。

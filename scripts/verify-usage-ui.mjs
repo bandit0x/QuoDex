@@ -498,6 +498,7 @@ try {
     await mobile.locator(".heat-scroll").evaluate((element, value) => { element.scrollLeft = value; }, heatX);
     await mobile.locator("h1").tap(); await mobile.evaluate(() => document.activeElement?.blur());
     await expectDay(mobile, selectedDay); await assertNoOverflow(mobile);
+    await mobile.screenshot({ path: path.join(output, "page-390-month-bars.png"), fullPage: true });
     assert.equal(await mobile.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), true);
     const activeAnimations = await mobile.evaluate(() => document.getAnimations().filter(animation =>
       animation.playState === "running" && animation.effect?.getComputedTiming().iterations === Infinity).length);

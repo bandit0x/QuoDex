@@ -1,0 +1,20 @@
+{
+  "status": "Verified",
+  "buildBaseCommit": "d263d7d1675fc4f3c38c94dc45d7ce63ec38d528",
+  "app": "/Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app",
+  "binarySha256": "c30d9b60c42c5c1a3a161d89ba459d7542217d46e486219af641f20bfb91c4a2",
+  "embeddedSourceSha256": {
+    "index.html": "63ca566cb9758ec33bbdec1f0e9265c52ba5f907e7e67f9f5f83a64c634756e6",
+    "usage.css": "43909008d00edd6dc751c4a151374836588cac1689373d39ac5710607cc08828",
+    "usage.js": "7f3c2f6d2731cfb2ae209775a17bee368fee8dec590a57300f9996e8afa37ab0",
+    "usage-material.js": "83dab5d0f5307c15b26d224967e39f1ef844615e126982bb3ef43fd14b25aa9b",
+    "usage-core.js": "06d6ffde0d64598eb63078f0444ea8d668c4940534a8e240179cb3dc6981ef49"
+  },
+  "tests": {
+    "frontend": 164,
+    "files": 12,
+    "realAppChecks": 13
+  },
+  "recordedAt": "2026-10-07T05:56:38.032943+00:00",
+  "implementationCommit": "6646519ee99471dde4b31e19ee5721d3b8df429d"
+}

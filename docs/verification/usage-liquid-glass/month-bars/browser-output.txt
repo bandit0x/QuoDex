@@ -1,0 +1,26 @@
+(node:37776) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "status": "Verified",
+  "output": "/Users/Admin/Documents/projects/QuoDex/docs/verification/usage-liquid-glass/month-bars",
+  "fixtureRoot": "/private/tmp/quodex-usage-ui-otT3Ui",
+  "pid": 37789,
+  "appKeptRunning": false,
+  "url": "http://127.0.0.1:51871/",
+  "passed": [
+    "real Tauri API ready and anonymous exact daily totals",
+    "real WebGL water and glass shaders compile and leave controls interactive",
+    "actual WEBGL_lose_context water loss uses CSS fallback and restores rendering without changing totals",
+    "six period totals and separate source totals use existing core date boundaries",
+    "month day selection, unknown and future are not zero",
+    "3m/6m/1y/total heat hover and click retain full-week highlight with precise day/week/month totals",
+    "same source snapshot from real polling retains heat/trend DOM, focus, highlight and scroll",
+    "month bar hover uses period month total and restores selected day",
+    "real month columns are equal, non-overlapping and proportional on a shared baseline across years",
+    "trend keyboard gives exact daily source/merged values and clears on Escape",
+    "refresh reimports without changing request counts, totals or selected day",
+    "390px touch: no body overflow, real date tap preserves scroll, reduced motion",
+    "no console, page or failed resource errors"
+  ],
+  "browserErrors": []
+}
