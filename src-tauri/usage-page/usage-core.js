@@ -277,3 +277,54 @@ export function niceTicks(maxValue) {
   const top = nice * base;
   return [0, top / 2, top];
 }
+
+/**
+ * 趋势图顶边的单调三次插值路径（Fritsch–Carlson 限幅）。
+ *
+ * points 是 [x, y] 数组，返回从 points[0]（假定画笔已落在此处）到末点的
+ * SVG 路径命令串（不含首端 M）。单调限幅保证曲线不越过相邻数据点的值域：
+ * 尖峰不会画出假鼓包，零值平台与段端垂直起落仍走直线，数据不会被美化失真。
+ */
+export function monotoneTopPath(points) {
+  const count = points.length;
+  if (count < 2) return "";
+  const step = [];
+  const slope = [];
+  for (let k = 0; k < count - 1; k += 1) {
+    const dx = points[k + 1][0] - points[k][0];
+    step.push(dx);
+    slope.push(dx === 0 ? 0 : (points[k + 1][1] - points[k][1]) / dx);
+  }
+  const tangent = [slope[0]];
+  for (let k = 1; k < count - 1; k += 1) {
+    tangent.push(slope[k - 1] * slope[k] <= 0 ? 0 : (slope[k - 1] + slope[k]) / 2);
+  }
+  tangent.push(slope[count - 2]);
+  for (let k = 0; k < count - 1; k += 1) {
+    if (slope[k] === 0) {
+      tangent[k] = 0;
+      tangent[k + 1] = 0;
+      continue;
+    }
+    const a = tangent[k] / slope[k];
+    const b = tangent[k + 1] / slope[k];
+    const overshoot = a * a + b * b;
+    if (overshoot > 9) {
+      const scale = 3 / Math.sqrt(overshoot);
+      tangent[k] = scale * a * slope[k];
+      tangent[k + 1] = scale * b * slope[k];
+    }
+  }
+  let d = "";
+  for (let k = 0; k < count - 1; k += 1) {
+    const [x0, y0] = points[k];
+    const [x1, y1] = points[k + 1];
+    if (slope[k] === 0) {
+      d += ` L ${x1} ${y1}`;
+    } else {
+      const dx = step[k];
+      d += ` C ${x0 + dx / 3} ${y0 + (tangent[k] * dx) / 3} ${x1 - dx / 3} ${y1 - (tangent[k + 1] * dx) / 3} ${x1} ${y1}`;
+    }
+  }
+  return d;
+}

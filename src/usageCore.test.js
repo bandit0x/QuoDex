@@ -10,6 +10,7 @@ import {
   heatScale,
   mergeDayClass,
   minusMonthsClamped,
+  monotoneTopPath,
   monthGroupsFor,
   niceTicks,
   periodHeatColumns,
@@ -246,6 +247,75 @@ describe("sourceDayInfo", () => {
     expect(sourceDayInfo(source, "2026-10-02", "2026-10-06").cls).toBe("unknown");
     expect(sourceDayInfo(source, "2026-10-02", "2026-10-06").coverage).toBe("partial");
     expect(sourceDayInfo(source, "2026-10-07", "2026-10-06").cls).toBe("future");
+  });
+});
+
+describe("monotoneTopPath 单调平滑路径", () => {
+  const parsePath = d => [...d.matchAll(/([CL])\s((?:-?[\d.eE+-]+\s?)+)/g)].map(([, command, coords]) => ({
+    command,
+    coords: coords.trim().split(/\s+/).map(Number),
+  }));
+
+  // 画笔起点是 points[0]（与 usage.js 的 M 底边 + L 顶边衔接一致）；
+  // 逐段按贝塞尔参数采样，供越界与过点断言使用。
+  function sampleCurve(points, d, perSegment = 32) {
+    const commands = parsePath(d);
+    expect(commands.length).toBeGreaterThan(0);
+    let [cx, cy] = points[0];
+    const samples = [[cx, cy]];
+    for (const { command, coords } of commands) {
+      if (command === "L") {
+        [cx, cy] = [coords[0], coords[1]];
+        samples.push([cx, cy]);
+        continue;
+      }
+      const [x1, y1, x2, y2, x, y] = coords;
+      for (let step = 1; step <= perSegment; step += 1) {
+        const t = step / perSegment;
+        const u = 1 - t;
+        samples.push([
+          u ** 3 * cx + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x,
+          u ** 3 * cy + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t ** 3 * y,
+        ]);
+      }
+      [cx, cy] = [x, y];
+    }
+    return samples;
+  }
+
+  it("少于两个点没有路径命令", () => {
+    expect(monotoneTopPath([])).toBe("");
+    expect(monotoneTopPath([[10, 5]])).toBe("");
+  });
+
+  it("曲线精确穿过每个数据点，段数等于点数减一", () => {
+    const points = [[0, 100], [30, 40], [60, 55], [90, 20], [120, 60]];
+    const samples = sampleCurve(points, monotoneTopPath(points));
+    expect(samples.length).toBe(1 + 4 * 32);
+    for (const [x, y] of points) {
+      const nearest = samples.reduce((best, sample) => Math.abs(sample[0] - x) < Math.abs(best[0] - x) ? sample : best, samples[0]);
+      expect(nearest[0]).toBeCloseTo(x, 6);
+      expect(nearest[1]).toBeCloseTo(y, 6);
+    }
+  });
+
+  it("限幅生效：均值切线会把急转弯后的曲线顶出值域，平滑后不得越界", () => {
+    // 若去掉 Fritsch–Carlson 限幅，末段的均值切线（t₂=0.505）会把曲线顶过 330.3。
+    const points = [[0, 0], [30, 300], [60, 330], [90, 330.3]];
+    for (const [, y] of sampleCurve(points, monotoneTopPath(points))) {
+      expect(y).toBeGreaterThanOrEqual(-1e-6);
+      expect(y).toBeLessThanOrEqual(330.3 + 1e-6);
+    }
+  });
+
+  it("零值平台走直线，极值符号翻转处不越界", () => {
+    const points = [[0, 80], [40, 80], [80, 0], [120, 60]];
+    const d = monotoneTopPath(points);
+    expect(d).toContain(" L 40 80");
+    for (const [, y] of sampleCurve(points, d)) {
+      expect(y).toBeGreaterThanOrEqual(-1e-6);
+      expect(y).toBeLessThanOrEqual(80 + 1e-6);
+    }
   });
 });
 

@@ -25,6 +25,7 @@
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
+        "acceptFirstMouse": true,
         "skipTaskbar": true,
         "resizable": false,
         "shadow": false

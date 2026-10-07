@@ -16,6 +16,7 @@ import {
   heatScale,
   mergeDayClass,
   minusMonthsClamped,
+  monotoneTopPath,
   monthGroupsFor,
   monthTitle,
   niceTicks,
@@ -1395,10 +1396,10 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     const flushRun = () => {
       if (run.length >= 2) {
         const path = document.createElementNS(ns, "path");
-        let d = `M ${xAt(run[0].index)} ${yAt(layer.baselineOf(run[0]))}`;
-        for (const point of run) {
-          d += ` L ${xAt(point.index)} ${yAt(layer.baselineOf(point) + point.value)}`;
-        }
+        // 顶边走单调三次插值让折线圆润；底边保持直线，段端垂直起落不变。
+        const tops = run.map(point => [xAt(point.index), yAt(layer.baselineOf(point) + point.value)]);
+        let d = `M ${tops[0][0]} ${yAt(layer.baselineOf(run[0]))} L ${tops[0][0]} ${tops[0][1]}`;
+        d += monotoneTopPath(tops);
         for (let position = run.length - 1; position >= 0; position -= 1) {
           const point = run[position];
           d += ` L ${xAt(point.index)} ${yAt(layer.baselineOf(point))}`;
