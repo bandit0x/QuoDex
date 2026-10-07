@@ -8,6 +8,8 @@
 
 **v0.4.0** · Windows 11 x64 / macOS · [下载安装](https://github.com/bandit0x/QuoDex/releases/tag/v0.4.0)
 
+**简体中文** · [English](README.en.md)
+
 ## 主要功能
 
 - **额度与重置**：查看 5 小时、周额度或单池套餐，支持 Codex / ZCode 切换与轮播，以及可用重置次数。
