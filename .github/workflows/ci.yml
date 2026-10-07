@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  # v* 标签不再触发任何 workflow：Release 由维护者本人本地构建、以个人名义直发。
 
 jobs:
   # 测试与编译验证：macOS + Windows 双平台矩阵
