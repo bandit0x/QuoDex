@@ -41,8 +41,6 @@ import {
 import type { FluidAccent } from "./opticalFluidRenderer";
 import {
   closeOverlaySettings,
-  chooseTaskPopoverPlacement,
-  type TaskPopoverPlacement,
   getOverlayWindowPosition,
   getOverlayWorkArea,
   openOverlaySettings,
@@ -52,7 +50,6 @@ import {
   setOverlayWindowPosition,
   setOverlayTaskSpace,
   TASK_ROW_HEIGHT,
-  TASK_POPOVER_HEIGHT,
   planSettingsExtraHeight,
   type OverlayLayout,
   type OverlayPosition,
@@ -68,7 +65,7 @@ interface AppProps {
   loadTaskStatus?: () => Promise<TaskStatusSnapshot>;
   openChat?: (id: string) => Promise<void>;
   dismissFailure?: (id: string, turnId: string) => Promise<void>;
-  setTaskSpace?: (layout: OverlayLayout, space: number, placement?: TaskPopoverPlacement) => Promise<void>;
+  setTaskSpace?: (layout: OverlayLayout, space: number) => Promise<void>;
   codexPresentation?: CodexPresentation;
   initialLayout?: OverlayLayout;
   loadSnapshot?: CapacityLoader;
@@ -572,13 +569,12 @@ export function App({
   motionSessionSeed,
 }: AppProps) {
   const taskStatus = useTaskStatus(loadTaskStatus);
-  const [taskPopoverOpen, setTaskPopoverOpen] = useState(false);
-  const [taskPopoverPlacement, setTaskPopoverPlacement] = useState<TaskPopoverPlacement>("above");
-  const popoverGeneration = useRef(0);
   const [taskStripGeneration, setTaskStripGeneration] = useState(0);
   const tasks = visibleChatTasks(taskStatus.snapshot.tasks, taskStatus.now);
   const hasTaskArea = tasks.length > 0 || taskStatus.snapshot.sources.some(source => source.health !== "ready") || taskStatus.snapshot.diagnostic !== null;
-  const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT + (taskPopoverOpen ? TASK_POPOVER_HEIGHT : 0) : 0;
+  // 任务浮层是窗口内的覆盖层，不再伸缩原生窗口：窗口尺寸变化与界面重绘
+  // 分属两个进程，任何开合都会产生可见的不同步帧（用户报告的闪烁）。
+  const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT : 0;
   const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
@@ -586,8 +582,8 @@ export function App({
   const settingsNativePresentation = useRef<SettingsWindowPresentation | null>(null);
   useEffect(() => {
     if (taskStatus.snapshot.observedAtMs === 0) return;
-    void (taskPopoverPlacement === "below" ? setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace, "below") : setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace)).catch(() => setControlMessage("任务区域无法调整；请重新打开 QuoDex · QDT-612"));
-  }, [taskSpace, taskPopoverPlacement, setTaskSpace, layoutMode, settingsPresentation?.baseLayout, taskStatus.snapshot.observedAtMs === 0]);
+    void setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, taskSpace).catch(() => setControlMessage("任务区域无法调整；请重新打开 QuoDex · QDT-612"));
+  }, [taskSpace, setTaskSpace, layoutMode, settingsPresentation?.baseLayout, taskStatus.snapshot.observedAtMs === 0]);
   const [preferences, setPreferences] = useState(defaultPreferences);
   const [confirmedAlwaysOnTop, setConfirmedAlwaysOnTop] = useState<boolean | null>(true);
   const confirmedPinRef = useRef<boolean | null>(true);
@@ -1049,7 +1045,6 @@ export function App({
     stopWindowInertia();
     try {
       setTaskStripGeneration(value => value + 1);
-      setTaskPopoverOpen(false);
       await setTaskSpace(layoutMode, hasTaskArea ? TASK_ROW_HEIGHT : 0);
       const presentation = await openSettingsWindow(layoutMode);
       settingsNativePresentation.current = presentation;
@@ -1108,53 +1103,16 @@ export function App({
     return () => { settingsResizeGeneration.current += 1; };
   }, [settingsPresentation, settingsExtraHeight, resizeSettingsWindow]);
 
+  // 任务浮层与设置形态互斥：悬停/展开任务列表时先收起设置（纯界面态，无窗口操作）。
+  const changeTaskPopover = useCallback((open: boolean) => {
+    if (open && settingsPresentation) void closeSettings();
+  }, [settingsPresentation, closeSettings]);
+
   const changeLayout = useCallback(async (next: OverlayLayout) => {
     if (!await closeSettings()) return;
     setLayoutMode(next);
     void setWindowLayout(next).catch(() => setControlMessage("窗口布局未能调整 · CRV-302"));
   }, [closeSettings, setWindowLayout]);
-
-  // 关闭浮层时需要"原生窗口先回落、CSS 后复位"，读最新值的 ref 避免闭包陈旧。
-  const taskSpaceRef = useRef({ placement: taskPopoverPlacement, hasArea: hasTaskArea, layout: settingsPresentation?.baseLayout ?? layoutMode });
-  taskSpaceRef.current = { placement: taskPopoverPlacement, hasArea: hasTaskArea, layout: settingsPresentation?.baseLayout ?? layoutMode };
-  const changeTaskPopover = useCallback((open: boolean) => {
-    const generation = ++popoverGeneration.current;
-    if (!open) {
-      void (async () => {
-        const snapshot = taskSpaceRef.current;
-        const next = snapshot.hasArea ? TASK_ROW_HEIGHT : 0;
-        await (snapshot.placement === "below"
-          ? setTaskSpace(snapshot.layout, next, "below")
-          : setTaskSpace(snapshot.layout, next));
-        // 等待期间用户再次悬停（generation 前进）则放弃复位，避免关掉新浮层。
-        if (generation !== popoverGeneration.current) return;
-        setTaskPopoverOpen(false);
-      })().catch(() => setTaskPopoverOpen(false));
-      return;
-    }
-    void (async () => {
-      if (settingsPresentation && !await closeSettings()) {
-        setTaskStripGeneration(value => value + 1);
-        return;
-      }
-      if (generation !== popoverGeneration.current) return;
-      if (!isTauri()) { setTaskPopoverOpen(true); return; }
-      const [position, area] = await Promise.all([getWindowPosition(), getOverlayWorkArea()]);
-      if (generation !== popoverGeneration.current) return;
-      const placement = chooseTaskPopoverPlacement(position, area);
-      const openSpace = TASK_ROW_HEIGHT + TASK_POPOVER_HEIGHT;
-      // 原生窗口先扩展到位，再提交 CSS 补偿；若顺序颠倒，条会先于窗口移动，
-      // 鼠标悬停目标瞬间落空并被合成 mouseleave，形成开关振荡。
-      await (placement === "below"
-        ? setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, openSpace, "below")
-        : setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, openSpace));
-      if (generation !== popoverGeneration.current) return;
-      setTaskPopoverPlacement(placement);
-      setTaskPopoverOpen(true);
-    })().catch(() => {
-      if (generation === popoverGeneration.current) { setTaskPopoverPlacement("above"); setTaskPopoverOpen(true); }
-    });
-  }, [getWindowPosition, setTaskSpace, layoutMode, settingsPresentation, closeSettings]);
 
   const toggleSettings = useCallback(async () => {
     if (settingsPresentation) {
@@ -1219,7 +1177,7 @@ export function App({
   const settingsOpen = settingsPresentation !== null;
   const collapsed = visibleLayout === "collapsed" && activeSnapshot !== null;
   const expanded = visibleLayout === "expanded";
-  useTaskMaterial(`${visibleLayout}:${hasTaskArea}:${taskPopoverOpen}:${taskPopoverPlacement}:${settingsPresentation?.placement ?? "closed"}:${controlMessage !== null}`, setControlMessage);
+  useTaskMaterial(`${visibleLayout}:${hasTaskArea}:${settingsPresentation?.placement ?? "closed"}:${controlMessage !== null}`, setControlMessage);
 
   const openTask = (task: ChatTask) => {
     void openChat(task.id).catch(error => {
@@ -1250,8 +1208,8 @@ export function App({
 
   return (
     <main
-      className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${taskPopoverOpen && taskPopoverPlacement === "below" ? " app-frame--task-popover-below" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
-      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${settingsExtraHeight * 2}px`, "--task-popover-space": `${taskPopoverOpen && taskPopoverPlacement === "above" ? TASK_POPOVER_HEIGHT * 2 : 0}px` } as React.CSSProperties}
+      className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
+      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${settingsExtraHeight * 2}px` } as React.CSSProperties}
       onContextMenu={(event) => {
         event.preventDefault();
         void toggleSettings();
@@ -1261,7 +1219,7 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
-      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} popoverPlacement={taskPopoverPlacement} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
+      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}

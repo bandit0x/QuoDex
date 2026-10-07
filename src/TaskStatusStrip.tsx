@@ -11,10 +11,9 @@ interface TaskStatusStripProps {
   sources?: TaskSourceStatus[];
   diagnostic?: Diagnostic | null;
   reducedMotion?: boolean;
-  popoverPlacement?: "above" | "below";
   onOpen: (task: ChatTask) => void;
   onDismiss: (task: ChatTask) => void;
-  onPopoverChange: (open: boolean) => void;
+  onPopoverChange?: (open: boolean) => void;
   isPointerInside?: () => Promise<boolean>;
 }
 
@@ -65,7 +64,7 @@ const sourceNames: Record<TaskSource, string> = { codex: "Codex", zcode: "ZCode"
 const statePriority = { running: 0, waiting: 1, failed: 2, unknown: 3, completed: 4 };
 const tasksPerSource = 5;
 
-export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, popoverPlacement = "above", onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
+export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
   const [listSource, setListSource] = useState<TaskSource | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [commonDiagnosticOpen, setCommonDiagnosticOpen] = useState(false);
@@ -102,7 +101,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     };
     closeTimer.current = window.setTimeout(confirmClose, 160);
   };
-  useEffect(() => { onPopoverChange(isOpen); }, [isOpen, onPopoverChange]);
+    useEffect(() => { onPopoverChange?.(isOpen); }, [isOpen, onPopoverChange]);
   // 非激活窗口收不到 mouseleave（光标离开后事件投给前台 app），打开期间
   // 由原生光标查询主动仲裁；补偿轮询会把标志/坐标维护为最新值。
   const scheduleCloseRef = useRef(scheduleClose);
@@ -127,7 +126,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
   const openList = (source: TaskSource) => { cancelClose(); setHoverKey(null); setCommonDiagnosticOpen(false); setListSource(previous => previous === source ? null : source); };
   const showTask = (task: ChatTask) => { cancelClose(); setHoverKey(key(task)); setListSource(null); setCommonDiagnosticOpen(false); };
   return <>
-    <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} data-popover-open={isOpen || undefined} data-popover-placement={popoverPlacement} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+    <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
       {groups.map(group => {
         const name = sourceNames[group.source];
         const hidden = group.tasks.slice(tasksPerSource);

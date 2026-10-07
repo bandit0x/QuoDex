@@ -1,7 +1,7 @@
 .task-strip {
   position: absolute;
   z-index: 22;
-  top: calc(22px + var(--task-popover-space, 0px));
+  top: 22px;
   left: 28px;
   right: 28px;
   height: 76px;
@@ -15,17 +15,7 @@
   box-shadow: 0 5px 12px rgba(0,6,15,.23), inset 0 2px 3px rgba(255,255,255,.9), inset 0 -3px 4px rgba(98,162,186,.48);
 }
 .task-strip::before { content:""; position:absolute; inset:4px; border-radius:28px; border:1px solid rgba(240,255,255,.6); pointer-events:none; }
-/* above 展开 popover 时窗口先上移、条内 CSS 补偿后到；间隙里鼠标处不能落空，
-   用透明命中垫盖住条的新旧两处位置（窗口逻辑位移 160px × 1/0.5 缩放 = 320px）。 */
-.task-strip[data-popover-open][data-popover-placement="above"]::after {
-  content: "";
-  position: absolute;
-  left: -10px;
-  right: -10px;
-  bottom: 100%;
-  height: 348px;
-}
-.app-frame--collapsed .task-strip { left: 10px; right: 10px; top: calc(8px + var(--task-popover-space, 0px)); }
+.app-frame--collapsed .task-strip { left: 10px; right: 10px; top: 8px; }
 .task-button {
   flex: 0 0 48px;
   width: 48px;
@@ -75,8 +65,8 @@
   z-index: 26;
   left: 28px;
   right: 28px;
-  bottom: calc(100% - var(--task-popover-space, 320px) + 4px);
-  max-height: 296px;
+  top: calc(22px + 88px + 6px);
+  bottom: 18px;
   overflow: auto;
   padding: 16px 20px;
   border-radius: 18px;
@@ -108,8 +98,8 @@
 .task-list-row { display: flex; gap: 12px; align-items: center; }
 .task-list-row .task-list-entry { flex: 1; min-width: 0; }
 .task-list-dismiss { flex: 0 0 auto; padding: 8px 12px; border: 1px solid rgba(255, 137, 126, .4); border-radius: 8px; background: #204555; color: #ffd5ce; font-size: 18px; cursor: pointer; }
-.app-frame--has-tasks { padding-top: calc(22px + 88px + var(--task-popover-space, 0px)); }
-.app-frame--collapsed.app-frame--has-tasks { padding-top: calc(8px + 88px + var(--task-popover-space, 0px)); }
+.app-frame--has-tasks { padding-top: calc(22px + 88px); }
+.app-frame--collapsed.app-frame--has-tasks { padding-top: calc(8px + 88px); }
 @keyframes task-breathe { 0%,100% { opacity: 1; } 50% { opacity: .85; } }
 .task-water-flow[data-flow-reduced="true"],
 .reduce-motion .task-overflow-button--active .task-overflow-indicator { animation: task-breathe-subtle 2.8s ease-in-out infinite !important; }
@@ -173,6 +163,4 @@
 .app-frame--collapsed .task-source-capsule--dense .task-source-name { font-size:16px; }
 .app-frame--collapsed .task-button { flex-basis: 46px; width: 46px; }
 
-.app-frame--task-popover-below { padding-bottom: 338px; }
-.app-frame--collapsed.app-frame--task-popover-below { padding-bottom: 328px; }
-.app-frame--task-popover-below .task-popover { top: calc(100% - 320px + 4px); bottom: 10px; }
+.app-frame--collapsed .task-popover { top: calc(8px + 88px + 6px); bottom: 10px; }
