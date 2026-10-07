@@ -584,7 +584,7 @@ function renderPeriodHeat(grid, dataset) {
     item.textContent = label;
     weekdays.append(item);
   }
-  // 月份标签、格子与月度柱条共用一个横向滚动容器，坐标天然对齐。
+  // 热力墙月份标签与日格共用周坐标；月度统计使用独立的月份坐标。
   const scroll = document.createElement("div");
   scroll.className = "heat-scroll";
   const columns = document.createElement("div");
@@ -611,30 +611,44 @@ function renderPeriodHeat(grid, dataset) {
     }
   });
 
-  // 月度合计柱条：与热力格同一坐标，填充面板并给出整月总览。
-  // 相邻月份共享边界列：柱条显式限定第 1 行，边界列划给后一个月，避免行错位。
+  const monthSection = document.createElement("section");
+  monthSection.className = "heat-month-chart";
+  monthSection.setAttribute("aria-label", "所选期间内月度已记录用量");
+  const monthHead = document.createElement("div");
+  monthHead.className = "heat-month-head";
+  const monthTitle = document.createElement("h3");
+  monthTitle.textContent = "月度已记录用量";
+  const monthNote = document.createElement("span");
+  monthNote.textContent = "所选期间内 · tokens";
+  monthHead.append(monthTitle, monthNote);
+  const monthScroll = document.createElement("div");
+  monthScroll.className = "heat-month-scroll";
   const bars = document.createElement("div");
   bars.className = "heat-bars";
-  bars.style.gridTemplateColumns = `repeat(${count}, var(--heat-cell))`;
+  bars.style.gridTemplateColumns = `repeat(${dataset.monthGroups.length}, minmax(84px, 1fr))`;
   const maxMonthTotal = Math.max(...dataset.monthGroups.map(group => group.total), 1);
-  dataset.monthGroups.forEach((group, index) => {
-    const next = dataset.monthGroups[index + 1];
-    const spanEnd = next ? next.startColumn + 1 : group.endColumn + 1;
+  dataset.monthGroups.forEach(group => {
     const bar = document.createElement("div");
     bar.className = "heat-bar";
     bar.dataset.month = group.key;
     bar.tabIndex = 0;
     bar.setAttribute("role", "img");
-    bar.style.gridColumn = `${group.startColumn + 1} / ${spanEnd + 1}`;
-    bar.style.gridRow = "1";
+    const plot = document.createElement("div");
+    plot.className = "heat-bar-plot";
     const value = document.createElement("span");
     value.className = "heat-bar-value";
     const fill = document.createElement("div");
     fill.className = "heat-bar-fill";
-    bar.append(value, fill);
+    plot.append(value, fill);
+    const month = document.createElement("span");
+    month.className = "heat-bar-month";
+    month.textContent = group.key.replace("-", ".");
+    bar.append(plot, month);
     updateHeatBar(bar, group, dataset, maxMonthTotal);
     bars.append(bar);
   });
+  monthScroll.append(bars);
+  monthSection.append(monthHead, monthScroll);
 
   const months = document.createElement("div");
   months.className = "heat-months";
@@ -650,18 +664,23 @@ function renderPeriodHeat(grid, dataset) {
     months.append(span);
   }
 
-  scroll.append(months, columns, bars);
+  scroll.append(months, columns);
   body.append(weekdays, scroll);
-  wrap.append(body);
+  wrap.append(body, monthSection);
   grid.append(wrap);
 
   // 格子尺寸随容器宽度自适应：短区间放大铺满，长区间保底并横向滚动。
-  heatLayout = { wrap, scroll, columns, weekdays, count, highlight, pointerPreview: null, focusPreview: null };
-  scroll.addEventListener("pointerover", event => setHeatPreview("pointerPreview", heatPreviewFor(event.target)));
-  scroll.addEventListener("pointerout", event => setHeatPreview("pointerPreview", heatPreviewFor(event.relatedTarget)));
-  scroll.addEventListener("focusin", event => setHeatPreview("focusPreview", heatPreviewFor(event.target)));
-  scroll.addEventListener("focusout", event => setHeatPreview("focusPreview", heatPreviewFor(event.relatedTarget)));
+  heatLayout = { wrap, scroll, monthScroll, bars, columns, weekdays, count, highlight, pointerPreview: null, focusPreview: null };
+  wrap.addEventListener("pointerover", event => setHeatPreview("pointerPreview", heatPreviewFor(event.target)));
+  wrap.addEventListener("pointerout", event => setHeatPreview("pointerPreview", heatPreviewFor(event.relatedTarget)));
+  wrap.addEventListener("focusin", event => {
+    const bar = event.target.closest?.(".heat-bar");
+    bar?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    setHeatPreview("focusPreview", heatPreviewFor(event.target));
+  });
+  wrap.addEventListener("focusout", event => setHeatPreview("focusPreview", heatPreviewFor(event.relatedTarget)));
   scroll.addEventListener("scroll", () => setHeatPreview("pointerPreview", null), { passive: true });
+  monthScroll.addEventListener("scroll", () => setHeatPreview("pointerPreview", null), { passive: true });
   requestAnimationFrame(() => applyHeatCellSize());
   // 切换区间后停在最新一端（右侧）：空白的更早历史不必是第一眼。
   const heatKey = `${state.range}|${state.view}`;
@@ -669,6 +688,7 @@ function renderPeriodHeat(grid, dataset) {
     lastHeatScrollKey = heatKey;
     requestAnimationFrame(() => {
       scroll.scrollLeft = scroll.scrollWidth;
+      monthScroll.scrollLeft = monthScroll.scrollWidth;
       applyHeatCellSize();
     });
   }
@@ -685,7 +705,7 @@ function heatPreviewFor(target) {
     return { kind: "day", day: cell.dataset.day, column: Number(cell.dataset.column) };
   }
   const month = target?.closest?.("[data-month]");
-  return month && heatLayout?.scroll.contains(month) ? { kind: "month", key: month.dataset.month } : null;
+  return month && heatLayout?.wrap.contains(month) ? { kind: "month", key: month.dataset.month } : null;
 }
 
 function setHeatPreview(channel, preview) {
@@ -713,7 +733,7 @@ function updatePeriodHeat(dataset) {
     }
   }
   const maxMonthTotal = Math.max(...dataset.monthGroups.map(group => group.total), 1);
-  for (const bar of heatLayout.scroll.querySelectorAll(".heat-bar")) {
+  for (const bar of heatLayout.bars.querySelectorAll(".heat-bar")) {
     const group = dataset.monthGroups.find(item => item.key === bar.dataset.month);
     updateHeatBar(bar, group, dataset, maxMonthTotal);
   }
@@ -721,9 +741,11 @@ function updatePeriodHeat(dataset) {
 
 function updateHeatBar(bar, group, dataset, maxMonthTotal) {
   const recorded = recordedHeatTotal(dataset, group.days);
+  bar.classList.toggle("is-unknown", recorded === null);
+  bar.classList.toggle("is-zero", recorded === 0);
   bar.setAttribute("aria-label", `${monthTitle(`${group.key}-01`)}，${recorded === null ? "无可核对记录" : `已记录合计 ${formatTokens(recorded)} tokens`}`);
   bar.querySelector(".heat-bar-value").textContent = recorded === null ? "—" : abbrevTokens(recorded);
-  bar.querySelector(".heat-bar-fill").style.setProperty("--bar-h", group.total > 0 ? `${Math.max(5, Math.round((group.total / maxMonthTotal) * 100))}%` : "2px");
+  bar.style.setProperty("--bar-h", recorded === null ? "4px" : recorded === 0 ? "2px" : `${(recorded / maxMonthTotal) * 100}%`);
 }
 
 function selectCalendarDay(day) {

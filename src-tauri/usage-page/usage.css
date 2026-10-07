@@ -492,39 +492,66 @@ span.heat-cell { cursor: default; }
   box-shadow: 0 0 0 1px rgba(201, 255, 238, 0.85), 0 4px 10px rgba(0, 22, 34, 0.35);
 }
 
-/* 月度合计柱条：与热力格同一坐标轴 */
+/* 月度小计独立按月份排列，不复用热力墙的周列。 */
+.heat-month-chart { margin-top: 26px; }
+.heat-month-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; }
+.heat-month-head h3 { margin: 0; font-size: 17px; font-weight: 620; }
+.heat-month-head span { color: var(--text-secondary); font-size: 12.5px; }
+.heat-month-scroll { overflow-x: auto; padding: 4px 3px 7px; }
 .heat-bars {
+  --month-plot-height: 104px;
+  --month-bar-width: clamp(36px, 5vw, 64px);
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  gap: 3px;
-  height: 118px;
-  margin-top: 12px;
-  align-items: end;
+  gap: 12px;
+  width: 100%;
+  min-width: max-content;
 }
 .heat-bar {
-  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   align-items: center;
-  min-width: 0;
-  height: 100%;
+  min-width: 84px;
+  padding-top: 28px;
+  cursor: default;
+}
+.heat-bar:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; border-radius: 9px; }
+.heat-bar-plot {
+  position: relative;
+  width: 100%;
+  height: var(--month-plot-height);
+  border-bottom: 1px solid rgba(176, 229, 225, 0.4);
 }
 .heat-bar-value {
-  font-size: 10.5px;
-  color: var(--text-faint);
+  position: absolute;
+  bottom: calc(var(--bar-h) + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 550;
+  color: #eaf8fc;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 3px;
   white-space: nowrap;
 }
 .heat-bar-fill {
-  width: 100%;
-  height: var(--bar-h, 2px);
-  border-radius: 6px 6px 2px 2px;
-  background: linear-gradient(180deg, rgba(88, 242, 171, 0.8), rgba(46, 150, 140, 0.4));
-  box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.45), 0 4px 14px rgba(48, 190, 150, 0.18);
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--month-bar-width);
+  height: var(--bar-h);
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, rgba(88, 242, 171, 0.86), rgba(46, 150, 140, 0.45));
+  box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.55), 0 4px 12px rgba(0, 23, 36, 0.2);
 }
-.heat-bar:hover .heat-bar-fill { box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.7), 0 5px 16px rgba(0, 23, 36, 0.35); }
+.heat-bar-month { margin-top: 12px; color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.heat-bar:is(:hover, :focus-visible) .heat-bar-fill { box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.8), 0 5px 16px rgba(0, 23, 36, 0.35); }
+.heat-bar:is(:hover, :focus-visible) .heat-bar-month { color: #eaf8fc; }
+.heat-bar.is-unknown .heat-bar-fill {
+  background: repeating-linear-gradient(135deg, rgba(190, 226, 240, 0.35) 0 3px, transparent 3px 6px), var(--lv0);
+  box-shadow: none;
+  border-radius: 3px 3px 0 0;
+}
+.heat-bar.is-zero .heat-bar-fill { background: var(--text-faint); box-shadow: none; border-radius: 1px; }
 
 /* ---- 趋势图交互层 ---- */
 .trend-crosshair {

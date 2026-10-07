@@ -495,14 +495,97 @@ describe("用量页真实 DOM 交互", () => {
     document.querySelector('[data-range="1y"]').click();
     const month = document.querySelector('.heat-bar[data-month="2026-10"]');
     const unknown = document.querySelector('.heat-bar[data-month="2026-08"]');
+    expect(month).not.toHaveClass("is-unknown");
+    expect(month).not.toHaveClass("is-zero");
+    expect(unknown).toHaveClass("is-unknown");
+    expect(unknown).not.toHaveClass("is-zero");
     expect(unknown.querySelector(".heat-bar-value").textContent).toBe("—");
     snapshot = { ...snapshot, codex: { ...snapshot.codex, daily: {} }, zcode: { ...snapshot.zcode, daily: {} } };
     document.getElementById("refresh-btn").click();
     await vi.dynamicImportSettled();
     expect(document.querySelector('.heat-bar[data-month="2026-10"]')).toBe(month);
+    expect(month).toHaveClass("is-zero");
+    expect(month).not.toHaveClass("is-unknown");
     expect(month.querySelector(".heat-bar-value").textContent).toBe("0");
+    expect(unknown).toHaveClass("is-unknown");
+    expect(unknown).not.toHaveClass("is-zero");
     expect(unknown.querySelector(".heat-bar-value").textContent).toBe("—");
     month.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
     expect(document.querySelector(".day-detail-total strong").textContent).toBe("0");
+  });
+
+  it("独立月图直接标注13个跨年月份，不再依赖热墙周列定位", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const heatScroll = document.querySelector(".heat-scroll");
+    const monthScroll = document.querySelector(".heat-month-scroll");
+    expect(monthScroll).not.toBeNull();
+    expect(heatScroll.contains(monthScroll)).toBe(false);
+    const bars = [...monthScroll.querySelectorAll(".heat-bars .heat-bar")];
+    expect(bars.map(bar => bar.dataset.month)).toEqual([
+      "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04",
+      "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10",
+    ]);
+    expect(bars[0].querySelector(".heat-bar-month")).toHaveTextContent(/2025.*10/);
+    expect(bars[3].querySelector(".heat-bar-month")).toHaveTextContent(/2026.*0?1/);
+    expect(bars.at(-1).querySelector(".heat-bar-month")).toHaveTextContent(/2026.*10/);
+    expect(bars.every(bar => bar.querySelector(".heat-bar-month")?.textContent)).toBe(true);
+  });
+
+  it("月柱按真实月小计保持精确比例，微小用量不设5%下限", async () => {
+    document.querySelector('[data-range="3m"]').click();
+    snapshot = {
+      codex: { ...snapshot.codex, daily: { "2026-09-28": 8_000_000, "2026-10-05": 4_455_000 } },
+      zcode: { ...snapshot.zcode, daily: { "2026-09-28": 4_009_000, "2026-10-05": 2_367_000 } },
+    };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    const september = document.querySelector('.heat-bar[data-month="2026-09"]');
+    const october = document.querySelector('.heat-bar[data-month="2026-10"]');
+    // .scratch/usage-web-refinement/month-bars-v2-review.md 的固定数据与独立比值。
+    expect(september).toHaveAttribute("aria-label", expect.stringContaining("12,009,000"));
+    expect(october).toHaveAttribute("aria-label", expect.stringContaining("6,822,000"));
+    expect(september.style.getPropertyValue("--bar-h")).toBe("100%");
+    expect(october.style.getPropertyValue("--bar-h")).toMatch(/%$/);
+    expect(Number.parseFloat(october.style.getPropertyValue("--bar-h"))).toBeCloseTo(56.80739445415938, 8);
+
+    snapshot = {
+      codex: { ...snapshot.codex, daily: { "2026-09-28": 20_000_000, "2026-10-05": 10_000 } },
+      zcode: { ...snapshot.zcode, daily: {} },
+    };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    expect(document.querySelector('.heat-bar[data-month="2026-10"]')).toBe(october);
+    expect(october).not.toHaveClass("is-zero");
+    expect(october).not.toHaveClass("is-unknown");
+    expect(october.style.getPropertyValue("--bar-h")).toMatch(/%$/);
+    expect(Number.parseFloat(october.style.getPropertyValue("--bar-h"))).toBeCloseTo(0.05, 8);
+  });
+
+  it("独立月图的鼠标和键盘预览精确月小计，离开恢复所选日且不新增请求", () => {
+    document.querySelector('[data-range="3m"]').click();
+    const selected = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    selected.click();
+    const detail = document.getElementById("day-detail");
+    const month = document.querySelector('.heat-month-scroll .heat-bar[data-month="2026-09"]');
+    const requests = fetch.mock.calls.length;
+    month.querySelector(".heat-bar-month").dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(detail.dataset.previewKind).toBe("month");
+    expect(detail.querySelector(".day-detail-total strong").textContent).toBe("150");
+    expect(detail.querySelector(".day-detail-sub")).toHaveTextContent("2026.09.01 — 2026.09.30");
+    month.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    expect(detail).not.toHaveClass("day-detail-preview");
+    expect(detail.querySelector(".day-detail-title")).toHaveTextContent("10月5日");
+    expect(detail.querySelector(".day-detail-total strong").textContent).toBe("1,500");
+
+    month.focus();
+    expect(document.activeElement).toBe(month);
+    expect(detail.dataset.previewKind).toBe("month");
+    expect(detail.querySelector(".day-detail-total strong").textContent).toBe("150");
+    month.blur();
+    expect(detail).not.toHaveClass("day-detail-preview");
+    expect(detail.querySelector(".day-detail-title")).toHaveTextContent("10月5日");
+    expect(detail.querySelector(".day-detail-total strong").textContent).toBe("1,500");
+    expect(selected).toHaveAttribute("aria-pressed", "true");
+    expect(fetch.mock.calls).toHaveLength(requests);
   });
 });

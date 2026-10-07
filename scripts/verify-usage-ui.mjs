@@ -115,6 +115,70 @@ async function expectWeekHighlight(page, target) {
     "Week highlight spans all seven heat rows");
 }
 
+async function expectMonthGeometry(page, range, narrow = false) {
+  const geometry = await page.locator(".heat-month-scroll").evaluate(scroll => {
+    const rect = element => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height, right: x + width, bottom: y + height };
+    };
+    const heat = document.querySelector(".heat-scroll");
+    return {
+      independent: scroll !== heat && !heat.contains(scroll) && !scroll.contains(heat),
+      clientWidth: scroll.clientWidth, scrollWidth: scroll.scrollWidth,
+      bars: [...scroll.querySelectorAll(".heat-bars > .heat-bar")].map(bar => ({
+        month: bar.dataset.month, label: bar.querySelector(".heat-bar-month").textContent.trim(),
+        unknown: bar.classList.contains("is-unknown"), zero: bar.classList.contains("is-zero"),
+        column: rect(bar), plot: rect(bar.querySelector(".heat-bar-plot")),
+        fill: rect(bar.querySelector(".heat-bar-fill")), value: rect(bar.querySelector(".heat-bar-value")),
+        fillBackground: getComputedStyle(bar.querySelector(".heat-bar-fill")).backgroundImage,
+        valueText: bar.querySelector(".heat-bar-value").textContent.trim(),
+      })),
+    };
+  });
+  assert.equal(geometry.independent, true, "Month chart has its own scroll container outside the heat wall");
+  const selected = fixture.expected.ranges[range];
+  const groups = monthGroupsFor(periodHeatColumns(selected.start, selected.endExclusive).columns);
+  assert.deepEqual(geometry.bars.map(bar => bar.month), groups.map(group => group.key), "One ordered column per actual period month");
+  const totals = new Map(groups.map(group => [group.key, group.days.reduce((sum, day) =>
+    sum + (fixture.expected.daily.codex[day] ?? 0) + (fixture.expected.daily.zcode[day] ?? 0), 0)]));
+  const max = Math.max(...totals.values(), 1);
+  const first = geometry.bars[0];
+  assert.ok(first, "The month chart contains period columns");
+  for (const [index, bar] of geometry.bars.entries()) {
+    assert.equal(bar.label.replace(/\D/g, ""), bar.month.replace("-", ""), "Month labels retain both year and month");
+    assert.ok(bar.column.width >= 83, "Each month has at least an 84px column within rounding tolerance");
+    assert.ok(Math.abs(bar.column.width - first.column.width) <= 1, "Month columns have equal widths");
+    assert.ok(Math.abs(bar.plot.height - 104) <= 1, "All month plots use the same 104px scale");
+    assert.ok(Math.abs(bar.fill.width - (narrow ? 36 : 64)) <= 1, "Bar widths follow the approved desktop/mobile size");
+    assert.ok(Math.abs(bar.fill.bottom - first.fill.bottom) <= 1, "Every fill shares the same baseline");
+    assert.ok(Math.abs(bar.fill.bottom - bar.plot.bottom) <= 1, "The fill starts at the plot baseline");
+    const total = totals.get(bar.month);
+    const recorded = groups[index].days.some(day => Object.hasOwn(fixture.expected.daily.codex, day)
+      || Object.hasOwn(fixture.expected.daily.zcode, day));
+    assert.equal(bar.unknown, !recorded, "Unknown month status reflects missing records");
+    assert.equal(bar.zero, recorded && total === 0, "A recorded zero remains distinct from unknown");
+    if (!recorded) {
+      assert.equal(bar.valueText, "—");
+      assert.ok(Math.abs(bar.fill.height - 4) <= 1, "Unknown uses a small status marker, not a proportional amount");
+      assert.match(bar.fillBackground, /repeating-linear-gradient/, "Unknown markers use the approved stripe pattern");
+    } else if (total === 0) {
+      assert.equal(bar.valueText, "0");
+      assert.ok(Math.abs(bar.fill.height - 2) <= 1, "Known zero uses its separate status marker");
+    } else {
+      assert.ok(Math.abs(bar.fill.height - bar.plot.height * total / max) <= 1,
+        `${bar.month}: actual height reflects ${total}/${max} without a minimum positive bar height`);
+    }
+    if (index) {
+      const previous = geometry.bars[index - 1];
+      assert.ok(bar.column.x - previous.column.right >= 11, "Monthly columns keep a 12px gap without overlap");
+      assert.ok(previous.value.right <= bar.value.x + 1, "Neighboring numeric labels do not overlap");
+    }
+  }
+  if (range === "1y") assert.ok(new Set(geometry.bars.map(bar => bar.month.slice(0, 4))).size >= 2,
+    "One-year month columns retain distinct labels across the year boundary");
+  return { ...geometry, totals: Object.fromEntries(totals) };
+}
+
 try {
   await access(executable); await access(playwrightFile); await access(chrome);
   await mkdir(output, { recursive: true });
@@ -331,6 +395,15 @@ try {
     assert.equal(await page.locator(".heat-week-highlight").isVisible(), false);
     await leaveHeat(page); await expectDay(page, selectedDay);
   });
+  await check("real month columns are equal, non-overlapping and proportional on a shared baseline across years", async () => {
+    report.monthChartGeometry = {};
+    for (const range of ["3m", "1y"]) {
+      await choose(page, range, "merged");
+      report.monthChartGeometry[range] = await expectMonthGeometry(page, range);
+      await assertNoOverflow(page);
+    }
+    await choose(page, "3m", "merged");
+  });
   await check("trend keyboard gives exact daily source/merged values and clears on Escape", async () => {
     await choose(page, "30d", "merged");
     const chart = page.locator(".trend-chart");
@@ -393,6 +466,36 @@ try {
     assert.equal(await target.getAttribute("data-selected"), "true", "A real touch tap selects the heat date");
     const after = await mobile.evaluate(() => ({ x: document.querySelector(".heat-scroll").scrollLeft, y: scrollY }));
     assert.ok(Math.abs(after.x - before.x) <= 1 && Math.abs(after.y - before.y) <= 1, `Touch tap keeps scroll: ${JSON.stringify({ before, after })}`);
+    await mobile.locator("h1").tap(); await mobile.evaluate(() => document.activeElement?.blur());
+    await expectDay(mobile, selectedDay); await assertNoOverflow(mobile);
+    report.mobileMonthChartGeometry = await expectMonthGeometry(mobile, "1y", true);
+    const monthScroll = mobile.locator(".heat-month-scroll");
+    await monthScroll.scrollIntoViewIfNeeded();
+    await monthScroll.evaluate(element => { element.scrollLeft = 0; });
+    const heatX = await mobile.locator(".heat-scroll").evaluate(element => element.scrollLeft);
+    const monthBars = monthScroll.locator(".heat-bars > .heat-bar");
+    assert.ok(report.mobileMonthChartGeometry.scrollWidth > report.mobileMonthChartGeometry.clientWidth,
+      "One-year month chart really overflows only its own container at 390px");
+    for (const index of [await monthBars.count() - 1, 0, await monthBars.count() - 1]) {
+      const bar = monthBars.nth(index);
+      await bar.focus();
+      await mobile.waitForFunction(month => {
+        const scroll = document.querySelector(".heat-month-scroll");
+        const target = scroll.querySelector(`.heat-bar[data-month="${month}"]`);
+        const outer = scroll.getBoundingClientRect();
+        const inner = target.getBoundingClientRect();
+        return document.activeElement === target && inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+      }, await bar.getAttribute("data-month"));
+      await mobile.waitForFunction(() => document.querySelector("#day-detail").dataset.previewKind === "month");
+      assert.equal(await mobile.locator(".heat-scroll").evaluate(element => element.scrollLeft), heatX,
+        "Focusing a monthly column scrolls it into view without moving the heat wall");
+    }
+    const monthX = await monthScroll.evaluate(element => element.scrollLeft);
+    assert.ok(monthX > 0, "Focusing the newest month causes real independent horizontal scrolling");
+    await mobile.locator(".heat-scroll").evaluate(element => { element.scrollLeft = 0; });
+    assert.equal(await monthScroll.evaluate(element => element.scrollLeft), monthX,
+      "Heat scrolling does not move the month chart");
+    await mobile.locator(".heat-scroll").evaluate((element, value) => { element.scrollLeft = value; }, heatX);
     await mobile.locator("h1").tap(); await mobile.evaluate(() => document.activeElement?.blur());
     await expectDay(mobile, selectedDay); await assertNoOverflow(mobile);
     assert.equal(await mobile.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), true);
