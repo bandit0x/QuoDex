@@ -574,8 +574,17 @@ mod tests {
             ),
         )
         .unwrap();
-        let service = std::sync::Arc::new(UsageService::new(home.clone(), home.join("ledger.sqlite")));
-        service.refresh();
+        let ledger_path = home.join("ledger.sqlite");
+        {
+            // Windows 不允许删除仍被 SQLite 连接占用的文件：先析构再清账本。
+            let service = UsageService::new(home.clone(), ledger_path.clone());
+            service.refresh();
+            assert_eq!(
+                service.snapshot().codex.daily.values().sum::<i64>(),
+                100,
+                "first import records the rollout value"
+            );
+        }
         // 同一 (thread, response) 换了计数：fork/replay 冲突 → 保留原值并报诊断
         std::fs::write(
             &path,
@@ -584,9 +593,15 @@ mod tests {
             ),
         )
         .unwrap();
-        // 强制重扫：文件 mtime 变化会触发，但保险起见清掉增量状态
-        std::fs::remove_file(home.join("ledger.sqlite")).ok();
-        let service = std::sync::Arc::new(UsageService::new(home.clone(), home.join("ledger.sqlite")));
+        // 强制重扫：换掉账本，让新服务把 999 当作唯一已知值重新导入。
+        for _ in 0..10 {
+            match std::fs::remove_file(&ledger_path) {
+                Ok(()) | Err(_) if !ledger_path.exists() => break,
+                _ => std::thread::sleep(std::time::Duration::from_millis(50)),
+            }
+        }
+        assert!(!ledger_path.exists(), "ledger must be removable once no service holds it");
+        let service = UsageService::new(home.clone(), ledger_path);
         service.refresh();
         let snapshot = service.snapshot();
         assert_eq!(snapshot.codex.daily.values().sum::<i64>(), 999, "fresh ledger reimports the only known value");
