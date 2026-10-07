@@ -101,8 +101,21 @@ describe("approved chat task indicators", () => {
     expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
     isPointerInside.mockResolvedValue(false);
     fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
-    await act(async () => { await vi.advanceTimersByTimeAsync(170); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+  it("recovers when only the first close probe misreads the window-resize gap", async () => {
+    vi.useFakeTimers();
+    const isPointerInside = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+    render(<TaskStatusStrip tasks={[success]} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} isPointerInside={isPointerInside} />);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" }));
+    fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(170); });
+    expect(isPointerInside).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(160); });
+    expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
+    expect(isPointerInside).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
   it("shows unknown when the completion time is missing or in the future", () => {

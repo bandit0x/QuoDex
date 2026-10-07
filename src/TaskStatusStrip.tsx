@@ -11,6 +11,7 @@ interface TaskStatusStripProps {
   sources?: TaskSourceStatus[];
   diagnostic?: Diagnostic | null;
   reducedMotion?: boolean;
+  popoverPlacement?: "above" | "below";
   onOpen: (task: ChatTask) => void;
   onDismiss: (task: ChatTask) => void;
   onPopoverChange: (open: boolean) => void;
@@ -63,7 +64,7 @@ const sourceNames: Record<TaskSource, string> = { codex: "Codex", zcode: "ZCode"
 const statePriority = { running: 0, waiting: 1, failed: 2, unknown: 3, completed: 4 };
 const tasksPerSource = 5;
 
-export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
+export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, popoverPlacement = "above", onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
   const [listSource, setListSource] = useState<TaskSource | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [commonDiagnosticOpen, setCommonDiagnosticOpen] = useState(false);
@@ -86,11 +87,19 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
   const scheduleClose = () => {
     cancelClose();
     const generation = closeGeneration.current;
-    closeTimer.current = window.setTimeout(() => {
+    // 窗口为 popover 扩展/回落的间隙里，原生光标读数与 DOM 布局短暂失配，
+    // 单次判定会误关并触发 hover 振荡；两段都判定离开才真正关闭。
+    const confirmClose = () => {
       void isPointerInside().then(inside => {
-        if (generation === closeGeneration.current && !inside) close();
+        if (generation !== closeGeneration.current || inside) return;
+        closeTimer.current = window.setTimeout(() => {
+          void isPointerInside().then(again => {
+            if (generation === closeGeneration.current && !again) close();
+          }).catch(() => { if (generation === closeGeneration.current) close(); });
+        }, 120);
       }).catch(() => { if (generation === closeGeneration.current) close(); });
-    }, 160);
+    };
+    closeTimer.current = window.setTimeout(confirmClose, 160);
   };
   useEffect(() => { onPopoverChange(isOpen); }, [isOpen, onPopoverChange]);
   useEffect(() => () => { closeGeneration.current += 1; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); }, []);
@@ -106,7 +115,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
   const openList = (source: TaskSource) => { cancelClose(); setHoverKey(null); setCommonDiagnosticOpen(false); setListSource(previous => previous === source ? null : source); };
   const showTask = (task: ChatTask) => { cancelClose(); setHoverKey(key(task)); setListSource(null); setCommonDiagnosticOpen(false); };
   return <>
-    <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+    <section className={`task-strip${diagnostic ? " task-strip--diagnostic" : ""}`} data-popover-open={isOpen || undefined} data-popover-placement={popoverPlacement} aria-label="聊天任务" onMouseLeave={scheduleClose}>
       {groups.map(group => {
         const name = sourceNames[group.source];
         const hidden = group.tasks.slice(tasksPerSource);

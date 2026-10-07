@@ -1126,12 +1126,20 @@ export function App({
       if (!isTauri()) { setTaskPopoverOpen(true); return; }
       const [position, area] = await Promise.all([getWindowPosition(), getOverlayWorkArea()]);
       if (generation !== popoverGeneration.current) return;
-      setTaskPopoverPlacement(chooseTaskPopoverPlacement(position, area));
+      const placement = chooseTaskPopoverPlacement(position, area);
+      const openSpace = TASK_ROW_HEIGHT + TASK_POPOVER_HEIGHT;
+      // 原生窗口先扩展到位，再提交 CSS 补偿；若顺序颠倒，条会先于窗口移动，
+      // 鼠标悬停目标瞬间落空并被合成 mouseleave，形成开关振荡。
+      await (placement === "below"
+        ? setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, openSpace, "below")
+        : setTaskSpace(settingsPresentation?.baseLayout ?? layoutMode, openSpace));
+      if (generation !== popoverGeneration.current) return;
+      setTaskPopoverPlacement(placement);
       setTaskPopoverOpen(true);
     })().catch(() => {
       if (generation === popoverGeneration.current) { setTaskPopoverPlacement("above"); setTaskPopoverOpen(true); }
     });
-  }, [getWindowPosition, settingsPresentation, closeSettings]);
+  }, [getWindowPosition, setTaskSpace, layoutMode, settingsPresentation, closeSettings]);
 
   const toggleSettings = useCallback(async () => {
     if (settingsPresentation) {
@@ -1238,7 +1246,7 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
-      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
+      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} popoverPlacement={taskPopoverPlacement} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
