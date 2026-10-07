@@ -1,9 +1,11 @@
 /**
- * QuoDex 页内光学材质。水流来自 opticalFluidRenderer.ts 的 fbm/curl/焦散；
+ * QuoDex 页内光学材质。背景是染料涡流：curl-noise 速度场 + 半拉格朗日染料输运
+ * （方案与调研见 docs/design/usage-water-flow/README.md，用户 2026-10-07 选定 C 方向）；
  * 冠面、柔光箱、Fresnel/GGX、厚度吸收和内壁回光来自 OpticalShell.tsx。
  * 这里只绘制装饰，不读取用量、额度、水位或图表几何。
  *
- * #ocean-canvas: fixed/inset:0/width:100%/height:100%/pointer-events:none.
+ * #ocean-canvas: fixed/inset:0/width:100%/height:100%/pointer-events:none;
+ * 鼠标注入经 window pointermove 监听，不占用命中测试。
  * .glass-panel/.pill: position:relative; isolation:isolate.
  * .usage-glass-canvas: absolute/inset:0/100%/pointer-events:none/z-index:0.
  * 容器直接内容保持 z-index:1；热格和 SVG 的原始颜色不由此模块改变。
@@ -15,19 +17,22 @@ const MAX_WATER_PIXELS = 600_000;
 const MAX_GLASS_PIXELS = 450_000;
 const MAX_GLASS_SURFACES = 24;
 const MAX_DPR = 1.5;
+const FLUID_SIM_WIDTH = 160;
+const FLUID_DYE_WIDTH = 384;
+const FLUID_PREFILL_STEPS = 110;
+const FLUID_PREFILL_DT = 0.033;
+const FLUID_MAX_DT = 0.05;
 const STATE_CLASSES = ["usage-material-ready", "usage-material-fallback", "usage-material-glass-fallback", "usage-material-static", "usage-material-paused"];
 
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
 layout(location = 0) in vec2 aPosition;
-void main() { gl_Position = vec4(aPosition, 0.0, 1.0); }
+out vec2 vUv;
+void main() { vUv = aPosition * 0.5 + 0.5; gl_Position = vec4(aPosition, 0.0, 1.0); }
 `;
 
-const WATER_SHADER = `#version 300 es
-precision highp float;
-out vec4 outColor;
-uniform vec2 uResolution;
-uniform float uTime;
+// 三条流体 program 共用的值噪声基元（与旧水面同一套，保证色板与颗粒感延续）。
+const FLUID_NOISE = `
 float sat(float x) { return clamp(x, 0.0, 1.0); }
 float hash11(float x) { return fract(sin(x * 127.1) * 43758.5453123); }
 float valueNoise(vec2 point) {
@@ -49,40 +54,76 @@ float fluidFbm(vec2 point) {
   }
   return value;
 }
-vec2 curlField(vec2 point) {
-  const float stepSize = 0.075;
-  float left = fluidFbm(point - vec2(stepSize, 0.0));
-  float right = fluidFbm(point + vec2(stepSize, 0.0));
-  float top = fluidFbm(point - vec2(0.0, stepSize));
-  float bottom = fluidFbm(point + vec2(0.0, stepSize));
-  return vec2(top - bottom, left - right) / (2.0 * stepSize);
+`;
+
+// 速度场：fbm 势函数的旋度（无压力求解），叠加缓慢的向右环境流。
+const FLUID_VEL_SHADER = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uScale;
+uniform float uTime;
+${FLUID_NOISE}
+void main() {
+  vec2 uv = gl_FragCoord.xy / uScale;
+  float aspect = uScale.x / uScale.y;
+  vec2 point = vec2(uv.x * aspect, uv.y);
+  float e = 0.09;
+  vec2 samplePoint = point * 2.3 + vec2(uTime * 0.05, -uTime * 0.028);
+  float center = fluidFbm(samplePoint);
+  float right = fluidFbm(samplePoint + vec2(e, 0.0));
+  float up = fluidFbm(samplePoint + vec2(0.0, e));
+  vec2 velocity = vec2(up - center, -(right - center)) / e * 0.0042 + vec2(0.012, 0.006);
+  outColor = vec4(velocity, 0.0, 1.0);
+}
+`;
+
+// 染料输运：半拉格朗日回溯 + 指数耗散 + 三个游走注入源与鼠标注入。
+const FLUID_DYE_SHADER = `#version 300 es
+precision highp float;
+out vec4 outColor;
+in vec2 vUv;
+uniform sampler2D uDye;
+uniform sampler2D uVelocity;
+uniform vec2 uTexel;
+uniform float uDt;
+uniform vec4 uInjectorA;
+uniform vec4 uInjectorB;
+uniform vec4 uInjectorC;
+uniform vec4 uInjectorMouse;
+float splat(vec2 pos, float radius) {
+  vec2 delta = vUv - pos;
+  delta.x *= uTexel.y / uTexel.x * 2.0;
+  return exp(-dot(delta, delta) / radius);
 }
 void main() {
+  vec2 velocity = texture(uVelocity, vUv).xy;
+  vec4 dye = texture(uDye, vUv - velocity * uDt);
+  dye.rgb /= 1.0 + 0.28 * uDt;
+  dye.rgb += vec3(0.30, 0.85, 0.95) * splat(uInjectorA.xy, uInjectorA.z) * uInjectorA.w * uDt;
+  dye.rgb += vec3(0.35, 0.95, 0.67) * splat(uInjectorB.xy, uInjectorB.z) * uInjectorB.w * uDt;
+  dye.rgb += vec3(0.85, 0.95, 1.00) * splat(uInjectorC.xy, uInjectorC.z) * uInjectorC.w * uDt;
+  dye.rgb += vec3(0.45, 0.90, 1.00) * splat(uInjectorMouse.xy, uInjectorMouse.z) * uInjectorMouse.w * uDt;
+  outColor = min(dye, vec4(1.6));
+}
+`;
+
+// 合成：沿用旧水面的深水/浅水纵向光与边缘暗角，染料作为发光体叠加。
+const FLUID_DISPLAY_SHADER = `#version 300 es
+precision highp float;
+out vec4 outColor;
+in vec2 vUv;
+uniform sampler2D uDye;
+uniform vec2 uResolution;
+void main() {
   vec2 uv = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y) / uResolution;
-  float aspect = uResolution.x / uResolution.y;
-  vec2 domain = vec2(uv.x * aspect, uv.y) * 7.2;
-  float flowTime = uTime * 0.16;
-  vec2 curl = clamp(curlField(domain * 0.74 + vec2(flowTime * 0.13, -flowTime * 0.07)), vec2(-1.5), vec2(1.5));
-  vec2 transported = domain - curl * 0.34 + vec2(-flowTime * 0.10, flowTime * 0.03);
-  float density = fluidFbm(transported);
-  float stepSize = 0.055;
-  vec2 gradient = vec2(fluidFbm(transported + vec2(stepSize, 0.0)), fluidFbm(transported + vec2(0.0, stepSize))) - density;
-  vec3 normal = normalize(vec3(-gradient / stepSize * 0.72, 0.34));
-  float volumeLight = sat(dot(normal, normalize(vec3(-0.58, -0.70, 0.62))) * 0.5 + 0.72);
-  float causticDensity = fluidFbm(transported * 1.42 + curl * 0.38 + vec2(flowTime * 0.09, -flowTime * 0.06));
-  float softCaustic = smoothstep(0.56, 0.80, causticDensity);
-  // Curved narrow light paths; no blurred decorative bands or data-driven liquid level.
-  float thread = pow(sat(1.0 - abs(causticDensity - 0.52) * 12.0), 3.0);
-  float secondThread = pow(sat(1.0 - abs(density - 0.48) * 16.0), 4.0);
+  vec3 dye = texture(uDye, uv).rgb;
   float overhead = exp(-uv.y * 2.1);
   vec3 deep = vec3(0.010, 0.072, 0.102);
   vec3 water = vec3(0.042, 0.255, 0.320);
   vec3 color = mix(deep, water, 0.55 + overhead * 0.45);
-  color *= 0.86 + volumeLight * 0.19;
-  color += vec3(0.065, 0.29, 0.34) * (thread * 0.55 + secondThread * 0.17) * (0.45 + overhead * 0.70);
-  color += vec3(0.021, 0.10, 0.12) * softCaustic * (0.30 + overhead * 0.40);
-  float shafts = pow(sat(0.5 + 0.5 * cos(uv.x * 27.0 + curl.x * 0.30 + flowTime * 0.035)), 10.0);
-  color += vec3(0.05, 0.13, 0.15) * shafts * overhead * 0.25;
+  color *= 0.88 + 0.18 * smoothstep(0.0, 0.9, length(dye));
+  color += dye * vec3(0.95, 1.05, 1.1) * 0.9;
+  color += vec3(0.05, 0.13, 0.15) * exp(-pow((uv.x - 0.5) * 2.0, 2.0)) * 0.06;
   color *= 1.0 - smoothstep(0.4, 1.0, abs(uv.x - 0.5) * 2.0) * 0.16;
   outColor = vec4(color, 1.0);
 }
@@ -225,6 +266,34 @@ function renderSize(width, height, density, maxPixels) {
   return { width: Math.max(1, Math.floor(width * ratio)), height: Math.max(1, Math.floor(height * ratio)), ratio };
 }
 
+function makeFluidTarget(gl, width, height, filter) {
+  const texture = gl.createTexture();
+  const fbo = gl.createFramebuffer();
+  if (!texture || !fbo) {
+    if (texture) gl.deleteTexture(texture);
+    if (fbo) gl.deleteFramebuffer(fbo);
+    return null;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { texture, fbo, width, height };
+}
+
+function disposeFluidTarget(gl, target) {
+  if (!target) return;
+  gl.deleteFramebuffer(target.fbo);
+  gl.deleteTexture(target.texture);
+}
+
 /** 初始化不接收业务数据。update 重扫材质目标；destroy 恢复原 DOM 状态。 */
 export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion = false, glassSelector = ".glass-panel, .pill" } = {}) {
   if (!backgroundCanvas || typeof backgroundCanvas.getContext !== "function") throw new TypeError("Usage material requires a background canvas");
@@ -241,17 +310,19 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
   const previousReason = stateRoot.getAttribute("data-usage-material-reason");
   const previousPointerEvents = backgroundCanvas.style.pointerEvents;
   const previousAriaHidden = backgroundCanvas.getAttribute("aria-hidden");
-  let waterGl = null, glassGl = null, waterProgram = null, glassProgram = null;
+  let waterGl = null, glassGl = null, fluid = null, glassProgram = null;
   let waterReason = "", glassReason = "";
   let waterLost = false, glassLost = false, disposed = false, pagePaused = false;
   let localReduced = Boolean(reducedMotion), dirty = true, frame = null, lastDraw = null, elapsed = 0;
+  let fluidLastStep = null, mouseStrength = 0;
+  const mouseUv = { x: 0.5, y: 0.5 };
 
   backgroundCanvas.style.pointerEvents = "none";
   backgroundCanvas.setAttribute("aria-hidden", "true");
 
   const isReduced = () => localReduced || motionQuery.matches;
   const isPaused = () => doc.hidden || pagePaused;
-  const status = () => ({ mode: disposed ? "destroyed" : waterProgram && !waterLost ? "webgl" : "css", glass: glassProgram && !glassLost ? "webgl" : "css", reducedMotion: isReduced(), paused: isPaused(), reason: waterReason || glassReason });
+  const status = () => ({ mode: disposed ? "destroyed" : fluid && !waterLost ? "webgl" : "css", glass: glassProgram && !glassLost ? "webgl" : "css", reducedMotion: isReduced(), paused: isPaused(), reason: waterReason || glassReason });
   function publishState() {
     const current = status();
     stateRoot.classList.toggle("usage-material-ready", current.mode === "webgl");
@@ -272,9 +343,13 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
     try {
       waterGl = opticalContext(backgroundCanvas);
       if (!waterGl) throw new MaterialError("water-webgl2-unavailable", "WebGL2 unavailable; CSS water remains active");
-      waterProgram = makeProgram(waterGl, WATER_SHADER, "water", ["uResolution", "uTime"]);
+      if (!waterGl.getExtension("EXT_color_buffer_float")) throw new MaterialError("water-float-targets-unavailable", "Half-float render targets unavailable; CSS water remains active");
+      const vel = makeProgram(waterGl, FLUID_VEL_SHADER, "fluid-velocity", ["uScale", "uTime"]);
+      const dye = makeProgram(waterGl, FLUID_DYE_SHADER, "fluid-dye", ["uDye", "uVelocity", "uTexel", "uDt", "uInjectorA", "uInjectorB", "uInjectorC", "uInjectorMouse"]);
+      const display = makeProgram(waterGl, FLUID_DISPLAY_SHADER, "fluid-display", ["uDye", "uResolution"]);
+      fluid = { vel, dye, display, sim: null, dyeA: null, dyeB: null, aspectKey: "" };
       waterReason = "";
-    } catch (error) { waterProgram = null; reportFailure(error, "water"); }
+    } catch (error) { fluid = null; reportFailure(error, "water"); }
   }
   function buildGlass() {
     try {
@@ -283,6 +358,73 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
       glassProgram = makeProgram(glassGl, GLASS_SHADER, "glass", ["uResolution", "uPixelRatio", "uRadius", "uPanel"]);
       glassReason = "";
     } catch (error) { glassProgram = null; reportFailure(error, "glass"); }
+  }
+  function fluidInjectors(timeSeconds) {
+    return [
+      { x: 0.5 + 0.36 * Math.sin(timeSeconds * 0.21), y: 0.46 + 0.32 * Math.sin(timeSeconds * 0.157 + 1.3), radius: 0.007, strength: 0.55 + 0.3 * Math.sin(timeSeconds * 0.5) },
+      { x: 0.5 + 0.4 * Math.sin(timeSeconds * 0.117 + 2.4), y: 0.5 + 0.36 * Math.sin(timeSeconds * 0.23 + 4.1), radius: 0.009, strength: 0.4 + 0.25 * Math.sin(timeSeconds * 0.43 + 2.0) },
+      { x: 0.5 + 0.3 * Math.sin(timeSeconds * 0.26 + 5.2), y: 0.5 + 0.4 * Math.sin(timeSeconds * 0.09 + 0.6), radius: 0.006, strength: 0.5 },
+    ];
+  }
+  function ensureFluidTargets(aspect) {
+    const key = aspect.toFixed(3);
+    if (fluid.aspectKey === key) return;
+    disposeFluidTarget(waterGl, fluid.sim);
+    disposeFluidTarget(waterGl, fluid.dyeA);
+    disposeFluidTarget(waterGl, fluid.dyeB);
+    const simHeight = Math.max(72, Math.round(FLUID_SIM_WIDTH / aspect));
+    const dyeHeight = Math.max(160, Math.round(FLUID_DYE_WIDTH / aspect));
+    fluid.sim = makeFluidTarget(waterGl, FLUID_SIM_WIDTH, simHeight, waterGl.NEAREST);
+    fluid.dyeA = makeFluidTarget(waterGl, FLUID_DYE_WIDTH, dyeHeight, waterGl.LINEAR);
+    fluid.dyeB = makeFluidTarget(waterGl, FLUID_DYE_WIDTH, dyeHeight, waterGl.LINEAR);
+    fluid.aspectKey = key;
+    let prefillTime = 0;
+    for (let step = 0; step < FLUID_PREFILL_STEPS; step++) {
+      prefillTime += FLUID_PREFILL_DT;
+      stepFluidDye(prefillTime, FLUID_PREFILL_DT);
+    }
+    fluidLastStep = null;
+  }
+  function stepFluidDye(timeSeconds, dt) {
+    const gl = waterGl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fluid.sim.fbo);
+    gl.viewport(0, 0, fluid.sim.width, fluid.sim.height);
+    gl.useProgram(fluid.vel.program);
+    gl.uniform2f(fluid.vel.uniforms.uScale, fluid.sim.width, fluid.sim.height);
+    gl.uniform1f(fluid.vel.uniforms.uTime, timeSeconds);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const target = fluid.dyeB;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+    gl.viewport(0, 0, target.width, target.height);
+    gl.useProgram(fluid.dye.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fluid.dyeA.texture);
+    gl.uniform1i(fluid.dye.uniforms.uDye, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, fluid.sim.texture);
+    gl.uniform1i(fluid.dye.uniforms.uVelocity, 1);
+    gl.uniform2f(fluid.dye.uniforms.uTexel, 1 / target.width, 1 / target.height);
+    gl.uniform1f(fluid.dye.uniforms.uDt, dt);
+    const injectors = fluidInjectors(timeSeconds);
+    [["uInjectorA", injectors[0]], ["uInjectorB", injectors[1]], ["uInjectorC", injectors[2]]].forEach(([name, injector]) => {
+      gl.uniform4f(fluid.dye.uniforms[name], injector.x, injector.y, injector.radius, injector.strength);
+    });
+    gl.uniform4f(fluid.dye.uniforms.uInjectorMouse, mouseUv.x, mouseUv.y, 0.004, mouseStrength * 2.2);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const swap = fluid.dyeA;
+    fluid.dyeA = fluid.dyeB;
+    fluid.dyeB = swap;
+  }
+  function drawFluidDisplay(width, height) {
+    const gl = waterGl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.useProgram(fluid.display.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fluid.dyeA.texture);
+    gl.uniform1i(fluid.display.uniforms.uDye, 0);
+    gl.uniform2f(fluid.display.uniforms.uResolution, width, height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   function removeSurface(element, record) {
     resizeObserver?.unobserve(element);
@@ -361,7 +503,7 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
     }
   }
   function drawWater() {
-    if (!waterProgram || waterLost) return;
+    if (!fluid || waterLost) return;
     const rect = backgroundCanvas.getBoundingClientRect();
     if (rect.width <= 1 || rect.height <= 1) return;
     const size = renderSize(rect.width, rect.height, Math.min(win.devicePixelRatio || 1, MAX_DPR) * 0.58, MAX_WATER_PIXELS);
@@ -369,12 +511,24 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
       backgroundCanvas.width = size.width;
       backgroundCanvas.height = size.height;
     }
-    const gl = waterGl, { program, uniforms } = waterProgram;
-    gl.viewport(0, 0, size.width, size.height);
-    gl.useProgram(program);
-    gl.uniform2f(uniforms.uResolution, size.width, size.height);
-    gl.uniform1f(uniforms.uTime, isReduced() ? 0 : elapsed / 1000);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    ensureFluidTargets(size.width / size.height);
+    if (!fluid.sim || !fluid.dyeA || !fluid.dyeB) {
+      waterLost = true;
+      waterReason = "water-target-allocation";
+      cancelFrame();
+      publishState();
+      return;
+    }
+    if (isReduced()) {
+      // 减少动效：预演出的染料构成定格为一帧，不再推进。
+      drawFluidDisplay(size.width, size.height);
+      return;
+    }
+    const dt = fluidLastStep === null ? 1 / MAX_FPS : Math.min((elapsed - fluidLastStep) / 1000, FLUID_MAX_DT);
+    fluidLastStep = elapsed;
+    mouseStrength *= Math.pow(0.14, dt);
+    stepFluidDye(elapsed / 1000, dt);
+    drawFluidDisplay(size.width, size.height);
   }
   function cancelFrame() {
     if (frame !== null) win.cancelAnimationFrame(frame);
@@ -384,14 +538,19 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
   function draw(time) {
     frame = null;
     if (disposed || isPaused()) return;
-    const due = lastDraw === null || time - lastDraw >= 1000 / MAX_FPS;
-    if (due) {
-      if (!isReduced() && lastDraw !== null) elapsed += Math.min(time - lastDraw, 100);
-      lastDraw = time;
-      if (dirty) { scanSurfaces(); drawGlassSurfaces(); dirty = false; }
-      drawWater();
+    try {
+      const due = lastDraw === null || time - lastDraw >= 1000 / MAX_FPS;
+      if (due) {
+        if (!isReduced() && lastDraw !== null) elapsed += Math.min(time - lastDraw, 100);
+        lastDraw = time;
+        if (dirty) { scanSurfaces(); drawGlassSurfaces(); dirty = false; }
+        drawWater();
+      }
+    } catch (error) {
+      // 单帧失败不允许杀死循环；用稳定诊断编号留痕后继续调度。
+      console.warn("[QuoDex usage material: water-frame-error]", error);
     }
-    if (waterProgram && !waterLost && !isReduced()) frame = win.requestAnimationFrame(draw);
+    if (fluid && !waterLost && !isReduced()) frame = win.requestAnimationFrame(draw);
   }
   function schedule() {
     if (!disposed && !isPaused() && frame === null) frame = win.requestAnimationFrame(draw);
@@ -416,7 +575,7 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
     if (layer === "water") {
       waterLost = false;
       buildWater();
-      if (waterProgram && !glassProgram && !glassLost) buildGlass();
+      if (fluid && !glassProgram && !glassLost) buildGlass();
     }
     else { glassLost = false; buildGlass(); for (const record of surfaces.values()) record.key = ""; }
     publishState();
@@ -426,6 +585,14 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
   const onGlassLost = event => lost(event, "glass");
   const onWaterRestored = () => restored("water");
   const onGlassRestored = () => restored("glass");
+  // 背景画布 pointer-events:none，鼠标注入只能挂在 window 上。
+  const onPointerMove = event => {
+    const rect = backgroundCanvas.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) return;
+    mouseUv.x = (event.clientX - rect.left) / rect.width;
+    mouseUv.y = 1 - (event.clientY - rect.top) / rect.height;
+    mouseStrength = 1;
+  };
   const onPageHide = event => { if (!event.persisted) controller.destroy(); else { pagePaused = true; pauseChanged(); } };
   const onPageShow = () => { pagePaused = false; pauseChanged(); };
   const resizeObserver = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(invalidate) : null;
@@ -458,8 +625,18 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
       backgroundCanvas.removeEventListener("webglcontextrestored", onWaterRestored);
       sharedCanvas.removeEventListener("webglcontextlost", onGlassLost);
       sharedCanvas.removeEventListener("webglcontextrestored", onGlassRestored);
+      win.removeEventListener("pointermove", onPointerMove);
       for (const [element, record] of [...surfaces]) removeSurface(element, record);
-      if (waterGl && !waterLost) { releaseProgram(waterGl, waterProgram); waterGl.clearColor(0, 0, 0, 0); waterGl.clear(waterGl.COLOR_BUFFER_BIT); }
+      if (waterGl && !waterLost) {
+        disposeFluidTarget(waterGl, fluid && fluid.sim);
+        disposeFluidTarget(waterGl, fluid && fluid.dyeA);
+        disposeFluidTarget(waterGl, fluid && fluid.dyeB);
+        releaseProgram(waterGl, fluid && fluid.vel);
+        releaseProgram(waterGl, fluid && fluid.dye);
+        releaseProgram(waterGl, fluid && fluid.display);
+        waterGl.clearColor(0, 0, 0, 0);
+        waterGl.clear(waterGl.COLOR_BUFFER_BIT);
+      }
       if (glassGl && !glassLost) { releaseProgram(glassGl, glassProgram); glassGl.getExtension("WEBGL_lose_context")?.loseContext(); }
       backgroundCanvas.style.pointerEvents = previousPointerEvents;
       if (previousAriaHidden === null) backgroundCanvas.removeAttribute("aria-hidden");
@@ -477,7 +654,7 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
   sharedCanvas.addEventListener("webglcontextlost", onGlassLost);
   sharedCanvas.addEventListener("webglcontextrestored", onGlassRestored);
   buildWater();
-  if (waterProgram) buildGlass();
+  if (fluid) buildGlass();
   else glassReason = "glass-css-after-water-fallback";
   resizeObserver?.observe(backgroundCanvas);
   mutationObserver?.observe(scope === doc ? doc.body : scope, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "style", "hidden", "disabled", "data-selected"] });
@@ -485,6 +662,7 @@ export function initUsageMaterial({ backgroundCanvas, queryScope, reducedMotion 
   win.addEventListener("resize", invalidate);
   win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
+  win.addEventListener("pointermove", onPointerMove, { passive: true });
   motionQuery.addEventListener("change", motionChanged);
   INSTANCES.set(backgroundCanvas, controller);
   publishState();

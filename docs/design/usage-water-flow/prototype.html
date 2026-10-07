@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QuoDex · 水流方向对比原型</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #04141f; overflow: hidden; }
+  body { font-family: "Segoe UI Variable", "Segoe UI", -apple-system, "SF Pro Text", system-ui, sans-serif; color: #eaf8fc; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .cluster {
+    position: fixed; left: 18px; top: 18px; z-index: 1;
+    display: flex; flex-direction: column; gap: 10px; max-width: min(420px, calc(100vw - 36px));
+    padding: 14px 16px; border-radius: 18px;
+    background: linear-gradient(165deg, rgba(119, 205, 229, 0.14), rgba(8, 56, 76, 0.5) 48%, rgba(2, 31, 45, 0.62));
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    box-shadow: inset 0 1px 1px rgba(235, 252, 255, 0.3), 0 8px 22px rgba(1, 8, 14, 0.4);
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: 0.02em; }
+  .sub { margin: 0; font-size: 12px; line-height: 1.6; color: #afc3d2; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: inherit; font-size: 12.5px; color: #dff3fa; cursor: pointer;
+    min-height: 34px; padding: 0 13px; border: 0; border-radius: 999px;
+    background: linear-gradient(165deg, rgba(119, 205, 229, 0.18), rgba(8, 56, 76, 0.55) 55%, rgba(2, 31, 45, 0.6));
+    box-shadow: inset 0 1px 1px rgba(235, 252, 255, 0.35), 0 3px 8px rgba(1, 8, 14, 0.3);
+    transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+  }
+  button:hover { transform: translateY(-1px); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid #50d8ff; outline-offset: 2px; }
+  button[aria-pressed="true"] {
+    background: linear-gradient(165deg, rgba(80, 216, 255, 0.32), rgba(14, 96, 122, 0.6));
+    box-shadow: inset 0 1px 1px rgba(235, 252, 255, 0.45), inset 0 0 0 1px rgba(80, 216, 255, 0.5), 0 3px 8px rgba(1, 8, 14, 0.3);
+  }
+  .meter { font-variant-numeric: tabular-nums; }
+  .meter strong { color: #9ff3cd; font-weight: 650; }
+  .note { display: none; margin: 0; font-size: 12px; color: #ffd1c7; }
+  .note[data-show="true"] { display: block; }
+  footer {
+    position: fixed; right: 16px; bottom: 12px; z-index: 1; max-width: 460px;
+    font-size: 11px; line-height: 1.6; color: #afc3d2; text-align: right;
+  }
+  @media (max-width: 560px) {
+    .cluster { left: 10px; right: 10px; top: 10px; max-width: none; }
+    footer { left: 10px; right: 10px; text-align: left; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-hidden="true"></canvas>
+
+<section class="cluster" aria-label="方向切换">
+  <h1>QuoDex · 用量页水流方向对比（原型）</h1>
+  <div class="row" role="group" aria-label="方向">
+    <button type="button" data-mode="0" aria-pressed="true">现状基线</button>
+    <button type="button" data-mode="1" aria-pressed="false">A · 加速暗流</button>
+    <button type="button" data-mode="2" aria-pressed="false">B · 双层波面（推荐）</button>
+    <button type="button" data-mode="3" aria-pressed="false">C · 染料涡流</button>
+    <button type="button" id="pause" aria-pressed="false">暂停</button>
+  </div>
+  <p class="sub meter">3 秒变化像素：<strong id="delta">—</strong><span id="mode-name"> · 现状基线</span></p>
+  <p class="sub">C 模式支持在画面上划动注入染料。数值为同口径客观对比：变化超过阈值的像素占比。</p>
+  <p class="note" id="reduced-note" data-show="false">系统开启了“减弱动态效果”，已定格；点“继续”可临时查看。</p>
+</section>
+
+<footer>原型仅用于方向选型：现状 / A / B 与生产 shader 同源同参数体系，可等比迁移；C 为 curl-noise 速度场 + 染料输运的简化版（无压力求解），用于感受气质与功耗量级，非性能基准。玻璃冠面等生产模块不在本原型范围内。</footer>
+
+<script>
+// 初始化自诊断：任何早期错误直接落到读数栏，避免黑屏无解释。
+window.addEventListener("error", event => {
+  const el = document.getElementById("delta");
+  if (el) el.textContent = "初始化失败: " + String(event.error && event.error.message || event.message || "未知错误");
+});
+window.addEventListener("unhandledrejection", event => {
+  const el = document.getElementById("delta");
+  if (el) el.textContent = "初始化失败: " + String(event.reason && event.reason.message || event.reason || "未知错误");
+});
+</script>
+<script>
+(() => {
+  const canvas = document.getElementById("stage");
+  const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true, powerPreference: "low-power" });
+  const deltaEl = document.getElementById("delta");
+  const modeNameEl = document.getElementById("mode-name");
+  if (!gl) { deltaEl.textContent = "此环境无 WebGL2，原型不可用"; return; }
+
+  const VERT = `#version 300 es
+  precision highp float;
+  layout(location = 0) in vec2 aPosition;
+  out vec2 vUv;
+  void main() { vUv = aPosition * 0.5 + 0.5; gl_Position = vec4(aPosition, 0.0, 1.0); }`;
+
+  const COMMON = `#version 300 es
+  precision highp float;
+  float sat(float x) { return clamp(x, 0.0, 1.0); }
+  float hash11(float x) { return fract(sin(x * 127.1) * 43758.5453123); }
+  float valueNoise(vec2 point) {
+    vec2 cell = floor(point), local = fract(point);
+    local = local * local * (3.0 - 2.0 * local);
+    float a = hash11(dot(cell, vec2(1.0, 57.0)));
+    float b = hash11(dot(cell + vec2(1.0, 0.0), vec2(1.0, 57.0)));
+    float c = hash11(dot(cell + vec2(0.0, 1.0), vec2(1.0, 57.0)));
+    float d = hash11(dot(cell + vec2(1.0), vec2(1.0, 57.0)));
+    return mix(mix(a, b, local.x), mix(c, d, local.x), local.y);
+  }
+  float fluidFbm(vec2 point) {
+    float value = 0.0, weight = 0.52;
+    mat2 turn = mat2(0.8, 0.6, -0.6, 0.8);
+    for (int octave = 0; octave < 5; octave++) {
+      value += valueNoise(point) * weight;
+      point = turn * point * 2.03 + vec2(7.1, 3.7);
+      weight *= 0.49;
+    }
+    return value;
+  }
+  vec2 curlField(vec2 point) {
+    const float stepSize = 0.075;
+    float left = fluidFbm(point - vec2(stepSize, 0.0));
+    float right = fluidFbm(point + vec2(stepSize, 0.0));
+    float top = fluidFbm(point - vec2(0.0, stepSize));
+    float bottom = fluidFbm(point + vec2(0.0, stepSize));
+    return vec2(top - bottom, left - right) / (2.0 * stepSize);
+  }`;
+
+  // 三方向共用一个单 pass：uMode 0 现状 / 1 加速暗流 / 2 双层波面+行进焦散
+  const FIELD_FRAG = COMMON + `
+  out vec4 outColor;
+  uniform vec2 uResolution;
+  uniform float uTime;
+  uniform int uMode;
+  void main() {
+    vec2 uv = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y) / uResolution;
+    float aspect = uResolution.x / uResolution.y;
+    vec2 domain = vec2(uv.x * aspect, uv.y) * 7.2;
+    vec3 color;
+    if (uMode == 0) {
+      // —— 现状复刻：与 usage-material.js 参数一致 ——
+      float flowTime = uTime * 0.16;
+      vec2 curl = clamp(curlField(domain * 0.74 + vec2(flowTime * 0.13, -flowTime * 0.07)), vec2(-1.5), vec2(1.5));
+      vec2 transported = domain - curl * 0.34 + vec2(-flowTime * 0.10, flowTime * 0.03);
+      float density = fluidFbm(transported);
+      float stepSize = 0.055;
+      vec2 gradient = vec2(fluidFbm(transported + vec2(stepSize, 0.0)), fluidFbm(transported + vec2(0.0, stepSize))) - density;
+      vec3 normal = normalize(vec3(-gradient / stepSize * 0.72, 0.34));
+      float volumeLight = sat(dot(normal, normalize(vec3(-0.58, -0.70, 0.62))) * 0.5 + 0.72);
+      float causticDensity = fluidFbm(transported * 1.42 + curl * 0.38 + vec2(flowTime * 0.09, -flowTime * 0.06));
+      float softCaustic = smoothstep(0.56, 0.80, causticDensity);
+      float thread = pow(sat(1.0 - abs(causticDensity - 0.52) * 12.0), 3.0);
+      float secondThread = pow(sat(1.0 - abs(density - 0.48) * 16.0), 4.0);
+      float overhead = exp(-uv.y * 2.1);
+      vec3 deep = vec3(0.010, 0.072, 0.102);
+      vec3 water = vec3(0.042, 0.255, 0.320);
+      color = mix(deep, water, 0.55 + overhead * 0.45);
+      color *= 0.86 + volumeLight * 0.19;
+      color += vec3(0.065, 0.29, 0.34) * (thread * 0.55 + secondThread * 0.17) * (0.45 + overhead * 0.70);
+      color += vec3(0.021, 0.10, 0.12) * softCaustic * (0.30 + overhead * 0.40);
+      float shafts = pow(sat(0.5 + 0.5 * cos(uv.x * 27.0 + curl.x * 0.30 + flowTime * 0.035)), 10.0);
+      color += vec3(0.05, 0.13, 0.15) * shafts * overhead * 0.25;
+      color *= 1.0 - smoothstep(0.4, 1.0, abs(uv.x - 0.5) * 2.0) * 0.16;
+    } else if (uMode == 1) {
+      // —— A 加速暗流：提速 + 恒定主流（右上 ~24°）+ 焦散提亮 ——
+      float flowTime = uTime * 0.5;
+      vec2 drift = vec2(flowTime * 0.115, flowTime * 0.05);
+      vec2 curl = clamp(curlField(domain * 0.74 + vec2(flowTime * 0.13, -flowTime * 0.07) + drift), vec2(-1.5), vec2(1.5));
+      vec2 transported = domain - curl * 0.34 + vec2(-flowTime * 0.10, flowTime * 0.03) - drift * 2.6;
+      float density = fluidFbm(transported);
+      float stepSize = 0.055;
+      vec2 gradient = vec2(fluidFbm(transported + vec2(stepSize, 0.0)), fluidFbm(transported + vec2(0.0, stepSize))) - density;
+      vec3 normal = normalize(vec3(-gradient / stepSize * 0.72, 0.34));
+      float volumeLight = sat(dot(normal, normalize(vec3(-0.58, -0.70, 0.62))) * 0.5 + 0.72);
+      float causticDensity = fluidFbm(transported * 1.42 + curl * 0.38 + vec2(flowTime * 0.09, -flowTime * 0.06) + drift * 1.4);
+      float softCaustic = smoothstep(0.56, 0.80, causticDensity);
+      float thread = pow(sat(1.0 - abs(causticDensity - 0.52) * 12.0), 3.0);
+      float secondThread = pow(sat(1.0 - abs(density - 0.48) * 16.0), 4.0);
+      float overhead = exp(-uv.y * 2.1);
+      vec3 deep = vec3(0.010, 0.072, 0.102);
+      vec3 water = vec3(0.042, 0.255, 0.320);
+      color = mix(deep, water, 0.55 + overhead * 0.45);
+      color *= 0.86 + volumeLight * 0.21;
+      color += vec3(0.065, 0.29, 0.34) * (thread * 0.64 + secondThread * 0.20) * (0.45 + overhead * 0.70);
+      color += vec3(0.021, 0.10, 0.12) * softCaustic * (0.34 + overhead * 0.44);
+      float shafts = pow(sat(0.5 + 0.5 * cos(uv.x * 27.0 + curl.x * 0.30 + flowTime * 0.035)), 10.0);
+      color += vec3(0.05, 0.13, 0.15) * shafts * overhead * 0.25;
+      color *= 1.0 - smoothstep(0.4, 1.0, abs(uv.x - 0.5) * 2.0) * 0.16;
+    } else {
+      // —— B 双层波面 + 行进焦散 ——
+      float t = uTime;
+      vec2 mainDir = normalize(vec2(0.90, 0.44));
+      float crossA = 0.70;
+      vec2 crossDir = vec2(mainDir.x * cos(crossA) - mainDir.y * sin(crossA), mainDir.x * sin(crossA) + mainDir.y * cos(crossA));
+      float e = 0.05;
+      vec2 wander = curlField(domain * 0.42 - mainDir * t * 0.10) * 0.06;
+      float h1a = fluidFbm(domain * 0.55 - mainDir * t * 0.10 + wander);
+      float h2a = fluidFbm(domain * 1.35 - crossDir * t * 0.23 + wander);
+      float height = h1a * 0.62 + h2a * 0.38;
+      float h1x = fluidFbm((domain + vec2(e, 0.0)) * 0.55 - mainDir * t * 0.10 + wander);
+      float h2x = fluidFbm((domain + vec2(e, 0.0)) * 1.35 - crossDir * t * 0.23 + wander);
+      float h1y = fluidFbm((domain + vec2(0.0, e)) * 0.55 - mainDir * t * 0.10 + wander);
+      float h2y = fluidFbm((domain + vec2(0.0, e)) * 1.35 - crossDir * t * 0.23 + wander);
+      vec2 gradient = vec2(h1x * 0.62 + h2x * 0.38, h1y * 0.62 + h2y * 0.38) - height;
+      vec3 normal = normalize(vec3(-gradient / e * 0.72, 0.34));
+      float volumeLight = sat(dot(normal, normalize(vec3(-0.58, -0.70, 0.62))) * 0.5 + 0.72);
+      vec2 causticP = domain * 1.28 - mainDir * t * 0.30 + curlField(domain * 0.5 - mainDir * t * 0.12) * 0.30;
+      float causticDensity = fluidFbm(causticP);
+      float softCaustic = smoothstep(0.56, 0.80, causticDensity);
+      float thread = pow(sat(1.0 - abs(causticDensity - 0.52) * 12.0), 3.0);
+      float secondThread = pow(sat(1.0 - abs(height - 0.48) * 16.0), 4.0);
+      float crest = smoothstep(0.58, 0.88, height);
+      float overhead = exp(-uv.y * 2.1);
+      vec3 deep = vec3(0.010, 0.072, 0.102);
+      vec3 water = vec3(0.042, 0.255, 0.320);
+      color = mix(deep, water, 0.55 + overhead * 0.45);
+      color *= 0.86 + volumeLight * 0.22;
+      color += vec3(0.065, 0.29, 0.34) * (thread * 0.62 + secondThread * 0.20) * (0.45 + overhead * 0.70);
+      color += vec3(0.021, 0.10, 0.12) * softCaustic * (0.30 + overhead * 0.40);
+      color += vec3(0.05, 0.16, 0.19) * crest * 0.35;
+      float sweepD = dot(uv * vec2(aspect, 1.0), mainDir);
+      float sweep = exp(-pow((sweepD - (fract(t / 9.0) * 2.2 - 0.6)) * 6.0, 2.0));
+      color += vec3(0.05, 0.13, 0.15) * sweep * 0.10;
+      float shafts = pow(sat(0.5 + 0.5 * cos(uv.x * 27.0 + gradient.x * 2.0 + t * 0.05)), 10.0);
+      color += vec3(0.05, 0.13, 0.15) * shafts * overhead * 0.22;
+      color *= 1.0 - smoothstep(0.4, 1.0, abs(uv.x - 0.5) * 2.0) * 0.16;
+    }
+    outColor = vec4(color, 1.0);
+  }`;
+
+  const VEL_FRAG = COMMON + `
+  out vec4 outColor;
+  uniform vec2 uScale;
+  uniform float uTime;
+  void main() {
+    vec2 uv = gl_FragCoord.xy / uScale;
+    float aspect = uScale.x / uScale.y;
+    vec2 p = vec2(uv.x * aspect, uv.y);
+    float t = uTime;
+    float e = 0.09;
+    vec2 q = p * 2.3;
+    vec2 slide = vec2(t * 0.05, -t * 0.028);
+    float a = fluidFbm(q + slide);
+    float ax = fluidFbm(q + vec2(e, 0.0) + slide);
+    float ay = fluidFbm(q + vec2(0.0, e) + slide);
+    vec2 velocity = vec2(ay - a, -(ax - a)) / e * 0.0042 + vec2(0.012, 0.006);
+    outColor = vec4(velocity, 0.0, 1.0);
+  }`;
+
+  const DYE_FRAG = `#version 300 es
+  precision highp float;
+  out vec4 outColor;
+  in vec2 vUv;
+  uniform sampler2D uDye;
+  uniform sampler2D uVel;
+  uniform vec2 uTexel;
+  uniform float uDt;
+  uniform vec4 uInjectA;
+  uniform vec4 uInjectB;
+  uniform vec4 uInjectC;
+  uniform vec4 uInjectMouse;
+  float splat(vec2 pos, float radius) {
+    vec2 d = vUv - pos;
+    d.x *= uTexel.y / uTexel.x * 2.0;
+    return exp(-dot(d, d) / radius);
+  }
+  void main() {
+    vec2 velocity = texture(uVel, vUv).xy;
+    vec4 dye = texture(uDye, vUv - velocity * uDt);
+    dye.rgb /= 1.0 + 0.28 * uDt;
+    dye.rgb += vec3(0.30, 0.85, 0.95) * splat(uInjectA.xy, uInjectA.z) * uInjectA.w * uDt;
+    dye.rgb += vec3(0.35, 0.95, 0.67) * splat(uInjectB.xy, uInjectB.z) * uInjectB.w * uDt;
+    dye.rgb += vec3(0.85, 0.95, 1.00) * splat(uInjectC.xy, uInjectC.z) * uInjectC.w * uDt;
+    dye.rgb += vec3(0.45, 0.90, 1.00) * splat(uInjectMouse.xy, uInjectMouse.z) * uInjectMouse.w * uDt;
+    outColor = min(dye, vec4(1.6));
+  }`;
+
+  const DISPLAY_FRAG = `#version 300 es
+  precision highp float;
+  out vec4 outColor;
+  in vec2 vUv;
+  uniform sampler2D uDye;
+  uniform vec2 uResolution;
+  void main() {
+    vec2 uv = vUv;
+    float aspect = uResolution.x / uResolution.y;
+    vec3 dye = texture(uDye, uv).rgb;
+    float overhead = exp(-uv.y * 2.1);
+    vec3 deep = vec3(0.010, 0.072, 0.102);
+    vec3 water = vec3(0.042, 0.255, 0.320);
+    vec3 color = mix(deep, water, 0.55 + overhead * 0.45);
+    color *= 0.88 + 0.18 * smoothstep(0.0, 0.9, length(dye));
+    color += dye * vec3(0.95, 1.05, 1.1);
+    color += vec3(0.05, 0.13, 0.15) * exp(-pow((uv.x - 0.5) * 2.0, 2.0)) * 0.06;
+    color *= 1.0 - smoothstep(0.4, 1.0, abs(uv.x - 0.5) * 2.0) * 0.16;
+    outColor = vec4(color, 1.0);
+  }`;
+
+  function compile(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) || "shader 编译失败");
+    return shader;
+  }
+  function program(fragSource, attribs) {
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fragSource));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || "program 链接失败");
+    const uniforms = {};
+    const count = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < count; i++) {
+      const info = gl.getActiveUniform(p, i);
+      uniforms[info.name.replace(/\[0\]$/, "")] = gl.getUniformLocation(p, info.name);
+    }
+    return { program: p, uniforms };
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const floatOK = gl.getExtension("EXT_color_buffer_float");
+
+  function makeTarget(w, h, filter) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return { texture, fbo, w, h };
+  }
+
+  const fieldPass = program(FIELD_FRAG);
+  const velPass = program(VEL_FRAG);
+  const dyePass = program(DYE_FRAG);
+  const displayPass = program(DISPLAY_FRAG);
+  const SIM_W = 192;
+  const DYE_W = 512;
+  let prevFrame = null;
+
+  let width = 0, height = 0, sim = null, dyeA = null, dyeB = null;
+  function resize() {
+    const dpr = Math.min(devicePixelRatio || 1, 1.5);
+    let w = Math.max(1, Math.floor(innerWidth * dpr));
+    let h = Math.max(1, Math.floor(innerHeight * dpr));
+    const cap = 900000;
+    if (w * h > cap) { const r = Math.sqrt(cap / (w * h)); w = Math.floor(w * r); h = Math.floor(h * r); }
+    if (w === width && h === height) return;
+    width = w; height = h;
+    canvas.width = w; canvas.height = h;
+    const simH = Math.max(72, Math.round(SIM_W * h / w));
+    const dyeH = Math.max(160, Math.round(DYE_W * h / w));
+    sim = makeTarget(SIM_W, simH, gl.NEAREST);
+    dyeA = makeTarget(DYE_W, dyeH, gl.LINEAR);
+    dyeB = makeTarget(DYE_W, dyeH, gl.LINEAR);
+    prevFrame = null;
+  }
+  addEventListener("resize", resize);
+  resize();
+
+  const MODE_NAMES = ["现状基线", "A · 加速暗流", "B · 双层波面", "C · 染料涡流"];
+  let mode = 0, paused = false, time = 0, lastNow = null, dyePrefilled = false;
+  let mouse = { x: 0.5, y: 0.5, strength: 0 };
+
+  function useFBO(pass, target) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
+    const w = target ? target.w : width, h = target ? target.h : height;
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(pass.program);
+    return [w, h];
+  }
+  function prefillDye() {
+    for (let i = 0; i < 140; i++) { time += 0.03; stepDye(0.03); }
+    dyePrefilled = true;
+  }
+  function injectors(t) {
+    return [
+      { x: 0.5 + 0.36 * Math.sin(t * 0.21), y: 0.46 + 0.32 * Math.sin(t * 0.157 + 1.3), r: 0.007, s: 0.55 + 0.3 * Math.sin(t * 0.5) },
+      { x: 0.5 + 0.4 * Math.sin(t * 0.117 + 2.4), y: 0.5 + 0.36 * Math.sin(t * 0.23 + 4.1), r: 0.009, s: 0.4 + 0.25 * Math.sin(t * 0.43 + 2.0) },
+      { x: 0.5 + 0.3 * Math.sin(t * 0.26 + 5.2), y: 0.5 + 0.4 * Math.sin(t * 0.09 + 0.6), r: 0.006, s: 0.5 },
+    ];
+  }
+  function stepDye(dt) {
+    const [sw, sh] = useFBO(velPass, sim);
+    gl.uniform2f(velPass.uniforms.uScale, sw, sh);
+    gl.uniform1f(velPass.uniforms.uTime, time);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    const target = dyeB;
+    useFBO(dyePass, target);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, dyeA.texture);
+    gl.uniform1i(dyePass.uniforms.uDye, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, sim.texture);
+    gl.uniform1i(dyePass.uniforms.uVel, 1);
+    gl.uniform2f(dyePass.uniforms.uTexel, 1 / target.w, 1 / target.h);
+    gl.uniform1f(dyePass.uniforms.uDt, dt);
+    const list = injectors(time);
+    const names = ["uInjectA", "uInjectB", "uInjectC"];
+    list.forEach((inj, i) => {
+      gl.uniform4f(dyePass.uniforms[names[i]], inj.x, inj.y, inj.r, inj.s);
+    });
+    gl.uniform4f(dyePass.uniforms.uInjectMouse, mouse.x, mouse.y, 0.004, mouse.strength * 2.2);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const swap = dyeA; dyeA = dyeB; dyeB = swap;
+  }
+  function stepC() {
+    if (!dyePrefilled) prefillDye();
+    stepDye(Math.min(0.05, lastDt));
+    const [w, h] = useFBO(displayPass, null);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, dyeA.texture);
+    gl.uniform1i(displayPass.uniforms.uDye, 0);
+    gl.uniform2f(displayPass.uniforms.uResolution, w, h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  let lastDt = 1 / 60;
+  function frame(nowMs) {
+    requestAnimationFrame(frame);
+    const dt = lastNow === null ? 1 / 60 : Math.min((nowMs - lastNow) / 1000, 0.1);
+    lastNow = nowMs;
+    lastDt = dt;
+    if (paused) return;
+    time += dt;
+    resize();
+    mouse.strength *= Math.pow(0.14, dt);
+    if (mode === 3) { stepC(); }
+    else {
+      useFBO(fieldPass, null);
+      gl.uniform2f(fieldPass.uniforms.uResolution, width, height);
+      gl.uniform1f(fieldPass.uniforms.uTime, time);
+      gl.uniform1i(fieldPass.uniforms.uMode, mode);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+  }
+  requestAnimationFrame(frame);
+
+  // —— 3 秒像素差分读表：同口径对比各方向的可感知运动量 ——
+  const meterBuf = document.createElement("canvas");
+  setInterval(() => {
+    if (paused || !width) return;
+    const w = width, h = height;
+    const step = Math.max(1, Math.floor(w / 320));
+    const gw = Math.floor(w / step), gh = Math.floor(h / step);
+    const pixels = new Uint8Array(gw * gh * 4);
+    const read = new Uint8Array(w * h * 4);
+    try {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, read);
+    } catch { return; }
+    let changed = 0, total = 0;
+    for (let y = 0; y < gh; y++) {
+      for (let x = 0; x < gw; x++) {
+        const si = ((y * step) * w + x * step) * 4;
+        const di = (y * gw + x) * 4;
+        pixels[di] = read[si]; pixels[di + 1] = read[si + 1]; pixels[di + 2] = read[si + 2];
+      }
+    }
+    if (prevFrame && prevFrame.length === pixels.length) {
+      for (let i = 0; i < pixels.length; i += 4) {
+        const d = Math.abs(pixels[i] - prevFrame[i]) + Math.abs(pixels[i + 1] - prevFrame[i + 1]) + Math.abs(pixels[i + 2] - prevFrame[i + 2]);
+        if (d > 24) changed++;
+        total++;
+      }
+      deltaEl.textContent = (changed / Math.max(total, 1) * 100).toFixed(1) + "%";
+    } else {
+      deltaEl.textContent = "…";
+    }
+    prevFrame = pixels;
+  }, 3000);
+
+  const buttons = [...document.querySelectorAll("button[data-mode]")];
+  if (!floatOK) {
+    const cButton = buttons.find(button => button.dataset.mode === "3");
+    if (cButton) { cButton.disabled = true; cButton.title = "此环境缺少浮点渲染目标扩展，C 模式不可用"; }
+  }
+  function setMode(next) {
+    mode = next;
+    buttons.forEach(button => button.setAttribute("aria-pressed", String(Number(button.dataset.mode) === next)));
+    modeNameEl.textContent = " · " + MODE_NAMES[next];
+    prevFrame = null;
+    if (next === 3 && !dyePrefilled) prefillDye();
+  }
+  buttons.forEach(button => button.addEventListener("click", () => setMode(Number(button.dataset.mode))));
+
+  const pauseButton = document.getElementById("pause");
+  pauseButton.addEventListener("click", () => {
+    paused = !paused;
+    pauseButton.setAttribute("aria-pressed", String(paused));
+    pauseButton.textContent = paused ? "继续" : "暂停";
+  });
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    paused = true;
+    pauseButton.setAttribute("aria-pressed", "true");
+    pauseButton.textContent = "继续";
+    document.getElementById("reduced-note").dataset.show = "true";
+  }
+  canvas.addEventListener("pointermove", event => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = (event.clientX - rect.left) / rect.width;
+    mouse.y = 1 - (event.clientY - rect.top) / rect.height;
+    mouse.strength = 1;
+  });
+})();
+</script>
+</body>
+</html>
