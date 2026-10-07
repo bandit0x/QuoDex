@@ -50,6 +50,7 @@ import {
   setOverlayWindowPosition,
   setOverlayTaskSpace,
   TASK_ROW_HEIGHT,
+  TASK_POPOVER_HEIGHT,
   planSettingsExtraHeight,
   type OverlayLayout,
   type OverlayPosition,
@@ -572,9 +573,9 @@ export function App({
   const [taskStripGeneration, setTaskStripGeneration] = useState(0);
   const tasks = visibleChatTasks(taskStatus.snapshot.tasks, taskStatus.now);
   const hasTaskArea = tasks.length > 0 || taskStatus.snapshot.sources.some(source => source.health !== "ready") || taskStatus.snapshot.diagnostic !== null;
-  // 任务浮层是窗口内的覆盖层，不再伸缩原生窗口：窗口尺寸变化与界面重绘
-  // 分属两个进程，任何开合都会产生可见的不同步帧（用户报告的闪烁）。
-  const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT : 0;
+  // 任务浮层空间常驻预留（任务行+浮层区），浮层开合只是窗口内一层的显隐：
+  // 窗口尺寸变化与界面重绘分属两个进程，任何开合缩放都会产生可见的不同步帧。
+  const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT + TASK_POPOVER_HEIGHT : 0;
   const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
@@ -1045,7 +1046,7 @@ export function App({
     stopWindowInertia();
     try {
       setTaskStripGeneration(value => value + 1);
-      await setTaskSpace(layoutMode, hasTaskArea ? TASK_ROW_HEIGHT : 0);
+      await setTaskSpace(layoutMode, hasTaskArea ? TASK_ROW_HEIGHT + TASK_POPOVER_HEIGHT : 0);
       const presentation = await openSettingsWindow(layoutMode);
       settingsNativePresentation.current = presentation;
       setSettingsPresentation(presentation);
