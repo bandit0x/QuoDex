@@ -8,11 +8,11 @@
   font-synthesis: none;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
-  --bg-deep: #0a1a22;
+  --bg-deep: #062333;
   --cyan: #5ed3ff;
   --mint: #58f2ab;
-  --text-secondary: #9db8c4;
-  --text-faint: #6f8a97;
+  --text-secondary: #b0d3de;
+  --text-faint: #97bbc9;
   --danger: #ffb4a1;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   /* 日历五级固定纯色（低 → 高），全月共用；0 级为暗底。 */
@@ -22,8 +22,8 @@
   --lv3: #1f8073;
   --lv4: #3cbf97;
   --lv5: #a7f3d3;
-  --glass-radius: 28px;
-  --page-max: 1240px;
+  --glass-radius: 32px;
+  --page-max: 1360px;
 }
 
 * { box-sizing: border-box; }
@@ -34,6 +34,12 @@ html, body {
   background: var(--bg-deep);
 }
 
+html { color-scheme: dark; }
+body { min-height: 100dvh; font-size: 16px; }
+::selection { background: #a7f3d3; color: #062733; }
+* { scrollbar-color: #3c8a9d rgba(3, 24, 36, 0.6); scrollbar-width: thin; }
+a { text-underline-offset: 0.2em; }
+
 button { font: inherit; cursor: pointer; color: inherit; }
 button:focus-visible {
   outline: 2px solid var(--cyan);
@@ -41,7 +47,7 @@ button:focus-visible {
   border-radius: 10px;
 }
 
-/* ---- 页内水流背景：承托玻璃的低对比水色与缓动亮带 ---- */
+/* 程序化水流承托玻璃；无 WebGL 时保留稳定、可读的水色暗底。 */
 .ocean-backdrop {
   position: fixed;
   inset: 0;
@@ -49,29 +55,13 @@ button:focus-visible {
   overflow: clip;
   pointer-events: none;
   background:
-    radial-gradient(1100px 520px at 12% -6%, rgba(46, 130, 160, 0.34), transparent 68%),
-    radial-gradient(900px 480px at 88% 4%, rgba(40, 150, 130, 0.22), transparent 66%),
-    radial-gradient(1200px 700px at 50% 108%, rgba(20, 90, 110, 0.5), transparent 70%),
-    linear-gradient(180deg, #0b1d26 0%, #0a1a22 46%, #08151d 100%);
+    radial-gradient(1100px 520px at 12% -6%, rgba(76, 181, 212, 0.32), transparent 68%),
+    radial-gradient(900px 480px at 88% 4%, rgba(40, 150, 130, 0.18), transparent 66%),
+    radial-gradient(1200px 700px at 50% 108%, rgba(35, 130, 160, 0.42), transparent 70%),
+    linear-gradient(180deg, #0b3c52 0%, #062939 46%, #041e2e 100%);
 }
-.ocean-band {
-  position: absolute;
-  left: -12%;
-  width: 124%;
-  height: 240px;
-  border-radius: 50%;
-  filter: blur(46px);
-  opacity: 0.16;
-  background: linear-gradient(100deg, transparent 8%, rgba(142, 226, 255, 0.55) 38%, rgba(118, 242, 190, 0.4) 62%, transparent 92%);
-  animation: band-drift 46s var(--ease-out-expo) infinite alternate;
-}
-.ocean-band--1 { top: 6%; }
-.ocean-band--2 { top: 44%; opacity: 0.1; animation-duration: 64s; animation-delay: -18s; }
-.ocean-band--3 { top: 78%; opacity: 0.08; animation-duration: 82s; animation-delay: -40s; }
-@keyframes band-drift {
-  from { transform: translateX(-6%) rotate(-1.6deg); }
-  to { transform: translateX(7%) rotate(1.4deg); }
-}
+#ocean-canvas { display: block; width: 100%; height: 100%; }
+.usage-material-fallback #ocean-canvas { visibility: hidden; }
 .ocean-floor {
   position: absolute;
   left: 0;
@@ -82,16 +72,13 @@ button:focus-visible {
     radial-gradient(140% 100% at 50% 118%, rgba(64, 190, 170, 0.18), transparent 62%),
     radial-gradient(90% 90% at 24% 130%, rgba(30, 120, 150, 0.3), transparent 58%);
 }
-@media (prefers-reduced-motion: reduce) {
-  .ocean-band { animation: none; }
-}
 
 .page {
   position: relative;
   z-index: 1;
   max-width: var(--page-max);
   margin: 0 auto;
-  padding: 28px 32px 120px;
+  padding: 28px 32px 72px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -110,11 +97,7 @@ button:focus-visible {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  background: linear-gradient(115deg, #f2fcff 30%, #9adcf0 78%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 6px 24px rgba(94, 211, 255, 0.18);
+  color: #f0fbff;
 }
 .page-title { margin: 0; font-size: 24px; font-weight: 640; letter-spacing: 0.02em; }
 .scope { color: var(--text-secondary); font-size: 14px; }
@@ -123,19 +106,23 @@ button:focus-visible {
 
 /* ---- 玻璃胶囊控件 ---- */
 .pill {
-  min-height: 40px;
+  position: relative;
+  isolation: isolate;
+  min-height: 44px;
   padding: 0 18px;
   border: 0;
   border-radius: 999px;
   color: #dff3fa;
-  background: linear-gradient(180deg, rgba(148, 210, 230, 0.1), rgba(6, 22, 32, 0.42));
+  background: linear-gradient(165deg, rgba(119, 205, 229, 0.22), rgba(8, 56, 76, 0.55) 48%, rgba(2, 31, 45, 0.65));
+  -webkit-backdrop-filter: blur(4px) saturate(1.15);
+  backdrop-filter: blur(4px) saturate(1.15);
   box-shadow:
-    inset 0 1px 1px rgba(235, 252, 255, 0.28),
-    inset 0 -6px 10px rgba(2, 12, 20, 0.42),
+    inset 0 1px 1px rgba(235, 252, 255, 0.44),
+    inset 0 -6px 10px rgba(2, 12, 20, 0.3),
     inset 8px 0 14px rgba(180, 226, 244, 0.07),
     inset -8px 0 14px rgba(2, 10, 18, 0.3),
-    0 8px 18px rgba(1, 8, 14, 0.36);
-  font-size: 14px;
+    0 6px 14px rgba(1, 8, 14, 0.24);
+  font-size: 15px;
   transition: transform 140ms var(--ease-out-expo), box-shadow 140ms ease-out, background 140ms ease-out;
 }
 .pill:hover { transform: translateY(-1px); }
@@ -145,7 +132,7 @@ button:focus-visible {
   font-weight: 650;
   background:
     radial-gradient(120% 130% at 30% -20%, rgba(255, 255, 255, 0.72), transparent 46%),
-    linear-gradient(180deg, #7ee3f6, #38b6d9);
+    linear-gradient(180deg, #8ceffc, #48d6e9);
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.85),
     inset 0 -6px 10px rgba(9, 74, 96, 0.4),
@@ -154,11 +141,11 @@ button:focus-visible {
 .pill--view[data-selected="true"] {
   background:
     radial-gradient(120% 130% at 30% -20%, rgba(255, 255, 255, 0.66), transparent 48%),
-    linear-gradient(180deg, #8df0c8, #35c890);
+    linear-gradient(180deg, #8ceffc, #48d6e9);
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.8),
-    inset 0 -6px 10px rgba(8, 84, 62, 0.42),
-    0 8px 20px rgba(48, 190, 140, 0.28);
+    inset 0 -6px 10px rgba(9, 74, 96, 0.36),
+    0 8px 20px rgba(30, 160, 200, 0.22);
 }
 .pill--action { color: #eaf8fc; font-weight: 600; }
 .pill--action[data-busy="true"] { opacity: 0.72; pointer-events: none; }
@@ -176,19 +163,37 @@ button:focus-visible {
 
 /* ---- 玻璃面板 ---- */
 .glass-panel {
+  position: relative;
+  isolation: isolate;
   border-radius: var(--glass-radius);
   background:
-    linear-gradient(155deg, rgba(148, 210, 230, 0.075), rgba(6, 20, 28, 0.16) 38%, rgba(8, 26, 34, 0.3) 82%, rgba(120, 200, 220, 0.05));
+    linear-gradient(160deg, rgba(36, 111, 141, 0.3), rgba(3, 31, 45, 0.56) 45%, rgba(3, 25, 39, 0.67) 86%, rgba(21, 94, 117, 0.22));
+  -webkit-backdrop-filter: blur(3px) saturate(1.08);
+  backdrop-filter: blur(3px) saturate(1.08);
   box-shadow:
-    inset 0 1px 0 rgba(238, 251, 255, 0.32),
-    inset 0 10px 22px rgba(210, 240, 252, 0.07),
-    inset 0 -3px 6px rgba(198, 226, 236, 0.14),
-    inset 0 -16px 30px rgba(1, 6, 12, 0.5),
-    inset 12px 0 26px rgba(190, 228, 242, 0.05),
-    inset -12px 0 26px rgba(1, 8, 14, 0.34),
-    0 18px 40px rgba(1, 8, 14, 0.4);
+    inset 0 1px 0 rgba(238, 251, 255, 0.38),
+    inset 0 12px 26px rgba(210, 240, 252, 0.06),
+    inset 0 -3px 6px rgba(198, 226, 236, 0.13),
+    inset 0 -16px 26px rgba(1, 6, 12, 0.3),
+    0 16px 32px rgba(1, 8, 14, 0.25);
   padding: 24px 28px;
 }
+.glass-panel > :not(canvas) { position: relative; z-index: 1; }
+.usage-glass-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.pill > .usage-glass-canvas { z-index: -1; }
+/* 曲面光照已经给出壁厚与边缘，避免再叠 CSS 内圈。 */
+.glass-panel[data-usage-glass="webgl"] { box-shadow: 0 16px 32px rgba(1, 8, 14, 0.24); }
+.pill[data-usage-glass="webgl"] { box-shadow: 0 6px 14px rgba(1, 8, 14, 0.24); }
+.scope, .updated-line, .range-dates, .coverage-row { color: #c9e4ed; }
+#trend-dates { margin-left: auto; }
 
 /* ---- 全局横幅（断连 / 全部失败） ---- */
 .banner[hidden] { display: none; }
@@ -214,23 +219,22 @@ button:focus-visible {
 .totals-label { color: var(--text-secondary); font-size: 14px; }
 .totals-value { display: flex; align-items: baseline; gap: 10px; }
 .totals-number {
-  font-size: 44px;
+  font-size: clamp(38px, 3.6vw, 52px);
   font-weight: 700;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   line-height: 1.12;
-  text-shadow: 0 10px 30px rgba(94, 211, 255, 0.16);
 }
 .totals-unit { color: var(--text-secondary); font-size: 16px; }
 .totals-note { display: block; margin-top: 4px; color: #ffd9cf; font-size: 13px; }
 .totals-note--muted { color: var(--text-faint); }
 .source-figures { display: flex; gap: 36px; flex-wrap: wrap; margin-left: auto; }
 .source-figure { min-width: 168px; }
-.source-figure-head { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #d7ecf4; }
+.source-figure-head { display: flex; align-items: center; gap: 8px; font-size: 16px; color: #d7ecf4; }
 .source-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06), 0 2px 6px rgba(0, 8, 14, 0.5); }
 .source-dot--codex { background: radial-gradient(circle at 32% 26%, #d9f6ff, var(--cyan) 58%, #1f89b4); }
 .source-dot--zcode { background: radial-gradient(circle at 32% 26%, #e2ffef, var(--mint) 58%, #1ea36c); }
-.source-figure-value { margin-top: 6px; font-size: 27px; font-weight: 660; font-variant-numeric: tabular-nums; }
+.source-figure-value { margin-top: 6px; font-size: 29px; font-weight: 660; font-variant-numeric: tabular-nums; }
 .source-figure-time { margin-top: 2px; color: var(--text-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
 /* ---- 覆盖与诊断行（来源附近） ---- */
@@ -241,7 +245,7 @@ button:focus-visible {
   gap: 12px;
   flex-wrap: wrap;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 .coverage-row .diag-code { color: var(--danger); font-variant-numeric: tabular-nums; }
 .coverage-row--error { color: #ffd9cf; }
@@ -249,7 +253,7 @@ button:focus-visible {
 
 /* ---- 区块标题 ---- */
 .section-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
-.section-head h2 { margin: 0; font-size: 19px; font-weight: 640; }
+.section-head h2 { margin: 0; font-size: 21px; font-weight: 640; }
 .section-note { color: var(--text-faint); font-size: 13px; }
 .month-total { margin-left: auto; color: var(--text-secondary); font-size: 14px; }
 .month-total strong { color: #f2fcff; font-size: 17px; font-variant-numeric: tabular-nums; }
@@ -257,7 +261,7 @@ button:focus-visible {
 /* ---- 月历 ---- */
 .calendar-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 316px;
+  grid-template-columns: minmax(0, 1fr) 330px;
   gap: 30px;
   align-items: start;
 }
@@ -287,7 +291,7 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
   transition: transform 140ms var(--ease-out-expo), box-shadow 140ms ease-out, filter 140ms ease-out;
 }
-button.calendar-cell:hover { transform: translateY(-2px); filter: brightness(1.12); }
+button.calendar-cell:hover { transform: translateY(-1px); }
 button.calendar-cell:active { transform: translateY(1px); }
 .calendar-cell--pad { background: transparent; box-shadow: none; pointer-events: none; }
 .calendar-cell--future {
@@ -340,11 +344,11 @@ button.calendar-cell:active { transform: translateY(1px); }
 .cell-band--none { color: var(--text-faint); }
 
 /* ---- 选中日详情与图例 ---- */
-.day-detail { display: flex; flex-direction: column; gap: 18px; }
+.day-detail { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-left: 28px; border-left: 1px solid rgba(172, 228, 241, 0.22); }
 .day-detail-title { margin: 0; font-size: 20px; font-weight: 660; }
 .day-detail-sub { color: var(--text-secondary); font-size: 13px; }
-.day-detail-total { display: flex; align-items: baseline; gap: 8px; }
-.day-detail-total strong { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.day-detail-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.day-detail-total strong { font-size: clamp(24px, 2.6vw, 36px); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .day-detail-total span { color: var(--text-secondary); }
 .day-detail-sources { display: flex; flex-direction: column; gap: 8px; }
 .day-detail-source { display: flex; align-items: center; gap: 9px; font-size: 15px; }
@@ -352,6 +356,20 @@ button.calendar-cell:active { transform: translateY(1px); }
 .day-detail-source .value { margin-left: auto; font-weight: 640; font-variant-numeric: tabular-nums; }
 .day-detail-source .stale-tag { color: var(--text-faint); font-size: 12px; }
 .day-detail-note { color: var(--text-faint); font-size: 12.5px; }
+.day-detail-preview .day-detail-sub { color: #c2eff7; }
+.day-detail-period-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(172, 228, 241, 0.2);
+  font-variant-numeric: tabular-nums;
+}
+.day-detail-period-totals .day-detail-source { flex-wrap: wrap; font-size: 14px; line-height: 1.6; }
+.day-detail-period-totals .value { white-space: nowrap; }
+.day-detail-period-total { display: flex; flex-direction: column; gap: 4px; }
+.day-detail-period-label { font-size: 14px; font-weight: 600; color: #d9f1f7; }
+.day-detail-period-note { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
 .day-detail-unknown {
   color: var(--text-secondary);
   font-size: 14.5px;
@@ -422,6 +440,8 @@ button.calendar-cell:active { transform: translateY(1px); }
 .heat-weekdays span { line-height: var(--heat-cell, 15px); }
 .heat-scroll { flex: 1; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
 .heat-columns {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(7, var(--heat-cell, 15px));
@@ -430,16 +450,31 @@ button.calendar-cell:active { transform: translateY(1px); }
   width: max-content;
 }
 .heat-cell {
+  position: relative;
+  z-index: 1;
   width: var(--heat-cell, 15px);
   height: var(--heat-cell, 15px);
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: clamp(3px, calc(var(--heat-cell, 15px) * 0.18), 7px);
   background: var(--lv0);
   box-shadow: inset 0 1px 1px rgba(233, 250, 255, 0.12);
 }
 button.heat-cell { cursor: pointer; }
-button.heat-cell:hover { filter: brightness(1.18); }
+button.heat-cell:hover { outline: 1px solid #d6fff2; outline-offset: 1px; }
+.heat-cell[data-preview="true"] { outline: 1px solid #d6fff2; outline-offset: 1px; }
+.heat-week-highlight {
+  position: absolute;
+  z-index: 0;
+  inset-block: -3px;
+  left: -3px;
+  width: calc(var(--heat-cell, 15px) + 6px);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(130, 240, 241, 0.26), rgba(91, 217, 231, 0.14));
+  box-shadow: inset 0 1px 0 rgba(221, 255, 255, 0.3), 0 4px 12px rgba(0, 20, 31, 0.24);
+  pointer-events: none;
+}
+.heat-week-highlight[hidden] { display: none; }
 .heat-cell--pad { background: transparent; box-shadow: none; pointer-events: none; }
 span.heat-cell { cursor: default; }
 .heat-cell--future { background: rgba(10, 34, 44, 0.55); }
@@ -454,7 +489,7 @@ span.heat-cell { cursor: default; }
 .heat-cell[data-level="4"] { background: var(--lv4); }
 .heat-cell[data-level="5"] { background: var(--lv5); }
 .heat-cell[data-selected="true"] {
-  box-shadow: 0 0 0 2px rgba(158, 240, 220, 0.75), 0 4px 12px rgba(70, 210, 180, 0.35);
+  box-shadow: 0 0 0 1px rgba(201, 255, 238, 0.85), 0 4px 10px rgba(0, 22, 34, 0.35);
 }
 
 /* 月度合计柱条：与热力格同一坐标轴 */
@@ -489,24 +524,7 @@ span.heat-cell { cursor: default; }
   background: linear-gradient(180deg, rgba(88, 242, 171, 0.8), rgba(46, 150, 140, 0.4));
   box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.45), 0 4px 14px rgba(48, 190, 150, 0.18);
 }
-.heat-bar:hover .heat-bar-fill { filter: brightness(1.2); }
-
-/* 热力墙悬停浮层：当日 / 本周 / 本月 */
-.heat-tip {
-  position: absolute;
-  z-index: 6;
-  max-width: min(420px, 92%);
-  padding: 7px 11px;
-  border-radius: 10px;
-  background: rgba(6, 20, 28, 0.95);
-  box-shadow: inset 0 1px 0 rgba(238, 251, 255, 0.2), 0 10px 24px rgba(1, 8, 14, 0.55);
-  color: #eaf8fc;
-  font-size: 12.5px;
-  line-height: 1.55;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  word-break: break-word;
-}
+.heat-bar:hover .heat-bar-fill { box-shadow: inset 0 1px 0 rgba(235, 255, 250, 0.7), 0 5px 16px rgba(0, 23, 36, 0.35); }
 
 /* ---- 趋势图交互层 ---- */
 .trend-crosshair {
@@ -528,14 +546,15 @@ span.heat-cell { cursor: default; }
   box-shadow: 0 0 8px rgba(160, 240, 220, 0.5);
   pointer-events: none;
 }
+.trend-tooltip-slot { min-height: 46px; margin-bottom: 8px; }
 .trend-tooltip {
-  position: absolute;
+  position: static;
   z-index: 5;
-  max-width: min(300px, 82%);
+  max-width: 100%;
   padding: 7px 11px;
   border-radius: 10px;
-  background: rgba(6, 20, 28, 0.94);
-  box-shadow: inset 0 1px 0 rgba(238, 251, 255, 0.2), 0 10px 24px rgba(1, 8, 14, 0.55);
+  background: rgba(3, 28, 41, 0.72);
+  box-shadow: inset 0 1px 0 rgba(238, 251, 255, 0.14);
   color: #eaf8fc;
   font-size: 12.5px;
   line-height: 1.55;
@@ -579,8 +598,10 @@ span.heat-cell { cursor: default; }
   .totals { flex-direction: column; gap: 18px; }
   .source-figures { margin-left: 0; gap: 22px; flex-direction: column; }
   .source-figure { min-width: 0; }
-  .totals-number { font-size: 38px; }
+  .totals-value { flex-wrap: wrap; gap: 4px 10px; }
+  .totals-number { max-width: 100%; font-size: clamp(26px, 8.6vw, 38px); overflow-wrap: anywhere; }
   .calendar-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .day-detail { padding-left: 0; padding-top: 22px; border-left: 0; border-top: 1px solid rgba(172, 228, 241, 0.22); }
   .calendar { gap: 6px; }
   .calendar-cell { min-height: 64px; padding: 7px 8px; border-radius: 13px; }
   /* 窄屏：色块承载热度，精确数只在选中日详情与 aria/title，避免省略号掩盖数值 */
@@ -599,4 +620,9 @@ span.heat-cell { cursor: default; }
   .trend-recent { grid-auto-flow: row; grid-template-columns: repeat(3, auto); justify-content: start; text-align: left; }
   .coverage-row button { min-height: 44px; }
   .pill--retry { min-height: 44px; }
+  .trend-tooltip-slot { min-height: 76px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; }
 }

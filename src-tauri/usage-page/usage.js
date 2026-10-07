@@ -15,6 +15,7 @@ import {
   formatTokens,
   heatScale,
   mergeDayClass,
+  minusMonthsClamped,
   monthGroupsFor,
   monthTitle,
   niceTicks,
@@ -23,7 +24,8 @@ import {
   sourceDayInfo,
   sumRange,
   todayKey,
-} from "/usage-core.js";
+  weekdayIndex,
+} from "./usage-core.js";
 
 const RANGE_OPTIONS = [
   ["7d", "7天"],
@@ -178,9 +180,8 @@ async function retrySource(sourceKey) {
 
 let lastRenderKey = null;
 
-function render() {
-  // 轮询无新增时跳过重渲染：保留焦点、选中态与滚动位置（刷新成功不丢键盘焦点）。
-  const key = [
+function renderStateKey() {
+  return [
     JSON.stringify(state.snapshot),
     state.range,
     state.view,
@@ -189,6 +190,11 @@ function render() {
     JSON.stringify(state.retryBusy),
     state.refreshBusy,
   ].join("|");
+}
+
+function render() {
+  // 轮询无新增时跳过重渲染：保留焦点、选中态与滚动位置（刷新成功不丢键盘焦点）。
+  const key = renderStateKey();
   if (key === lastRenderKey) return;
   lastRenderKey = key;
   renderControls();
@@ -433,7 +439,7 @@ function calendarDataset() {
   let monthLabels;
   if (periodHeat) {
     if (!range.start) {
-      return { mode: "period", today, days: [], columns: [], monthLabels: [], codexInfo: new Map(), zcodeInfo: new Map(), scale: heatScale([]) };
+      return { mode: "period", today, days: [], columns: [], monthLabels: [], codexInfo: new Map(), zcodeInfo: new Map(), mergedByDay: new Map(), columnTotals: [], monthGroups: [], scale: heatScale([]) };
     }
     const heat = periodHeatColumns(range.start, range.endExclusive, MAX_RANGE_DAYS / 7 + 2);
     columns = heat.columns;
@@ -470,7 +476,7 @@ function calendarDataset() {
     scale: heatScale(values),
   };
   if (periodHeat) {
-    // 周合计（列）与月合计（柱条）用于悬停浮层与月度总览
+    // 周合计（列）与月合计（柱条）用于右侧预览与月度总览
     dataset.columnTotals = columns.map(column => column.reduce((sum, day) => sum + (day && mergedByDay.get(day)?.cls === "value" ? mergedByDay.get(day).value : 0), 0));
     dataset.monthGroups = monthGroupsFor(columns).map(group => ({
       ...group,
@@ -532,10 +538,16 @@ function renderCalendar() {
   }
 
   const grid = els.calendar;
-  grid.replaceChildren();
-  if (dataset.mode === "period") {
+  calendarView = dataset;
+  const structureKey = JSON.stringify([state.range, state.view, dataset.mode, dataset.days]);
+  if (dataset.mode === "period" && heatLayout && calendarStructureKey === structureKey) {
+    updatePeriodHeat(dataset);
+  } else if (dataset.mode === "period") {
+    grid.replaceChildren();
     renderPeriodHeat(grid, dataset);
   } else {
+    heatLayout = null;
+    grid.replaceChildren();
     grid.removeAttribute("data-mode");
     for (const label of ["一", "二", "三", "四", "五", "六", "日"]) {
       const head = document.createElement("span");
@@ -555,8 +567,8 @@ function renderCalendar() {
       grid.append(calendarCell(day, dataset));
     }
   }
-  renderDayDetail(dataset);
-  renderLegend(dataset);
+  calendarStructureKey = structureKey;
+  renderCalendarDetail();
 }
 
 function renderPeriodHeat(grid, dataset) {
@@ -580,36 +592,13 @@ function renderPeriodHeat(grid, dataset) {
   const count = Math.max(dataset.columns.length, 1);
   columns.style.gridTemplateColumns = `repeat(${count}, var(--heat-cell))`;
 
-  // 悬停浮层：当日 / 本周合计 / 本月合计
-  const tip = document.createElement("div");
-  tip.className = "heat-tip";
-  tip.hidden = true;
-  wrap.append(tip);
-  const hideTip = () => { tip.hidden = true; };
-  const showTip = cellEl => {
-    const day = cellEl.dataset.day;
-    const merged = dataset.mergedByDay.get(day);
-    const columnTotal = dataset.columnTotals[Number(cellEl.dataset.column)] ?? 0;
-    const monthTotal = dataset.monthGroups.find(group => group.key === day.slice(0, 7))?.total ?? 0;
-    const dayText = merged.cls === "value"
-      ? formatTokens(merged.value)
-      : merged.cls === "zero" ? "0（已确认）" : "无可核对记录";
-    tip.textContent = `${formatDayTitle(day)}｜当日 ${dayText} · 本周合计 ${formatTokens(columnTotal)} · 本月合计 ${formatTokens(monthTotal)}`;
-    tip.hidden = false;
-    const wrapRect = wrap.getBoundingClientRect();
-    const cellRect = cellEl.getBoundingClientRect();
-    tip.style.visibility = "hidden";
-    requestAnimationFrame(() => {
-      const left = Math.max(0, Math.min(cellRect.left - wrapRect.left, wrap.clientWidth - tip.offsetWidth - 4));
-      tip.style.left = `${left}px`;
-      tip.style.top = `${Math.max(0, cellRect.top - wrapRect.top - tip.offsetHeight - 8)}px`;
-      tip.style.visibility = "visible";
-    });
-  };
-
-  const monthIndex = new Map(dataset.monthGroups.map(group => [group.key, group]));
+  // 背景层只标记周列，不改变零值、未知和用量格的原始色级。
+  const highlight = document.createElement("div");
+  highlight.className = "heat-week-highlight";
+  highlight.hidden = true;
+  highlight.setAttribute("aria-hidden", "true");
+  columns.append(highlight);
   dataset.columns.forEach((column, columnIndex) => {
-    const columnTotal = dataset.columnTotals[columnIndex];
     for (const day of column) {
       if (!day) {
         const pad = document.createElement("span");
@@ -618,18 +607,9 @@ function renderPeriodHeat(grid, dataset) {
         columns.append(pad);
         continue;
       }
-      columns.append(heatCell(day, dataset, { columnIndex, columnTotal, monthTotal: monthIndex.get(day.slice(0, 7))?.total ?? 0, showTip, hideTip }));
+      columns.append(heatCell(day, dataset, columnIndex));
     }
   });
-  columns.addEventListener("pointerover", event => {
-    const cellEl = event.target.closest("button[data-day]");
-    if (cellEl) showTip(cellEl);
-    else hideTip();
-  });
-  columns.addEventListener("pointerout", event => {
-    if (!event.relatedTarget || !event.relatedTarget.closest?.("button[data-day]")) hideTip();
-  });
-  scroll.addEventListener("scroll", hideTip, { passive: true });
 
   // 月度合计柱条：与热力格同一坐标，填充面板并给出整月总览。
   // 相邻月份共享边界列：柱条显式限定第 1 行，边界列划给后一个月，避免行错位。
@@ -642,16 +622,17 @@ function renderPeriodHeat(grid, dataset) {
     const spanEnd = next ? next.startColumn + 1 : group.endColumn + 1;
     const bar = document.createElement("div");
     bar.className = "heat-bar";
+    bar.dataset.month = group.key;
+    bar.tabIndex = 0;
+    bar.setAttribute("role", "img");
     bar.style.gridColumn = `${group.startColumn + 1} / ${spanEnd + 1}`;
     bar.style.gridRow = "1";
-    bar.title = `${group.label}合计 ${formatTokens(group.total)} tokens`;
     const value = document.createElement("span");
     value.className = "heat-bar-value";
-    value.textContent = group.total > 0 ? abbrevTokens(group.total) : "—";
     const fill = document.createElement("div");
     fill.className = "heat-bar-fill";
-    fill.style.setProperty("--bar-h", group.total > 0 ? `${Math.max(5, Math.round((group.total / maxMonthTotal) * 100))}%` : "2px");
     bar.append(value, fill);
+    updateHeatBar(bar, group, dataset, maxMonthTotal);
     bars.append(bar);
   });
 
@@ -661,9 +642,10 @@ function renderPeriodHeat(grid, dataset) {
   for (const { column, label } of dataset.monthLabels) {
     const span = document.createElement("span");
     span.style.left = `calc(${column} * (var(--heat-cell) + 3px))`;
-    const group = dataset.monthGroups.find(item => item.startColumn >= column && item.key.startsWith(label.replace("月", "").padStart(2, "0")))
-      ?? dataset.monthGroups.find(item => item.startColumn >= column);
-    if (group) span.title = `${group.label}合计 ${formatTokens(group.total)} tokens`;
+    // 月初可能与上一月共用周列，用该标签列的实际日期匹配月份。
+    const month = dataset.columns[column].find(Boolean)?.slice(0, 7);
+    const group = dataset.monthGroups.find(item => item.key === month);
+    if (group) span.dataset.month = group.key;
     span.textContent = label;
     months.append(span);
   }
@@ -674,7 +656,12 @@ function renderPeriodHeat(grid, dataset) {
   grid.append(wrap);
 
   // 格子尺寸随容器宽度自适应：短区间放大铺满，长区间保底并横向滚动。
-  heatLayout = { wrap, scroll, columns, weekdays, count };
+  heatLayout = { wrap, scroll, columns, weekdays, count, highlight, pointerPreview: null, focusPreview: null };
+  scroll.addEventListener("pointerover", event => setHeatPreview("pointerPreview", heatPreviewFor(event.target)));
+  scroll.addEventListener("pointerout", event => setHeatPreview("pointerPreview", heatPreviewFor(event.relatedTarget)));
+  scroll.addEventListener("focusin", event => setHeatPreview("focusPreview", heatPreviewFor(event.target)));
+  scroll.addEventListener("focusout", event => setHeatPreview("focusPreview", heatPreviewFor(event.relatedTarget)));
+  scroll.addEventListener("scroll", () => setHeatPreview("pointerPreview", null), { passive: true });
   requestAnimationFrame(() => applyHeatCellSize());
   // 切换区间后停在最新一端（右侧）：空白的更早历史不必是第一眼。
   const heatKey = `${state.range}|${state.view}`;
@@ -689,49 +676,224 @@ function renderPeriodHeat(grid, dataset) {
 
 let heatLayout = null;
 let lastHeatScrollKey = null;
+let calendarView = null;
+let calendarStructureKey = null;
+
+function heatPreviewFor(target) {
+  const cell = target?.closest?.(".heat-cell[data-day]");
+  if (cell && heatLayout?.scroll.contains(cell)) {
+    return { kind: "day", day: cell.dataset.day, column: Number(cell.dataset.column) };
+  }
+  const month = target?.closest?.("[data-month]");
+  return month && heatLayout?.scroll.contains(month) ? { kind: "month", key: month.dataset.month } : null;
+}
+
+function setHeatPreview(channel, preview) {
+  if (!heatLayout) return;
+  const previous = heatLayout[channel];
+  const other = channel === "pointerPreview" ? "focusPreview" : "pointerPreview";
+  if (JSON.stringify(previous) === JSON.stringify(preview) && (!preview || !heatLayout[other])) return;
+  if (preview) heatLayout[other] = null;
+  heatLayout[channel] = preview;
+  renderCalendarDetail();
+}
+
+function updatePeriodHeat(dataset) {
+  for (const cell of heatLayout.columns.querySelectorAll(".heat-cell[data-day]")) {
+    const day = cell.dataset.day;
+    const column = Number(cell.dataset.column);
+    const merged = dataset.mergedByDay.get(day);
+    const tag = merged.cls === "unknown" || merged.cls === "future" ? "SPAN" : "BUTTON";
+    if (cell.tagName === tag) updateHeatCell(cell, day, dataset, column);
+    else {
+      const focused = document.activeElement === cell;
+      const replacement = heatCell(day, dataset, column);
+      cell.replaceWith(replacement);
+      if (focused && merged.cls !== "future") replacement.focus({ preventScroll: true });
+    }
+  }
+  const maxMonthTotal = Math.max(...dataset.monthGroups.map(group => group.total), 1);
+  for (const bar of heatLayout.scroll.querySelectorAll(".heat-bar")) {
+    const group = dataset.monthGroups.find(item => item.key === bar.dataset.month);
+    updateHeatBar(bar, group, dataset, maxMonthTotal);
+  }
+}
+
+function updateHeatBar(bar, group, dataset, maxMonthTotal) {
+  const recorded = recordedHeatTotal(dataset, group.days);
+  bar.setAttribute("aria-label", `${monthTitle(`${group.key}-01`)}，${recorded === null ? "无可核对记录" : `已记录合计 ${formatTokens(recorded)} tokens`}`);
+  bar.querySelector(".heat-bar-value").textContent = recorded === null ? "—" : abbrevTokens(recorded);
+  bar.querySelector(".heat-bar-fill").style.setProperty("--bar-h", group.total > 0 ? `${Math.max(5, Math.round((group.total / maxMonthTotal) * 100))}%` : "2px");
+}
+
+function selectCalendarDay(day) {
+  state.selectedDay = day;
+  for (const cell of els.calendar.querySelectorAll("button[data-day]")) {
+    const selected = cell.dataset.day === day;
+    cell.dataset.selected = selected;
+    cell.setAttribute("aria-pressed", selected);
+  }
+  renderCalendarDetail();
+  // 已局部同步选中态；同快照轮询无需重新渲染月历或趋势。
+  lastRenderKey = renderStateKey();
+}
+
+function renderCalendarDetail() {
+  if (!calendarView) return;
+  const preview = heatLayout?.pointerPreview ?? heatLayout?.focusPreview;
+  const detail = els["day-detail"];
+  detail.classList.toggle("day-detail-preview", Boolean(preview));
+  if (preview) detail.dataset.previewKind = preview.kind;
+  else delete detail.dataset.previewKind;
+  if (heatLayout) {
+    const previousCell = heatLayout.columns.querySelector('[data-preview="true"]');
+    if (previousCell) delete previousCell.dataset.preview;
+    const highlight = heatLayout.highlight;
+    highlight.hidden = preview?.kind !== "day";
+    if (preview?.kind === "day") {
+      highlight.dataset.column = String(preview.column);
+      highlight.style.transform = `translateX(calc(${preview.column} * (var(--heat-cell) + 3px)))`;
+      const cell = heatLayout.columns.querySelector(`[data-day="${preview.day}"]`);
+      if (cell) cell.dataset.preview = "true";
+    }
+  }
+  if (preview?.kind === "month") renderMonthPreview(calendarView, preview.key);
+  else {
+    renderDayDetail(calendarView, preview?.day);
+    if (preview?.kind === "day") {
+      const rows = document.createElement("div");
+      rows.className = "day-detail-sources day-detail-period-totals";
+      const month = calendarView.monthGroups.find(group => group.key === preview.day.slice(0, 7));
+      for (const [kind, label, days] of [["week", "本周范围", calendarView.columns[preview.column]], ["month", "本月范围", month?.days ?? []]]) {
+        const group = document.createElement("div");
+        group.className = "day-detail-period-total";
+        const row = document.createElement("div");
+        row.className = "day-detail-source";
+        const bounds = heatPeriodBounds(preview.day, kind);
+        const rangeLabel = document.createElement("span");
+        rangeLabel.className = "day-detail-period-label";
+        rangeLabel.textContent = `${label} · ${dateSpanText(bounds.start, bounds.end)}`;
+        const amount = document.createElement("span");
+        amount.className = "value";
+        const value = recordedHeatTotal(calendarView, days);
+        amount.textContent = value === null ? "—" : formatTokens(value);
+        row.append(rangeLabel, amount);
+        const note = document.createElement("span");
+        note.className = "day-detail-period-note";
+        note.textContent = periodSubtotalText(days);
+        group.append(row, note);
+        rows.append(group);
+      }
+      detail.append(rows);
+    }
+  }
+  renderLegend(calendarView);
+}
+
+function renderMonthPreview(dataset, key) {
+  const group = dataset.monthGroups.find(item => item.key === key);
+  const detail = els["day-detail"];
+  detail.replaceChildren();
+  if (!group) return;
+  const title = document.createElement("h3");
+  title.className = "day-detail-title";
+  title.textContent = monthTitle(`${key}-01`);
+  const sub = document.createElement("span");
+  sub.className = "day-detail-sub";
+  const bounds = heatPeriodBounds(`${key}-01`, "month");
+  sub.textContent = `本月范围 · ${dateSpanText(bounds.start, bounds.end)}`;
+  const total = document.createElement("div");
+  total.className = "day-detail-total";
+  const amount = document.createElement("strong");
+  const recorded = recordedHeatTotal(dataset, group.days);
+  amount.textContent = recorded === null ? "—" : formatTokens(recorded);
+  const unit = document.createElement("span");
+  unit.textContent = "tokens";
+  total.append(amount, unit);
+  const subtotalNote = document.createElement("span");
+  subtotalNote.className = "day-detail-period-note";
+  subtotalNote.textContent = periodSubtotalText(group.days);
+  const note = document.createElement("span");
+  note.className = "day-detail-note";
+  note.textContent = recorded === null
+    ? "无可核对记录；移开恢复所选日"
+    : anyStale() ? "含未更新数据；移开恢复所选日" : "仅汇总已记录用量；缺失历史不等于零";
+  detail.append(title, sub, total, subtotalNote, note);
+}
+
+function heatPeriodBounds(day, kind) {
+  const start = kind === "week" ? addDays(day, -weekdayIndex(day)) : `${day.slice(0, 7)}-01`;
+  return { start, end: kind === "week" ? addDays(start, 6) : addDays(minusMonthsClamped(start, -1), -1) };
+}
+
+function dateSpanText(start, end) {
+  return `${start.replaceAll("-", ".")} — ${end.replaceAll("-", ".")}`;
+}
+
+function periodSubtotalText(days) {
+  const included = days.filter(Boolean);
+  return included.length
+    ? `所选期间内已记录小计 · ${dateSpanText(included[0], included.at(-1))}`
+    : "所选期间内无可核对日期";
+}
+
+/** 无已知日期时不能把求和初值 0 当作已确认零。 */
+function recordedHeatTotal(dataset, days = []) {
+  const known = days.map(day => dataset.mergedByDay.get(day)).filter(info => info?.cls === "value" || info?.cls === "zero");
+  return known.length ? known.reduce((total, info) => total + (info.cls === "value" ? info.value : 0), 0) : null;
+}
 
 function applyHeatCellSize() {
   if (!heatLayout) return;
-  const { wrap, scroll, weekdays, count } = heatLayout;
-  const available = Math.max(scroll.clientWidth - weekdays.offsetWidth - 8, count * 10);
-  const cell = Math.max(10, Math.min(40, Math.floor((available - (count - 1) * 3) / count)));
+  const { wrap, scroll, count } = heatLayout;
+  const minCell = window.innerWidth <= 760 || window.matchMedia?.("(pointer: coarse)")?.matches ? 22 : 16;
+  // scroll 的宽度已扣除星期栏，直接按它铺满，避免二次扣减。
+  const available = Math.max(scroll.clientWidth, count * minCell);
+  const cell = Math.max(minCell, Math.min(40, Math.floor((available - (count - 1) * 3) / count)));
   wrap.style.setProperty("--heat-cell", `${cell}px`);
 }
 
 window.addEventListener("resize", () => applyHeatCellSize());
 
-function heatCell(day, dataset, context) {
+function heatCell(day, dataset, columnIndex) {
   const merged = dataset.mergedByDay.get(day);
-  if (merged.cls === "unknown" || merged.cls === "future") {
-    // 未知/未来日期不可点击：避免"跳到空数据页"；保留斜纹与悬停说明。
-    const span = document.createElement("span");
-    span.className = `heat-cell heat-cell--${merged.cls}`;
-    span.dataset.day = day;
-    span.title = merged.cls === "future"
-      ? `${formatDayTitle(day)}：尚未到来`
-      : `${formatDayTitle(day)}：无可核对记录`;
-    return span;
+  const readonly = merged.cls === "unknown" || merged.cls === "future";
+  const cell = document.createElement(readonly ? "span" : "button");
+  if (readonly) {
+    cell.tabIndex = -1;
+    cell.setAttribute("role", "img");
   }
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "heat-cell";
-  button.dataset.day = day;
-  button.dataset.column = String(context.columnIndex);
+  else {
+    cell.type = "button";
+    cell.addEventListener("click", () => selectCalendarDay(day));
+  }
+  updateHeatCell(cell, day, dataset, columnIndex);
+  return cell;
+}
+
+function updateHeatCell(cell, day, dataset, columnIndex) {
+  const merged = dataset.mergedByDay.get(day);
+  const columnTotal = dataset.columnTotals[columnIndex] ?? 0;
+  const monthTotal = dataset.monthGroups.find(group => group.key === day.slice(0, 7))?.total ?? 0;
+  cell.className = `heat-cell${merged.cls === "unknown" || merged.cls === "future" ? ` heat-cell--${merged.cls}` : ""}`;
+  cell.dataset.day = day;
+  cell.dataset.column = String(columnIndex);
+  cell.dataset.state = merged.cls;
   if (merged.cls === "value") {
-    button.dataset.level = dataset.scale.level(merged.value);
-    button.dataset.weekTotal = String(context.columnTotal);
+    cell.dataset.level = dataset.scale.level(merged.value);
   } else {
-    button.dataset.level = "0";
+    if (merged.cls === "zero") cell.dataset.level = "0";
+    else delete cell.dataset.level;
   }
+  const dayText = merged.cls === "value" ? `已记录 ${formatTokens(merged.value)} tokens` : merged.cls === "zero" ? "已确认零" : merged.cls === "future" ? "尚未到来" : "无可核对记录";
+  const weekRecorded = recordedHeatTotal(dataset, dataset.columns[columnIndex]);
+  const monthRecorded = recordedHeatTotal(dataset, dataset.monthGroups.find(group => group.key === day.slice(0, 7))?.days);
+  cell.setAttribute("aria-label", `${formatDayTitle(day)}，${dayText}；本周已记录合计 ${weekRecorded === null ? "无可核对记录" : formatTokens(columnTotal)}，本月已记录合计 ${monthRecorded === null ? "无可核对记录" : formatTokens(monthTotal)}`);
+  if (cell.tagName !== "BUTTON") return;
+  cell.dataset.weekTotal = String(columnTotal);
   const selected = state.selectedDay === day;
-  button.dataset.selected = selected;
-  button.setAttribute("aria-pressed", selected);
-  button.setAttribute("aria-label", `${formatDayTitle(day)}，${merged.cls === "value" ? `已记录 ${formatTokens(merged.value)} tokens` : "已确认零"}；本周合计 ${formatTokens(context.columnTotal)}，本月合计 ${formatTokens(context.monthTotal)}`);
-  button.addEventListener("click", () => {
-    state.selectedDay = day;
-    render();
-  });
-  return button;
+  cell.dataset.selected = selected;
+  cell.setAttribute("aria-pressed", selected);
 }
 
 function calendarCell(day, dataset) {
@@ -811,8 +973,7 @@ function calendarCell(day, dataset) {
   button.setAttribute("aria-label", cellAriaLabel(day, effective, codexInfo, zcodeInfo, dataset));
   if (!isFuture) {
     button.addEventListener("click", () => {
-      state.selectedDay = day;
-      render();
+      selectCalendarDay(day);
     });
   }
   return button;
@@ -857,13 +1018,13 @@ function cellAriaLabel(day, effective, codexInfo, zcodeInfo) {
   return `${base}，已记录 ${formatTokens(total)} tokens${parts.length ? `（${parts.join("，")}）` : ""}`;
 }
 
-function renderDayDetail(dataset) {
-  const day = state.selectedDay && dataset.days.includes(state.selectedDay)
+function renderDayDetail(dataset, previewDay) {
+  const day = previewDay ?? (state.selectedDay && dataset.days.includes(state.selectedDay)
     ? state.selectedDay
-    : dataset.today;
-  state.selectedDay = day;
-  const codexInfo = dataset.codexInfo.get(day);
-  const zcodeInfo = dataset.zcodeInfo.get(day);
+    : dataset.today);
+  if (!previewDay) state.selectedDay = day;
+  const codexInfo = dataset.codexInfo.get(day) ?? { cls: "unknown" };
+  const zcodeInfo = dataset.zcodeInfo.get(day) ?? { cls: "unknown" };
   const detail = els["day-detail"];
   detail.replaceChildren();
 
@@ -872,7 +1033,8 @@ function renderDayDetail(dataset) {
   title.textContent = formatDayTitle(day);
   const sub = document.createElement("span");
   sub.className = "day-detail-sub";
-  sub.textContent = dataset.mode === "period"
+  sub.textContent = previewDay ? "日期预览；点击热力格保留该日"
+    : dataset.mode === "period"
     ? "期间日期详情，点击热力格切换日期"
     : "本月日期详情，不随上方区间筛选";
   detail.append(title, sub);
@@ -1141,7 +1303,10 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   body.style.height = `${height}px`;
   body.style.marginLeft = `${axisLeft}px`;
   body.style.marginBottom = `${axisBottom}px`;
-  wrapper.append(body);
+  // 精确读数在绘图区外预留一行，不覆盖峰值、斜纹缺口或十字线。
+  const tooltipSlot = document.createElement("div");
+  tooltipSlot.className = "trend-tooltip-slot";
+  wrapper.append(tooltipSlot, body);
 
   const top = niceTicks(maxValue)[2] || maxValue || 1;
   const xAt = index => (days.length <= 1 ? width / 2 : (index / (days.length - 1)) * width);
@@ -1281,7 +1446,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   tooltip.className = "trend-tooltip";
   tooltip.hidden = true;
   tooltip.setAttribute("role", "status");
-  wrapper.append(tooltip);
+  tooltipSlot.append(tooltip);
   let activeIndex = null;
 
   const setActive = index => {
@@ -1322,15 +1487,6 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     if (layers.length > 1 && totalKnown) lines.push(`合计 ${formatTokens(total)}`);
     tooltip.textContent = lines.join(" · ");
     tooltip.hidden = false;
-    tooltip.style.visibility = "hidden";
-    requestAnimationFrame(() => {
-      const bodyWidth = body.clientWidth;
-      const width = tooltip.offsetWidth;
-      const x = Math.max(0, Math.min(fraction * bodyWidth + 10, bodyWidth - width - 2));
-      tooltip.style.left = `${x}px`;
-      tooltip.style.top = "6px";
-      tooltip.style.visibility = "visible";
-    });
   };
 
   body.addEventListener("pointermove", event => {
@@ -1369,15 +1525,17 @@ function buildChartSvg(days, layers, maxValue, chartId) {
 
 /* ---------------- 启动 ---------------- */
 
-// 日历方向键导航：在日期按钮间移动焦点，未来日期（禁用）跳过。
+// 月历横向为逐日、纵向为逐周；热墙按列优先布局，方向对应交换。
 els.calendar.addEventListener("keydown", event => {
-  const deltas = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+  const deltas = els.calendar.dataset.mode === "period"
+    ? { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }
+    : { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
   if (!(event.key in deltas)) return;
   const current = event.target.closest("[data-day]");
   if (!current) return;
   const next = addDays(current.dataset.day, deltas[event.key]);
   const target = els.calendar.querySelector(`[data-day="${next}"]`);
-  if (target && !target.disabled) {
+  if (target && !target.disabled && target.dataset.state !== "future") {
     event.preventDefault();
     target.focus();
   }

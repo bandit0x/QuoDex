@@ -11,9 +11,7 @@
 </head>
 <body>
   <div class="ocean-backdrop" aria-hidden="true">
-    <div class="ocean-band ocean-band--1"></div>
-    <div class="ocean-band ocean-band--2"></div>
-    <div class="ocean-band ocean-band--3"></div>
+    <canvas id="ocean-canvas"></canvas>
     <div class="ocean-floor"></div>
   </div>
 
@@ -69,7 +67,7 @@
       <div class="section-head">
         <h2>区间趋势</h2>
         <span class="section-note" id="trend-gap-note"></span>
-        <span class="section-note" id="trend-dates" style="margin-left:auto"></span>
+        <span class="section-note" id="trend-dates"></span>
       </div>
       <div class="trend-charts" id="trend-charts"></div>
       <p class="trend-caption">仅统计本机仍留存的记录；缺失历史不等于零用量。精确数字以千位分隔显示，图表刻度为缩写。</p>
@@ -79,5 +77,6 @@
   <footer class="page-footer" aria-hidden="true"></footer>
   <noscript>本页需要启用 JavaScript 才能显示用量统计。</noscript>
   <script type="module" src="/usage.js"></script>
+  <script type="module" src="/usage-material.js"></script>
 </body>
 </html>

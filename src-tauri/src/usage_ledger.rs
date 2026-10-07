@@ -291,10 +291,17 @@ fn read_diagnostic(error: rusqlite::Error) -> crate::capacity::Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_LEDGER_ID: AtomicUsize = AtomicUsize::new(0);
 
     fn ledger() -> UsageLedger {
-        let unique = now_ms();
-        let path = std::env::temp_dir().join(format!("quodex-ledger-test-{unique}.sqlite"));
+        // 并行测试可能在同一毫秒开始，时间戳单独使用会共享账本。
+        let unique = NEXT_LEDGER_ID.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "quodex-ledger-test-{}-{}-{unique}.sqlite",
+            std::process::id(), now_ms(),
+        ));
         UsageLedger::open(&path).expect("open ledger")
     }
 

@@ -1,0 +1,146 @@
+{
+  "status": "Verified",
+  "timestamp": "2026-10-07T05:01:15.133Z",
+  "nodeVersion": "v22.23.2",
+  "executable": "/Users/Admin/Documents/projects/QuoDex/src-tauri/target/release/bundle/macos/QuoDex.app/Contents/MacOS/codex-credits-view",
+  "output": "/Users/Admin/Documents/projects/QuoDex/docs/verification/usage-liquid-glass",
+  "checks": [
+    {
+      "name": "real Tauri API ready and anonymous exact daily totals",
+      "status": "Verified"
+    },
+    {
+      "name": "real WebGL water and glass shaders compile and leave controls interactive",
+      "status": "Verified"
+    },
+    {
+      "name": "actual WEBGL_lose_context water loss uses CSS fallback and restores rendering without changing totals",
+      "status": "Verified"
+    },
+    {
+      "name": "six period totals and separate source totals use existing core date boundaries",
+      "status": "Verified"
+    },
+    {
+      "name": "month day selection, unknown and future are not zero",
+      "status": "Verified"
+    },
+    {
+      "name": "3m/6m/1y/total heat hover and click retain full-week highlight with precise day/week/month totals",
+      "status": "Verified"
+    },
+    {
+      "name": "same source snapshot from real polling retains heat/trend DOM, focus, highlight and scroll",
+      "status": "Verified"
+    },
+    {
+      "name": "month bar hover uses period month total and restores selected day",
+      "status": "Verified"
+    },
+    {
+      "name": "trend keyboard gives exact daily source/merged values and clears on Escape",
+      "status": "Verified"
+    },
+    {
+      "name": "refresh reimports without changing request counts, totals or selected day",
+      "status": "Verified"
+    },
+    {
+      "name": "390px touch: no body overflow, real date tap preserves scroll, reduced motion",
+      "status": "Verified"
+    },
+    {
+      "name": "no console, page or failed resource errors",
+      "status": "Verified"
+    }
+  ],
+  "browserErrors": [],
+  "viewports": {
+    "desktop": {
+      "width": 1440,
+      "height": 1080
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "fixtureRoot": "/private/tmp/quodex-usage-ui-jPTtNd",
+  "today": "2026-10-07",
+  "timezone": "Asia/Shanghai",
+  "expectedRanges": {
+    "7d": {
+      "start": "2026-10-01",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 4455000,
+      "zcode": 2367000,
+      "merged": 6822000
+    },
+    "30d": {
+      "start": "2026-09-08",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 12035000,
+      "zcode": 6796000,
+      "merged": 18831000
+    },
+    "3m": {
+      "start": "2026-07-08",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 12035000,
+      "zcode": 6796000,
+      "merged": 18831000
+    },
+    "6m": {
+      "start": "2026-04-08",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 12035000,
+      "zcode": 6796000,
+      "merged": 18831000
+    },
+    "1y": {
+      "start": "2025-10-08",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 12035000,
+      "zcode": 6796000,
+      "merged": 18831000
+    },
+    "total": {
+      "start": "2026-09-18",
+      "endExclusive": "2026-10-08",
+      "today": "2026-10-07",
+      "codex": 12035000,
+      "zcode": 6796000,
+      "merged": 18831000
+    }
+  },
+  "gaps": [
+    "2026-09-26",
+    "2026-10-01"
+  ],
+  "appPid": 23825,
+  "url": "http://127.0.0.1:53855/",
+  "browserVersion": "154.0.8037.98",
+  "desktopEnvironment": {
+    "width": 1440,
+    "height": 1080,
+    "deviceScaleFactor": 1,
+    "maxTouchPoints": 0,
+    "timezone": "Asia/Shanghai"
+  },
+  "actualBrowserTimezone": "Asia/Shanghai",
+  "sameSnapshotPollingAttempts": 1,
+  "mobileEnvironment": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "maxTouchPoints": 1,
+    "timezone": "Asia/Shanghai"
+  },
+  "appKeptRunning": true,
+  "completedAt": "2026-10-07T05:01:50.493Z"
+}

@@ -14,6 +14,7 @@ const PAGE_INDEX: &str = include_str!("../usage-page/index.html");
 const PAGE_CSS: &str = include_str!("../usage-page/usage.css");
 const PAGE_CORE_JS: &str = include_str!("../usage-page/usage-core.js");
 const PAGE_APP_JS: &str = include_str!("../usage-page/usage.js");
+const PAGE_MATERIAL_JS: &str = include_str!("../usage-page/usage-material.js");
 
 pub struct UsageServer {
     pub url: String,
@@ -131,6 +132,7 @@ fn route(method: &str, target: &str, service: &UsageService) -> (&'static str, &
         "/usage.css" => ("200 OK", "text/css; charset=utf-8", PAGE_CSS.as_bytes().to_vec()),
         "/usage-core.js" => ("200 OK", "text/javascript; charset=utf-8", PAGE_CORE_JS.as_bytes().to_vec()),
         "/usage.js" => ("200 OK", "text/javascript; charset=utf-8", PAGE_APP_JS.as_bytes().to_vec()),
+        "/usage-material.js" => ("200 OK", "text/javascript; charset=utf-8", PAGE_MATERIAL_JS.as_bytes().to_vec()),
         "/api/usage" => match serde_json::to_vec(&service.snapshot()) {
             Ok(body) => ("200 OK", "application/json; charset=utf-8", body),
             Err(_) => ("500 Internal Server Error", "application/json", b"{}".to_vec()),
@@ -221,6 +223,10 @@ mod tests {
         assert_eq!(status, 200);
         let (status, _, _) = get(&server.url, "/usage-core.js").await;
         assert_eq!(status, 200);
+        let (status, content_type, body) = get(&server.url, "/usage-material.js").await;
+        assert_eq!(status, 200);
+        assert!(content_type.starts_with("text/javascript"));
+        assert!(String::from_utf8_lossy(&body).contains("initUsageMaterial"));
         let (status, _, _) = get(&server.url, "/../etc/passwd").await;
         assert_eq!(status, 404);
         let _ = std::fs::remove_dir_all(home);

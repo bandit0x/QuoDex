@@ -1,0 +1,35 @@
+   Compiling codex-credits-view v0.3.0 (/Users/Admin/Documents/projects/QuoDex/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.23s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/codex_credits_view_lib-18551305d980fe33)
+
+running 22 tests
+test usage_ledger::tests::meta_roundtrip_and_request_count ... ok
+test usage_ledger::tests::daily_totals_bucket_by_local_offset_not_utc ... ok
+test usage_ledger::tests::zcode_record_update_replaces_old_value ... ok
+test usage_server::tests::rejects_non_get_requests ... ok
+test usage_ledger::tests::codex_conflict_keeps_first_and_does_not_add ... ok
+test usage_service::tests::initial_snapshot_survives_ledger_failure_and_reports_qdu_707 ... ok
+test usage_sources::tests::codex_missing_dir_reports_qdu_701 ... ok
+test usage_ledger::tests::repeated_import_and_restart_do_not_double_count ... ok
+test usage_server::tests::serves_page_assets_and_snapshot_api ... ok
+test usage_sources::tests::codex_partial_tail_waits_for_backfill_and_invalid_midlines_report_gap ... ok
+test usage_sources::tests::scans_codex_rollout_records_and_dedup_ready_keys ... ok
+test usage_sources::tests::scans_zcode_model_usage_including_failed_requests ... ok
+test usage_service::tests::imports_zcode_and_reports_ready_with_coverage ... ok
+test usage_sources::tests::zcode_missing_db_is_701_and_wrong_schema_is_704 ... ok
+test usage_service::tests::codex_import_persists_scan_state_and_dedups_across_restarts ... ok
+test usage_service::tests::zcode_failure_keeps_ledger_data_and_reports_diagnostic ... ok
+test usage_service::tests::refresh_is_idempotent_for_repeated_calls ... ok
+test usage_sources::tests::zcode_identity_is_stable_and_path_sensitive ... ok
+test usage_service::tests::codex_conflicting_replay_surfaces_qdu_705 ... ok
+test zcode_tasks::tests::restarted_chat_does_not_reuse_completed_usage_while_new_execution_is_starting ... ok
+test zcode_tasks::tests::reads_legacy_execution_metadata_when_turn_usage_has_no_record ... ok
+test usage_sources::tests::zcode_busy_lock_maps_to_qdu_703 ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 111 filtered out; finished in 1.14s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/codex_credits_view-90788cb2860b963b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

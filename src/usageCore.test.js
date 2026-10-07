@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   abbrevTokens,
   calendarGrid,
@@ -245,5 +246,263 @@ describe("sourceDayInfo", () => {
     expect(sourceDayInfo(source, "2026-10-02", "2026-10-06").cls).toBe("unknown");
     expect(sourceDayInfo(source, "2026-10-02", "2026-10-06").coverage).toBe("partial");
     expect(sourceDayInfo(source, "2026-10-07", "2026-10-06").cls).toBe("future");
+  });
+});
+
+describe("用量页真实 DOM 交互", () => {
+  let snapshot;
+  let listeners;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 6, 12));
+    vi.resetModules();
+    listeners = [];
+    for (const surface of [window, document]) {
+      const add = surface.addEventListener.bind(surface);
+      vi.spyOn(surface, "addEventListener").mockImplementation((type, listener, options) => {
+        listeners.push([surface, type, listener, options]);
+        add(type, listener, options);
+      });
+    }
+    const source = daily => ({
+      state: "ready", daily, requestCount: 3,
+      earliestDay: "2026-09-28", collectionStartDay: "2026-09-28",
+      lastSuccessAtMs: Date.now(),
+    });
+    snapshot = {
+      codex: source({ "2026-09-28": 100, "2026-10-05": 1200, "2026-10-06": 2300 }),
+      zcode: source({ "2026-09-28": 50, "2026-10-05": 300, "2026-10-06": 700 }),
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => snapshot })));
+    vi.stubGlobal("requestAnimationFrame", callback => { callback(0); return 1; });
+    const html = readFileSync("src-tauri/usage-page/index.html", "utf8");
+    document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1];
+    await import("../src-tauri/usage-page/usage.js");
+    await vi.dynamicImportSettled();
+  });
+
+  afterEach(() => {
+    for (const [surface, type, listener, options] of listeners) surface.removeEventListener(type, listener, options);
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    document.body.replaceChildren();
+  });
+
+  it("热墙悬停整周背景并在侧栏预览，移出恢复所选日且不改色级", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const cell = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    const detail = document.getElementById("day-detail");
+    const level = cell.dataset.level;
+    cell.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(detail).toHaveClass("day-detail-preview");
+    expect(detail.textContent).toContain("1,500");
+    expect(detail.textContent).toContain("本周范围");
+    expect(detail.textContent).toContain("4,500");
+    expect(detail.textContent).toContain("本月范围");
+    const highlight = document.querySelector(".heat-week-highlight");
+    expect(highlight.hidden).toBe(false);
+    expect(highlight.dataset.column).toBe(cell.dataset.column);
+    expect(cell.dataset.level).toBe(level);
+    expect(document.querySelector(".heat-tip")).toBeNull();
+    cell.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    expect(detail).not.toHaveClass("day-detail-preview");
+    expect(detail.textContent).toContain("10月6日");
+    expect(detail.textContent).toContain("3,000");
+    expect(highlight.hidden).toBe(true);
+  });
+
+  it("热墙上下逐日、左右逐周；未知可读但不能选择，月历保留原方向", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const monday = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    monday.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    monday.focus();
+    monday.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement.dataset.day).toBe("2026-10-06");
+    expect(document.getElementById("day-detail").textContent).toContain("3,000");
+    document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(document.activeElement.dataset.day).toBe("2026-09-29");
+    expect(document.activeElement.dataset.level).toBe("0");
+    const unknown = document.querySelector('.heat-cell[data-day="2026-09-27"]');
+    unknown.focus();
+    expect(unknown.tagName).toBe("SPAN");
+    expect(document.getElementById("day-detail").textContent).toContain("无可核对记录");
+    expect(unknown.dataset.level).toBeUndefined();
+    unknown.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    unknown.blur();
+    monday.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    expect(document.querySelector('[data-day="2026-10-06"]')).toHaveAttribute("aria-pressed", "true");
+    document.querySelector('[data-range="7d"]').click();
+    const day = document.querySelector('.calendar-cell[data-day="2026-10-05"]');
+    day.focus();
+    day.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(document.activeElement.dataset.day).toBe("2026-10-06");
+    document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement.dataset.day).toBe("2026-10-06"); // 未来禁用日不可进入
+  });
+
+  it("日期点击和新快照刷新保留热墙节点、滚动与焦点；月柱只预览", async () => {
+    document.querySelector('[data-range="3m"]').click();
+    const wall = document.querySelector(".heat-columns");
+    const scroll = document.querySelector(".heat-scroll");
+    const cell = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    scroll.scrollLeft = 117;
+    cell.focus();
+    cell.click();
+    expect(document.querySelector(".heat-columns")).toBe(wall);
+    expect(document.querySelector(".heat-scroll")).toBe(scroll);
+    expect(scroll.scrollLeft).toBe(117);
+    expect(document.activeElement).toBe(cell);
+    expect(cell).toHaveAttribute("aria-pressed", "true");
+    expect(document.getElementById("day-detail")).toHaveClass("day-detail-preview");
+    snapshot = { ...snapshot, codex: { ...snapshot.codex, daily: { ...snapshot.codex.daily, "2026-10-05": 1800 } } };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    expect(document.querySelector(".heat-columns")).toBe(wall);
+    expect(document.querySelector('.heat-cell[data-day="2026-10-05"]')).toBe(cell);
+    expect(scroll.scrollLeft).toBe(117);
+    expect(document.activeElement).toBe(cell);
+    expect(document.getElementById("day-detail").textContent).toContain("2,100");
+    const bar = document.querySelector('.heat-bar[data-month="2026-10"]');
+    const requests = fetch.mock.calls.length;
+    bar.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(document.getElementById("day-detail").dataset.previewKind).toBe("month");
+    expect(document.getElementById("day-detail").textContent).toContain("5,100");
+    bar.click();
+    expect(fetch.mock.calls).toHaveLength(requests);
+    expect(cell).toHaveAttribute("aria-pressed", "true");
+    bar.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    expect(document.getElementById("day-detail").textContent).toContain("10月5日");
+  });
+
+  it("趋势精确读数在绘图区外，保留键盘十字线与 Escape 收起", () => {
+    const chart = document.querySelector(".trend-chart");
+    chart.focus();
+    const tip = chart.querySelector(".trend-tooltip");
+    expect(tip.hidden).toBe(false);
+    expect(tip.parentElement).toHaveClass("trend-tooltip-slot");
+    expect(tip.textContent).toContain("2026.10.06");
+    expect(tip.textContent).toContain("Codex 2,300");
+    expect(tip.textContent).toContain("ZCode 700");
+    expect(chart.querySelector(".trend-crosshair").hidden).toBe(false);
+    chart.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(tip.textContent).toContain("2026.10.05");
+    expect(tip.textContent).toContain("合计 1,500");
+    chart.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(tip.hidden).toBe(true);
+    expect(chart.querySelector(".trend-crosshair").hidden).toBe(true);
+  });
+
+  it("未知周月预览不补零，已核对覆盖的零与未来保持不同状态", async () => {
+    document.querySelector('[data-range="1y"]').click();
+    const unknown = document.querySelector('.heat-cell[data-day="2026-09-20"]');
+    unknown.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(document.querySelector(".day-detail-period-totals .value").textContent).toBe("—");
+    const missingMonth = document.querySelector('.heat-bar[data-month="2026-08"]');
+    missingMonth.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(document.querySelector(".day-detail-total strong").textContent).toBe("—");
+    expect(document.getElementById("day-detail").textContent).toContain("无可核对记录");
+    expect(missingMonth.getAttribute("aria-label")).toContain("无可核对记录");
+    const october = [...document.querySelectorAll(".heat-months span")].filter(label => label.textContent === "10月").at(-1);
+    october.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(document.getElementById("day-detail").dataset.previewKind).toBe("month");
+    expect(document.querySelector(".day-detail-total strong").textContent).toBe("4,500");
+    snapshot = { ...snapshot, codex: { ...snapshot.codex, daily: {} }, zcode: { ...snapshot.zcode, daily: {} } };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    const zero = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    zero.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(zero.dataset.level).toBe("0");
+    expect(document.querySelector(".day-detail-total strong").textContent).toBe("0");
+    expect(document.querySelector(".day-detail-period-totals .value").textContent).toBe("0");
+    document.querySelector('[data-range="7d"]').click();
+    const future = document.querySelector('.calendar-cell[data-day="2026-10-07"]');
+    expect(future.disabled).toBe(true);
+    expect(future.dataset.state).toBe("future");
+    expect(future.dataset.level).toBeUndefined();
+  });
+
+  it("年份热墙保留可操作格宽，窄屏通过现有横向滚动承载", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const wrap = document.querySelector(".heat-wrap");
+    expect(Number.parseInt(wrap.style.getPropertyValue("--heat-cell"))).toBeGreaterThanOrEqual(16);
+    vi.stubGlobal("innerWidth", 390);
+    window.dispatchEvent(new Event("resize"));
+    expect(Number.parseInt(wrap.style.getPropertyValue("--heat-cell"))).toBeGreaterThanOrEqual(22);
+    expect(document.querySelector(".heat-scroll .heat-columns")).not.toBeNull();
+  });
+
+  it("周/月预览区分完整日历范围与所选期间内小计，月份预览显示截断范围", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const cell = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    cell.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    const groups = document.querySelectorAll(".day-detail-period-total");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector(".day-detail-period-label").textContent).toContain("2026.10.05 — 2026.10.11");
+    expect(groups[0].querySelector(".day-detail-period-note").textContent).toContain("所选期间内已记录小计 · 2026.10.05 — 2026.10.06");
+    expect(groups[0].querySelector(".value").textContent).toBe("4,500");
+    expect(groups[1].querySelector(".day-detail-period-label").textContent).toContain("2026.10.01 — 2026.10.31");
+    expect(groups[1].querySelector(".day-detail-period-note").textContent).toContain("所选期间内已记录小计 · 2026.10.01 — 2026.10.06");
+    expect(groups[1].querySelector(".value").textContent).toBe("4,500");
+    const bar = document.querySelector('.heat-bar[data-month="2026-10"]');
+    bar.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    const detail = document.getElementById("day-detail");
+    expect(detail.querySelector(".day-detail-sub").textContent).toContain("2026.10.01 — 2026.10.31");
+    expect(detail.querySelector(".day-detail-period-note").textContent).toContain("所选期间内已记录小计 · 2026.10.01 — 2026.10.06");
+    expect(detail.querySelector(".day-detail-total strong").textContent).toBe("4,500");
+  });
+
+  it("月历点击后同快照的15秒轮询保留日期节点、焦点与趋势节点", async () => {
+    const cell = document.querySelector('.calendar-cell[data-day="2026-10-05"]');
+    const chart = document.querySelector(".trend-chart");
+    cell.focus();
+    cell.click();
+    const requests = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(fetch.mock.calls).toHaveLength(requests + 1);
+    expect(document.querySelector('.calendar-cell[data-day="2026-10-05"]')).toBe(cell);
+    expect(document.activeElement).toBe(cell);
+    expect(cell).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".trend-chart")).toBe(chart);
+  });
+
+  it("点击热格保留鼠标和焦点的整周高亮，离开后恢复新选择日", () => {
+    document.querySelector('[data-range="1y"]').click();
+    const cell = document.querySelector('.heat-cell[data-day="2026-10-05"]');
+    const detail = document.getElementById("day-detail");
+    const highlight = document.querySelector(".heat-week-highlight");
+    cell.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    cell.click();
+    expect(highlight.hidden).toBe(false);
+    expect(highlight.dataset.column).toBe(cell.dataset.column);
+    expect(cell).toHaveAttribute("aria-pressed", "true");
+    cell.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    expect(highlight.hidden).toBe(true);
+    expect(detail).not.toHaveClass("day-detail-preview");
+    expect(detail.querySelector(".day-detail-title").textContent).toContain("10月5日");
+    cell.focus();
+    cell.click();
+    expect(highlight.hidden).toBe(false);
+    cell.blur();
+    expect(highlight.hidden).toBe(true);
+    expect(detail).not.toHaveClass("day-detail-preview");
+    expect(detail.querySelector(".day-detail-title").textContent).toContain("10月5日");
+  });
+
+  it("月柱可见数区分已确认零和完全未知，刷新时也保持同样口径", async () => {
+    document.querySelector('[data-range="1y"]').click();
+    const month = document.querySelector('.heat-bar[data-month="2026-10"]');
+    const unknown = document.querySelector('.heat-bar[data-month="2026-08"]');
+    expect(unknown.querySelector(".heat-bar-value").textContent).toBe("—");
+    snapshot = { ...snapshot, codex: { ...snapshot.codex, daily: {} }, zcode: { ...snapshot.zcode, daily: {} } };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    expect(document.querySelector('.heat-bar[data-month="2026-10"]')).toBe(month);
+    expect(month.querySelector(".heat-bar-value").textContent).toBe("0");
+    expect(unknown.querySelector(".heat-bar-value").textContent).toBe("—");
+    month.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+    expect(document.querySelector(".day-detail-total strong").textContent).toBe("0");
   });
 });

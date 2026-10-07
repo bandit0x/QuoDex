@@ -1,0 +1,17 @@
+{
+  "sourceBase": "15b1cf68a84ebf47dec481c6ca50cd8b8ba2c289",
+  "branch": "codex/usage-liquid-glass",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+  "architecture": "arm64",
+  "node": "v22.23.2",
+  "npm": "10.9.8",
+  "buildCommand": "npm run tauri:build -- --config src-tauri/tauri.macos.conf.json --bundles app",
+  "artifact": "src-tauri/target/release/bundle/macos/QuoDex.app/Contents/MacOS/codex-credits-view",
+  "sha256": {
+    "src-tauri/target/release/bundle/macos/QuoDex.app/Contents/MacOS/codex-credits-view": "a7cc51e178d4c97c82eb69ffa1ad60c50795ed6b02d8ed2281ac7ce5e0901e25",
+    "src-tauri/usage-page/index.html": "63ca566cb9758ec33bbdec1f0e9265c52ba5f907e7e67f9f5f83a64c634756e6",
+    "src-tauri/usage-page/usage.css": "b5cf6d05d3c3d7608094e1f73d957d83d6491f523d7c11a1ed278a468f10449f",
+    "src-tauri/usage-page/usage.js": "1f7ab1a4d8b5a3de6bb9ff3e4a92b6a2e9a3c7cd9302d8de3b75eba8bfa19264",
+    "src-tauri/usage-page/usage-material.js": "83dab5d0f5307c15b26d224967e39f1ef844615e126982bb3ef43fd14b25aa9b"
+  }
+}

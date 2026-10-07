@@ -1,0 +1,9 @@
+{
+  "status": "Blocked",
+  "check": "native settings usage button opens the real loopback page in default browser",
+  "observationSource": "cua.getState()",
+  "reason": "Native apps: Error: The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing.",
+  "performedClicks": false,
+  "nextStep": "After manual unlock, start a new isolated QA app, click its existing usage entry, then verify the default browser URL and page.",
+  "qaAppStoppedAfterWebVerification": true
+}
