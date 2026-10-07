@@ -17,7 +17,7 @@
 | 窗口预算 | Verified | 设置坞各状态行高与整窗高度公式零变化；`prefers-reduced-motion` 下取消位移动效。 |
 | 打包与安装 | Verified | `npm run package:app`（注入 codex-runtime 并重签 ad-hoc、以注入后 app 重建 DMG）；codesign 深度严格核验通过；hdiutil verify VALID；已装二进制 SHA256 与打包产物一致（cb2c277e…），版本 0.4.1。旧版 0.4.0 备份于 /tmp/quodex-qa/app-backup-0.4.0。 |
 | 安装后冒烟 | Verified | 启动后窗口出现，右键打开设置坞；退出按钮区域与已验收构建逐像素一致（按钮区 120×70px 灰度平均差 0.0，改前基线为 17.7）。[已装实例截图（仅设置坞条，无用户数据）](installed-041-dock.png) |
-| Release 直发 | Verified | tag v0.4.1 → 5ce28fd；`gh release create` 以 bandit0x 本人名义发布，资产 QuoDex_0.4.1_aarch64.dmg（上传者 bandit0x）；分支与标签推送后 Actions 零新运行（ci.yml 已摘除 `tags: ["v*"]` 触发 + release 提交带 `[skip ci]` 双保险）。 |
+| Release 直发 | Verified | tag v0.4.1 → 5ce28fd；`gh release create` 以 bandit0x 本人名义发布，资产 QuoDex_0.4.1_aarch64.dmg（上传者 bandit0x）；推送与发布期间 Actions 零运行（当时 release 提交带 `[skip ci]`）。终态策略：ci.yml 已删除 CI release job——`github.token` 发布即 bot 名义，此路永久关闭；后续 `v*` 标签仅触发 CI 打包 artifact，Release 由维护者本人创建。 |
 | 用户视觉验收 | Acceptance pending | 待 bandit0x 对照改前/改后现场确认。 |
 
 ## 设计要点

@@ -8,7 +8,7 @@
 
 ### 其他
 
-- 发布通道调整：`v*` 标签推送不再触发 GitHub Actions 打包发布，Release 由维护者本人本地构建后以个人名义直发。
+- 发布通道调整：`v*` 标签推送仅触发 CI 测试与打包产物（artifact），CI 不再创建 Release（`github.token` 发布会被记为 bot 名义）；Release 一律由维护者本人以个人名义发布。
 
 ## 0.4.0 · 2026-10-07
 

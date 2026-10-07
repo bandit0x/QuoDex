@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
-  # v* 标签不再触发任何 workflow：Release 由维护者本人本地构建、以个人名义直发。
+  # 署名规则：CI 只跑测试与打包产物（artifact），永远不创建 Release；
+  # Release 由维护者 bandit0x 本人下载产物后以个人名义发布。
 
 jobs:
   # 测试与编译验证：macOS + Windows 双平台矩阵
@@ -87,32 +89,6 @@ jobs:
           name: quodex-windows
           path: release/QuoDex-*.exe
 
-  # 双平台包齐全后发布 GitHub Release（dmg + exe）
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [package-macos, package-windows]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: quodex-macos
-          path: release/macos
-      - uses: actions/download-artifact@v4
-        with:
-          name: quodex-windows
-          path: release
-      - name: 发布 GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          assets=()
-          for f in release/macos/*.dmg release/QuoDex-*.exe; do
-            [ -e "$f" ] && assets+=("$f")
-          done
-          gh release create "$GITHUB_REF_NAME" \
-            --title "QuoDex $GITHUB_REF_NAME" \
-            --generate-notes \
-            "${assets[@]}"
+  # Release 永远不由 CI 创建（github.token 发布会被记为 bot）。打 tag 后由
+  # 维护者在此页下载 quodex-macos / quodex-windows 产物，本人执行
+  # gh release create <tag> --verify-tag 附上 dmg 与 exe。
