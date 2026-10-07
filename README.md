@@ -8,7 +8,11 @@
 
 **v0.4.0** · Windows 11 x64 / macOS · [下载安装](https://github.com/bandit0x/QuoDex/releases/tag/v0.4.0)
 
+<div align="center">
+
 **简体中文** · [English](README.en.md)
+
+</div>
 
 ## 主要功能
 

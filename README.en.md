@@ -8,7 +8,11 @@ Keep an eye on your **Codex / ZCode** remaining quota, reset times and task stat
 
 **v0.4.0** · Windows 11 x64 / macOS · [Download](https://github.com/bandit0x/QuoDex/releases/tag/v0.4.0)
 
+<div align="center">
+
 **English** · [简体中文](README.md)
+
+</div>
 
 ## Key Features
 
