@@ -4,6 +4,7 @@ use crate::{
     task_status::{ChatTask, TaskSource, TaskState},
 };
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::{
@@ -63,10 +64,39 @@ impl ZCodeTaskService {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopDataSettings {
+    data_base_dir: Option<String>,
+}
+
+fn desktop_data_home(home: &Path) -> Result<PathBuf, Diagnostic> {
+    let raw = match std::fs::read_to_string(home.join("v2/setting.json")) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(home.to_owned()),
+        Err(error) => {
+            return Err(Diagnostic::new("QDT-621", "无法读取 ZCode 数据目录设置；请检查读取权限")
+                .with_detail(error.to_string()));
+        }
+    };
+    let invalid = || {
+        Diagnostic::new("QDT-626", "ZCode 数据目录设置无效；请在 ZCode 设置中检查数据存储位置")
+    };
+    let settings: DesktopDataSettings = serde_json::from_str(&raw).map_err(|_| invalid())?;
+    let Some(base) = settings.data_base_dir.filter(|base| !base.trim().is_empty()) else {
+        return Ok(home.to_owned());
+    };
+    let base = PathBuf::from(base.trim());
+    if !base.is_absolute() {
+        return Err(invalid());
+    }
+    Ok(base.join(".zcode"))
+}
+
 pub fn project_url(home: &Path, id: &str) -> Result<tauri::Url, Diagnostic> {
     let invalid = || Diagnostic::new("QDT-624", "项目地址已失效；请刷新任务并确认所属项目仍存在");
     let db = Connection::open_with_flags(
-        home.join("v2/tasks-index.sqlite"),
+        desktop_data_home(home)?.join("v2/tasks-index.sqlite"),
         OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .map_err(|_| invalid())?;
@@ -268,7 +298,9 @@ pub fn read_zcode_tasks(
     home: &Path,
     runtime_started_at_ms: Option<u64>,
 ) -> Result<Vec<ChatTask>, Diagnostic> {
-    let index_path = home.join("v2/tasks-index.sqlite");
+    // Desktop data can move independently of the CLI journal. ZCode saves that
+    // choice in the original profile; keep execution records at the CLI home.
+    let index_path = desktop_data_home(home)?.join("v2/tasks-index.sqlite");
     if !index_path
         .try_exists()
         .map_err(|_| Diagnostic::new("QDT-621", "无法读取 ZCode 任务记录；请检查数据目录权限"))?
@@ -515,6 +547,67 @@ mod tests {
             drop(index);
             drop(agent);
             std::fs::remove_dir_all(&self.root).unwrap();
+        }
+    }
+
+    #[test]
+    fn custom_data_directory_uses_desktop_index_and_default_agent_journal() {
+        let fixture = Fixture::new();
+        fixture.chat("ses-relocated", "running", None);
+        fixture.index.execute("DELETE FROM tasks", []).unwrap();
+        let custom_base = fixture.root.join("custom-base");
+        let custom_home = custom_base.join(".zcode");
+        std::fs::create_dir_all(custom_home.join("v2")).unwrap();
+        let project = fixture.root.join("example-project");
+        std::fs::create_dir_all(&project).unwrap();
+        let custom_index = Connection::open(custom_home.join("v2/tasks-index.sqlite")).unwrap();
+        custom_index.execute_batch("CREATE TABLE tasks(workspace_key TEXT,workspace_path TEXT,task_id TEXT,title TEXT,deleted INTEGER);").unwrap();
+        custom_index
+            .execute(
+                "INSERT INTO tasks VALUES('workspace-1',?1,'ses-relocated','迁移后的聊天',0)",
+                [project.to_str().unwrap()],
+            )
+            .unwrap();
+        std::fs::write(
+            fixture.root.join("v2/setting.json"),
+            serde_json::json!({"dataBaseDir":custom_base}).to_string(),
+        )
+        .unwrap();
+        let tasks = read_zcode_tasks(&fixture.root, Some(fixture.now - 700_000)).unwrap();
+        assert_eq!(
+            tasks.len(), 1,
+            "The active chat is in the relocated desktop index"
+        );
+        assert_eq!(tasks[0].state, TaskState::Running);
+        assert_eq!(tasks[0].turn_id, "turn-1");
+        let url = project_url(&fixture.root, &tasks[0].id).unwrap();
+        assert_eq!(
+            url.query_pairs().find(|(key, _)| key == "path").unwrap().1,
+            project.to_str().unwrap()
+        );
+        drop(custom_index);
+    }
+
+    #[test]
+    fn invalid_data_directory_settings_do_not_silently_read_a_stale_index() {
+        let fixture = Fixture::new();
+        fixture.chat("ses-stale", "running", None);
+        for raw in ["{", r#"{"dataBaseDir":42}"#, r#"{"dataBaseDir":"relative"}"#] {
+            std::fs::write(fixture.root.join("v2/setting.json"), raw).unwrap();
+            let error = read_zcode_tasks(&fixture.root, Some(fixture.now - 700_000)).unwrap_err();
+            assert_eq!(error.code, "QDT-626");
+        }
+    }
+
+    #[test]
+    fn unset_data_directory_keeps_default_desktop_and_agent_paths() {
+        let fixture = Fixture::new();
+        fixture.chat("ses-default", "running", None);
+        for raw in ["{}", r#"{"dataBaseDir":null}"#, r#"{"dataBaseDir":"  "}"#] {
+            std::fs::write(fixture.root.join("v2/setting.json"), raw).unwrap();
+            let tasks = read_zcode_tasks(&fixture.root, Some(fixture.now - 700_000)).unwrap();
+            assert_eq!(tasks.len(), 1);
+            assert_eq!(tasks[0].state, TaskState::Running);
         }
     }
 
@@ -827,7 +920,10 @@ mod tests {
     #[ignore = "requires existing local ZCode installation and task databases; read-only"]
     fn live_zcode_read_only_smoke() {
         let service = ZCodeTaskService::from_environment();
-        assert!(service.home.join("v2/tasks-index.sqlite").is_file());
+        assert!(desktop_data_home(&service.home)
+            .unwrap()
+            .join("v2/tasks-index.sqlite")
+            .is_file());
         let snapshot = service.read_snapshot();
         assert!(snapshot.diagnostic.is_none(), "{:?}", snapshot.diagnostic);
         eprintln!(

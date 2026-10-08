@@ -48,7 +48,24 @@ pub(crate) fn enable_hover_mouse_moves(window: &tauri::WebviewWindow) {
 /// for another app, so a native query is the only reliable "did it leave" test.
 #[tauri::command]
 pub fn is_cursor_inside_window(window: tauri::WebviewWindow) -> bool {
-    cursor_viewport_position_impl(&window).is_some()
+    #[cfg(windows)]
+    {
+        let (Ok(cursor), Ok(origin), Ok(size)) =
+            (window.cursor_position(), window.inner_position(), window.inner_size())
+        else {
+            return false;
+        };
+        // Compare physical desktop coordinates; DOM events still identify the
+        // task area. The macOS-only hover compensation returns None on Windows.
+        cursor.x >= f64::from(origin.x)
+            && cursor.y >= f64::from(origin.y)
+            && cursor.x < f64::from(origin.x) + f64::from(size.width)
+            && cursor.y < f64::from(origin.y) + f64::from(size.height)
+    }
+    #[cfg(not(windows))]
+    {
+        cursor_viewport_position_impl(&window).is_some()
+    }
 }
 
 /// Cursor position in viewport points (top-left origin) while it hovers this
