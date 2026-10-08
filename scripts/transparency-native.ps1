@@ -43,7 +43,7 @@ $taskEnvironment = @{
   APPDATA=(Join-Path $taskProfile 'Roaming'); LOCALAPPDATA=(Join-Path $taskProfile 'Local'); USERPROFILE=$taskProfile
   CODEX_CREDITS_CONFIG_DIR=(Join-Path $taskProfile 'config'); CODEX_SQLITE_HOME=(Join-Path $taskProfile 'codex')
   ZCODE_DATA_BASE_DIR=$taskProfile; WEBVIEW2_USER_DATA_FOLDER=(Join-Path $taskProfile 'WebView2')
-  WEBVIEW2_BROWSER_EXECUTABLE_FOLDER=(Join-Path $env:LOCALAPPDATA 'QuoDex/webview2-runtime')
+  WEBVIEW2_BROWSER_EXECUTABLE_FOLDER=(Join-Path (Split-Path -Parent $Executable) 'webview2-runtime')
   CODEX_CREDITS_APP_SERVER_EXECUTABLE=(Get-Command node.exe).Source
   CODEX_CREDITS_APP_SERVER_ARGS=(ConvertTo-Json -InputObject @((Join-Path $taskProject 'fixtures/app-server-fixture.mjs')) -Compress)
 }
@@ -126,6 +126,8 @@ try {
   if (Test-Path -LiteralPath $taskShortcutBackup) {
     $taskCurrentLink=(New-Object -ComObject WScript.Shell).CreateShortcut($taskShortcutPath)
     if ($taskCurrentLink.TargetPath -eq $Executable) { Copy-Item -LiteralPath $taskShortcutBackup -Destination $taskShortcutPath -Force }
+  } elseif (Test-Path -LiteralPath $taskShortcutPath) {
+    $taskCurrentLink=(New-Object -ComObject WScript.Shell).CreateShortcut($taskShortcutPath)
+    if ($taskCurrentLink.TargetPath -eq $Executable) { Remove-Item -LiteralPath $taskShortcutPath }
   }
 }
-

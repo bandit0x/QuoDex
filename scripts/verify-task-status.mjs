@@ -8,6 +8,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
 const executable = path.resolve(process.env.QUODEX_EXECUTABLE || "src-tauri/target/release/codex-credits-view.exe");
+const ciSmoke = process.argv.includes("--ci-smoke");
 const output = path.resolve(process.env.QUODEX_TASK_REVIEW_DIR || ".impeccable/review/task-status");
 await mkdir(output, { recursive: true });
 await mkdir(".scratch", { recursive: true });
@@ -15,7 +16,7 @@ const root = await mkdtemp(path.resolve(".scratch/task-status-native-"));
 const home = path.join(root, "codex");
 const config = path.join(root, "config");
 await mkdir(home); await mkdir(config);
-await writeFile(path.join(config, "display-preferences.json"), JSON.stringify({ opacity: .92, reducedMotion: false, source: "codex", x: 400, y: 500 }));
+await writeFile(path.join(config, "display-preferences.json"), JSON.stringify({ opacity: .92, reducedMotion: false, source: "codex", x: 400, y: ciSmoke ? 200 : 500 }));
 const state = new DatabaseSync(path.join(home, "state_5.sqlite"));
 state.exec("CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,archived INTEGER,updated_at INTEGER); CREATE TABLE thread_spawn_edges(child_thread_id TEXT);");
 const history = new DatabaseSync(path.join(home, "thread_history_1.sqlite"));
@@ -30,6 +31,7 @@ const checks = [];
 const screenshots = [];
 let nativePid;
 let nativeProcess;
+let nativeClosing = false;
 let zcodeRuntime;
 let zcodeIndex;
 let zcodeAgent;
@@ -53,7 +55,9 @@ const emit = (socket, chat) => send(socket, {
 const server = createServer(socket => {
   socket.followed = new Set(); connections.add(socket);
   socket.on("close", () => connections.delete(socket));
-  socket.on("error", error => errors.push(`fixture pipe: ${error.code}`));
+  socket.on("error", error => {
+    if (!nativeClosing || !["EPIPE", "ECONNRESET"].includes(error.code)) errors.push(`fixture pipe: ${error.code}`);
+  });
   let buffer = Buffer.alloc(0);
   socket.on("data", chunk => {
     buffer = Buffer.concat([buffer, chunk]);
@@ -95,11 +99,12 @@ async function waitFor(test, label) {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) { const data = bridge("read"); if (test(data)) return data; await pause(150); }
   const data = bridge("read");
-  await writeFile(path.join(root,"last-ui.json"), JSON.stringify(data,null,2));
-  bridge("capture",{path:path.join(root,"failure.png")});
-  throw new Error(`Native check failed: ${label}; see ${root}/last-ui.json`);
+  await writeFile(path.join(output,"last-ui.json"), JSON.stringify(data,null,2));
+  bridge("capture",{path:path.join(output,"failure.png")});
+  throw new Error(`Native check failed: ${label}; see ${output}/last-ui.json`);
 }
 async function start(scenario = "healthy") {
+  nativeClosing = false;
   nativeProcess = spawn(executable, [], { windowsHide: true, env: {
     ...process.env, CODEX_SQLITE_HOME: home, CODEX_HOME: home, CODEX_CREDITS_CONFIG_DIR: config,
     USERPROFILE: root, ZCODE_DATA_BASE_DIR: root, APPDATA: path.join(root, "Roaming"), LOCALAPPDATA: path.join(root, "Local"),
@@ -108,13 +113,15 @@ async function start(scenario = "healthy") {
     CODEX_CREDITS_APP_SERVER_EXECUTABLE: process.execPath,
     CODEX_CREDITS_APP_SERVER_ARGS: JSON.stringify([path.resolve("fixtures/app-server-fixture.mjs")]),
     CODEX_CREDITS_FIXTURE_SCENARIO: scenario, WEBVIEW2_USER_DATA_FOLDER: path.join(root, `webview-${randomUUID()}`),
+    ...(ciSmoke ? { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: path.join(path.dirname(executable), "webview2-runtime") } : {}),
   } });
   nativePid = nativeProcess.pid; nativeProcess.stderr.on("data", () => {});
   await pause(1800);
   await waitFor(data => data.buttons.includes("展开重置详情"), "production window startup");
-  bridge("position");
+  if (!ciSmoke) bridge("position");
 }
 async function stop() {
+  nativeClosing = true;
   if (nativeProcess && nativeProcess.exitCode === null) { nativeProcess.kill(); await new Promise(resolve => nativeProcess.once("exit",resolve)); }
   nativePid = null; await pause(300);
 }
@@ -151,7 +158,10 @@ async function setZcodeChats(statuses,age=10) {
   if(!zcodeIndex) {
     const zhome=path.join(root,".zcode");
     await mkdir(path.join(zhome,"v2"),{recursive:true}); await mkdir(path.join(zhome,"cli/db"),{recursive:true});
-    zcodeIndex=new DatabaseSync(path.join(zhome,"v2/tasks-index.sqlite"));
+    const desktopHome=ciSmoke ? path.join(root,"relocated/.zcode/v2") : path.join(zhome,"v2");
+    await mkdir(desktopHome,{recursive:true});
+    if(ciSmoke) await writeFile(path.join(zhome,"v2/setting.json"),JSON.stringify({dataBaseDir:path.join(root,"relocated")}));
+    zcodeIndex=new DatabaseSync(path.join(desktopHome,"tasks-index.sqlite"));
     zcodeAgent=new DatabaseSync(path.join(zhome,"cli/db/db.sqlite"));
     zcodeIndex.exec("CREATE TABLE tasks(workspace_key TEXT,workspace_path TEXT,workspace_identity TEXT,task_id TEXT,title TEXT,task_status TEXT,deleted INTEGER,meta_json TEXT);");
     zcodeAgent.exec("CREATE TABLE session(id TEXT,parent_id TEXT,task_type TEXT); CREATE TABLE turn_usage(session_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_code TEXT); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE part(id TEXT,message_id TEXT,session_id TEXT,time_updated INTEGER,data TEXT);");
@@ -174,7 +184,38 @@ try {
   let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
   assert(ready?.visible,"native test backdrop is visible before capturing windows");
   setChats(["running", "running", "completed"]); await start();
-  if(process.argv.includes("--repair-only")) {
+  if(ciSmoke) {
+    await stop();
+    const runtimeExe=path.join(root,"ZCode.exe");await copyFile(process.execPath,runtimeExe);
+    zcodeRuntime=spawn(runtimeExe,["-e","setInterval(()=>{},1000)"],{windowsHide:true});await pause(250);
+    setChats(["running"]);await setZcodeChats(["running"]);
+    async function quitNormally() {
+      nativeClosing = true;
+      bridge("settings");await button("退出应用");
+      const deadline=Date.now()+10000;
+      while(nativeProcess.exitCode===null&&Date.now()<deadline) await pause(100);
+      assert.equal(nativeProcess.exitCode,0,"QWS-105: native quit must exit normally");
+      nativePid=null;
+    }
+    for(let restart=1;restart<=2;restart++) {
+      await start();
+      await waitFor(data=>data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"QWS-101: both sources recovered on cold startup");
+      await capture(`cold-start-${restart}`);
+      await button("查看 ZCode 全部 1 个任务");
+      await waitFor(data=>data.names.includes("ZCode 任务列表"),"QWS-102: ZCode list opens");
+      await pause(3000);assert(bridge("read").names.includes("ZCode 任务列表"),"QWS-103: pointer inside must keep list open");
+      await capture(`zcode-list-${restart}`);bridge("leave");
+      await waitFor(data=>!data.names.includes("ZCode 任务列表"),"QWS-111: list closes when pointer leaves");
+      await quitNormally();
+    }
+    checks.push("two cold starts restore both running sources without a new message; relocated desktop index and default CLI journal are joined; native list remains open for three seconds and closes on pointer leave; native quit exits normally");
+    await start();setChats(["waiting"]);await setZcodeChats(["waiting"]);
+    await waitFor(data=>data.buttons.includes("整理项目文档 · 等待你操作")&&data.buttons.includes("示例 项目 1：项目任务 1 · 等待你操作"),"QWS-104: running transitions to waiting");
+    await capture("waiting");setChats(["cancelled"]);await setZcodeChats(["cancelled"]);
+    await waitFor(data=>data.buttons.includes("展开重置详情")&&!data.buttons.some(name=>name?.includes("整理项目文档 ·")||name?.includes("项目任务 1 ·")),"cancelled turns disappear");
+    await capture("cancelled");await quitNormally();
+    checks.push("both sources transition to waiting and remove cancelled turns through real backend polling");
+  } else if(process.argv.includes("--repair-only")) {
     await stop();
     await writeFile(path.join(home,".codex-global-state.json"),JSON.stringify({
       "thread-project-assignments":Object.fromEntries(Array.from({length:13},(_,i)=>[`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`,{projectKind:"local",projectId:"example"}])),
@@ -334,7 +375,9 @@ try {
   assert.deepEqual(errors,[]);
   assert([...methods].every(method => ["initialize", "thread-owner-discovery", "thread-stream-following-changed", "client-discovery-response"].includes(method)));
   const mixed = process.argv.includes("--mixed-only");
-  const result = {status:"Verified",executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),environment:"Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",checks,screenshots,errors,methods:[...methods],limitations:mixed ? ["ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn.","Project click reaches a temporary OS protocol capture handler; the original registered handler is restored. This does not prove a real ZCode project window opened.","Ordinary pending tools remain unknown because the persisted format cannot distinguish queuing from approval."] : ["Fixture does not prove live Desktop waiting requests or chat navigation."]};
+  const fixtureLimitations = ["Fixture does not prove live Desktop waiting requests or chat navigation."];
+  if (ciSmoke) fixtureLimitations.push("ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn.");
+  const result = {status:"Verified",executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),environment:"Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",checks,screenshots,errors,methods:[...methods],limitations:mixed ? ["ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn.","Project click reaches a temporary OS protocol capture handler; the original registered handler is restored. This does not prove a real ZCode project window opened.","Ordinary pending tools remain unknown because the persisted format cannot distinguish queuing from approval."] : fixtureLimitations};
   await writeFile(path.join(output,"result.json"),JSON.stringify(result,null,2)); console.log(JSON.stringify(result));
 } finally {
   try {

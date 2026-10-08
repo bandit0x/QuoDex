@@ -443,7 +443,7 @@ fn maybe_history_missing(diagnostic: Diagnostic, ledger_has_records: bool) -> Di
         "QDU-701",
         format!("{source_name} 的本机用量记录已不存在或被清理；QuoDex 已保存的历史账目仍在"),
     )
-    .with_detail(diagnostic.detail.unwrap_or_else(|| diagnostic.message))
+    .with_detail(diagnostic.detail.unwrap_or(diagnostic.message))
 }
 
 fn local_offset() -> chrono::FixedOffset {
@@ -471,7 +471,7 @@ mod tests {
         dir
     }
 
-    fn zcode_db(home: &PathBuf) -> PathBuf {
+    fn zcode_db(home: &std::path::Path) -> PathBuf {
         let path = zcode_db_path(home);
         let conn = rusqlite::Connection::open(&path).unwrap();
         conn.execute_batch(
@@ -540,9 +540,7 @@ mod tests {
         std::fs::create_dir_all(&sessions).unwrap();
         std::fs::write(
             sessions.join("rollout-a.jsonl"),
-            format!(
-                "{{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{{\"total_tokens\":123}}}}}}\n"
-            ),
+            "{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{\"total_tokens\":123}}}\n",
         )
         .unwrap();
         let ledger_path = home.join("ledger.sqlite");
@@ -569,9 +567,7 @@ mod tests {
         let path = sessions.join("rollout-a.jsonl");
         std::fs::write(
             &path,
-            format!(
-                "{{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{{\"total_tokens\":100}}}}}}\n"
-            ),
+            "{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{\"total_tokens\":100}}}\n",
         )
         .unwrap();
         let ledger_path = home.join("ledger.sqlite");
@@ -588,9 +584,7 @@ mod tests {
         // 同一 (thread, response) 换了计数：fork/replay 冲突 → 保留原值并报诊断
         std::fs::write(
             &path,
-            format!(
-                "{{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{{\"total_tokens\":999}}}}}}\n"
-            ),
+            "{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{\"thread_id\":\"t1\",\"response_id\":\"r1\",\"usage\":{\"total_tokens\":999}}}\n",
         )
         .unwrap();
         // 强制重扫：换掉账本，让新服务把 999 当作唯一已知值重新导入。
@@ -614,9 +608,7 @@ mod tests {
         let path2 = sessions2.join("rollout-b.jsonl");
         std::fs::write(
             &path2,
-            format!(
-                "{{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{{\"thread_id\":\"t\",\"response_id\":\"r\",\"usage\":{{\"total_tokens\":100}}}}}}\n{{\"timestamp\":\"2026-10-05T08:00:05.000Z\",\"type\":\"token_usage_record\",\"payload\":{{\"thread_id\":\"t\",\"response_id\":\"r\",\"usage\":{{\"total_tokens\":777}}}}}}\n"
-            ),
+            "{\"timestamp\":\"2026-10-05T08:00:00.000Z\",\"type\":\"token_usage_record\",\"payload\":{\"thread_id\":\"t\",\"response_id\":\"r\",\"usage\":{\"total_tokens\":100}}}\n{\"timestamp\":\"2026-10-05T08:00:05.000Z\",\"type\":\"token_usage_record\",\"payload\":{\"thread_id\":\"t\",\"response_id\":\"r\",\"usage\":{\"total_tokens\":777}}}\n",
         )
         .unwrap();
         let service2 = UsageService::new(home2.clone(), home2.join("ledger.sqlite"));
@@ -651,7 +643,7 @@ mod tests {
         service.refresh();
         assert_eq!(service.snapshot().zcode.request_count, 1);
         assert_eq!(service.snapshot().zcode.daily.values().sum::<i64>(), 110);
-        assert_eq!(service.snapshot().generated_at_ms >= now_ms() - 60_000, true);
+        assert!(service.snapshot().generated_at_ms >= now_ms() - 60_000);
         let _ = std::fs::remove_dir_all(home);
     }
 }

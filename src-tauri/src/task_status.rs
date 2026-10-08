@@ -1477,10 +1477,7 @@ mod tests {
         let mut pipe = ServerOptions::new().create(&endpoint).unwrap();
         let server = tokio::spawn(async move {
             pipe.connect().await.unwrap();
-            loop {
-                let Ok(length) = pipe.read_u32_le().await else {
-                    break;
-                };
+            while let Ok(length) = pipe.read_u32_le().await {
                 let mut bytes = vec![0; length as usize];
                 if pipe.read_exact(&mut bytes).await.is_err() {
                     break;
@@ -1648,10 +1645,7 @@ mod tests {
             let server = tokio::spawn(async move {
                 pipe.connect().await.unwrap();
                 let mut following_count = 0;
-                loop {
-                    let Ok(length) = pipe.read_u32_le().await else {
-                        break;
-                    };
+                while let Ok(length) = pipe.read_u32_le().await {
                     let mut bytes = vec![0; length as usize];
                     if pipe.read_exact(&mut bytes).await.is_err() {
                         break;
@@ -1884,10 +1878,7 @@ mod tests {
         let owner = tokio::spawn(async move {
             server.connect().await.unwrap();
             let mut pipe = server;
-            loop {
-                let Ok(length) = pipe.read_u32_le().await else {
-                    break;
-                };
+            while let Ok(length) = pipe.read_u32_le().await {
                 let mut bytes = vec![0; length as usize];
                 if pipe.read_exact(&mut bytes).await.is_err() {
                     break;

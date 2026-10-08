@@ -75,7 +75,7 @@ $taskProcess = Get-Process -Id $taskRequest.pid
 $taskHandle = $taskProcess.MainWindowHandle
 if ($taskHandle -eq [IntPtr]::Zero) { throw 'Native window not available' }
 if ($taskRequest.op -eq 'position') { [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::Zero,400,500,0,0,5) }
-if ($taskRequest.op -in @('position','capture','pulse','hover','click')) { [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::new(-1),0,0,0,0,19) }
+if ($taskRequest.op -in @('position','capture','pulse','hover','click','settings')) { [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::new(-1),0,0,0,0,19) }
 $taskRect = [QuoDexNative+Rect]::new()
 [void][QuoDexNative]::GetWindowRect($taskHandle,[ref]$taskRect)
 $taskRoot = [System.Windows.Automation.AutomationElement]::FromHandle($taskHandle)
@@ -131,11 +131,20 @@ if($taskRequest.op -in @('click','hover')) {
     })
   }
 }
+if($taskRequest.op -eq 'settings') {
+  [void][QuoDexNative]::SetForegroundWindow($taskHandle)
+  [void][QuoDexNative]::SetCursorPos($taskRect.Left+100,$taskRect.Bottom-64)
+  [QuoDexNative]::mouse_event(8,0,0,0,[UIntPtr]::Zero)
+  [QuoDexNative]::mouse_event(16,0,0,0,[UIntPtr]::Zero)
+}
 if($taskRequest.op -eq 'escape') {
   [void][QuoDexNative]::SetForegroundWindow($taskHandle)
   [QuoDexNative]::keybd_event(27,0,0,[UIntPtr]::Zero)
   [QuoDexNative]::keybd_event(27,0,2,[UIntPtr]::Zero)
   [void][QuoDexNative]::SetCursorPos($taskRect.Right+10,$taskRect.Bottom+10)
+}
+if($taskRequest.op -eq 'leave') {
+  [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100)
 }
 if($taskRequest.op -eq 'toggle') {
   $taskTarget = $taskElements | Where-Object { $_.Current.Name -eq $taskRequest.name -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::CheckBox } | Select-Object -First 1

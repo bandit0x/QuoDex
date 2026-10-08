@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw "QPK-101: PowerShell 7 is required." }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     # 单一版本源：package.json；硬编码默认值曾随版本升级失同步（v0.1.8 包名残留到 v0.2.0）
@@ -50,16 +51,27 @@ if ($webviewSignature.Status -ne "Valid" -or $webviewSignature.SignerCertificate
 [System.IO.Directory]::CreateDirectory($releaseRoot) | Out-Null
 [System.IO.Directory]::CreateDirectory($scratchRoot) | Out-Null
 
+# Tauri normalizes Windows resource paths and can discard an absolute drive
+# prefix. Stage the external runtime on the checkout's drive before bundling.
+$stagedRuntime = Join-Path $scratchRoot "resources/webview2-runtime"
+[System.IO.Directory]::CreateDirectory($stagedRuntime) | Out-Null
+& robocopy.exe $WebView2RuntimePath $stagedRuntime /E /R:2 /W:1 /NJH /NJS /NP > (Join-Path $scratchRoot "runtime-copy.log")
+if ($LASTEXITCODE -gt 7) { throw "QPK-102: WebView2 staging failed; see runtime-copy.log." }
+$tauriRoot = Join-Path $projectRoot "src-tauri"
+function ResourcePath([string]$Path) {
+    return [System.IO.Path]::GetRelativePath($tauriRoot, $Path).Replace('\', '/')
+}
+
 $config = [ordered]@{
     version = $Version
     bundle = [ordered]@{
         active = $true
         targets = @("nsis")
         resources = [ordered]@{
-            $codexRuntime = "codex-runtime/bin/codex.exe"
-            $WebView2RuntimePath = "webview2-runtime"
-            (Join-Path $projectRoot "README.md") = "README.md"
-            (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") = "THIRD_PARTY_NOTICES.md"
+            (ResourcePath $codexRuntime) = "codex-runtime/bin/codex.exe"
+            (ResourcePath $stagedRuntime) = "webview2-runtime"
+            (ResourcePath (Join-Path $projectRoot "README.md")) = "README.md"
+            (ResourcePath (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md")) = "THIRD_PARTY_NOTICES.md"
         }
         windows = [ordered]@{
             webviewInstallMode = [ordered]@{
@@ -70,6 +82,7 @@ $config = [ordered]@{
             nsis = [ordered]@{
                 installMode = "currentUser"
                 installerHooks = $installerHooks
+                compression = "zlib"
             }
         }
     }
@@ -79,7 +92,7 @@ $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $generatedConfig -E
 $previousCargoTargetDir = $env:CARGO_TARGET_DIR
 $env:CARGO_TARGET_DIR = $cargoTargetRoot
 try {
-    & npm.cmd run tauri:build -- --config $generatedConfig
+    & npm.cmd run tauri:build -- --config $generatedConfig -- --locked
     if ($LASTEXITCODE -ne 0) {
         throw "Tauri NSIS build failed with exit code $LASTEXITCODE."
     }

@@ -32,14 +32,9 @@ impl UsageServer {
                 .with_detail(format!("本机服务地址读取失败：{error}"))
         })?;
         let accept_loop = async move {
-            loop {
-                match listener.accept().await {
-                    Ok((stream, _)) => {
-                        let service = Arc::clone(&service);
-                        tokio::spawn(serve_connection(stream, service));
-                    }
-                    Err(_) => break,
-                }
+            while let Ok((stream, _)) = listener.accept().await {
+                let service = Arc::clone(&service);
+                tokio::spawn(serve_connection(stream, service));
             }
         };
         tauri::async_runtime::spawn(async move {
@@ -87,11 +82,11 @@ async fn serve_connection(mut stream: TcpStream, service: Arc<UsageService>) {
             .find_map(|pair| pair.split_once('=').filter(|(key, _)| *key == "source").map(|(_, value)| value.to_string()))
             .unwrap_or_else(|| "all".to_string());
         let refresh_service = Arc::clone(&service);
-        let _ = tauri::async_runtime::spawn_blocking(move || match source.as_str() {
+        drop(tauri::async_runtime::spawn_blocking(move || match source.as_str() {
             "codex" => refresh_service.refresh_source("codex"),
             "zcode" => refresh_service.refresh_source("zcode"),
             _ => refresh_service.refresh(),
-        });
+        }));
         let _ = stream
             .write_all(&response(
                 "202 Accepted",
@@ -102,7 +97,7 @@ async fn serve_connection(mut stream: TcpStream, service: Arc<UsageService>) {
         let _ = stream.shutdown().await;
         return;
     }
-    let (status, content_type, body) = route(&method, &target, &service);
+    let (status, content_type, body) = route(method, target, &service);
     let _ = stream
         .write_all(&response(status, content_type, body))
         .await;

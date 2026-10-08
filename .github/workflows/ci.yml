@@ -8,6 +8,9 @@ on:
   # 署名规则：CI 只跑测试与打包产物（artifact），永远不创建 Release；
   # Release 由维护者 bandit0x 本人下载产物后以个人名义发布。
 
+permissions:
+  contents: read
+
 jobs:
   # 测试与编译验证：macOS + Windows 双平台矩阵
   test:
@@ -20,9 +23,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.18.0
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -35,7 +41,9 @@ jobs:
       - name: 前端生产构建
         run: npm run build
       - name: Rust 测试
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Rust strict Clippy
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
   # 打 tag（v*）时打包 macOS 应用（.app + dmg）
   package-macos:
@@ -46,9 +54,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.18.0
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -61,18 +71,20 @@ jobs:
           name: quodex-macos
           path: release/macos/*
 
-  # 打 tag（v*）时打包 Windows NSIS 安装器（含 WebView2 固定运行时）
+  # 每次变更验证真实 Windows 安装产物；只有原生验收通过才上传候选安装器。
   package-windows:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: test
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.18.0
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -83,11 +95,26 @@ jobs:
       - name: 打包 NSIS 安装器
         shell: pwsh
         run: npm run package:installer
+      - name: 安装后原生回归检测
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release/QuoDex-*-win-x64-setup.exe | Select-Object -First 1
+          ./scripts/windows-release-smoke.ps1 -Installer $installer.FullName
+      - name: 上传原生验证证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-evidence-${{ github.sha }}
+          path: .scratch/windows-release-smoke/
+          include-hidden-files: true
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: quodex-windows
-          path: release/QuoDex-*.exe
+          name: quodex-windows-${{ github.sha }}
+          path: |
+            release/QuoDex-*.exe
+            .scratch/windows-release-smoke/manifest.json
+          include-hidden-files: true
 
   # Release 永远不由 CI 创建（github.token 发布会被记为 bot）。打 tag 后由
   # 维护者在此页下载 quodex-macos / quodex-windows 产物，本人执行

@@ -202,10 +202,7 @@ fn parse_rollout_file(
             break;
         }
         let trimmed = line.trim_end_matches(['\n', '\r']);
-        let parsed: Option<RolloutRecord> = match serde_json::from_str(trimmed) {
-            Ok(parsed) => Some(parsed),
-            Err(_) => None,
-        };
+        let parsed: Option<RolloutRecord> = serde_json::from_str(trimmed).ok();
         let Some(parsed) = parsed else {
             // 追加中的最后一行可能尚未写完：没有换行符的解析失败行等待补采，
             // 不计入格式缺口；其余无效行按持续缺口上报。
