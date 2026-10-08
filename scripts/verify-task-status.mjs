@@ -2,7 +2,7 @@
 // Fictional chats only. No browser entry, React mocks, or frontend state injection.
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, writeFile, copyFile } from "node:fs/promises";
-import { DatabaseSync } from "node:sqlite";
+import { openFixtureDatabase, replaceFixtureRows } from "./native-fixture-db.mjs";
 import { createServer } from "node:net";
 import { spawn, execFileSync } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
@@ -17,9 +17,9 @@ const home = path.join(root, "codex");
 const config = path.join(root, "config");
 await mkdir(home); await mkdir(config);
 await writeFile(path.join(config, "display-preferences.json"), JSON.stringify({ opacity: .92, reducedMotion: false, source: "codex", x: 400, y: ciSmoke ? 200 : 500 }));
-const state = new DatabaseSync(path.join(home, "state_5.sqlite"));
+const state = openFixtureDatabase(path.join(home, "state_5.sqlite"));
 state.exec("CREATE TABLE threads(id TEXT,title TEXT,source TEXT,originator TEXT,archived INTEGER,updated_at INTEGER); CREATE TABLE thread_spawn_edges(child_thread_id TEXT);");
-const history = new DatabaseSync(path.join(home, "thread_history_1.sqlite"));
+const history = openFixtureDatabase(path.join(home, "thread_history_1.sqlite"));
 history.exec("CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_json TEXT,rollout_ordinal INTEGER);");
 const endpoint = `\\\\.\\pipe\\quodex-native-${randomUUID()}`;
 const connections = new Set();
@@ -78,16 +78,21 @@ const server = createServer(socket => {
 await new Promise(resolve => server.listen(endpoint, resolve));
 
 function setChats(statuses, age = 10) {
-  state.exec("DELETE FROM threads;"); history.exec("DELETE FROM thread_turns;");
   const seconds = Math.floor(Date.now() / 1000);
-  chats = statuses.map((status, index) => {
+  const nextChats = statuses.map((status, index) => {
     const id = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
     const ended = seconds - age * 60;
-    const chat = { id, title: ["整理项目文档", "修复窗口布局", "更新发布说明"][index] || `示例聊天 ${index + 1}`, turnId: `turn-${index}`, status, started: ended - 60, ended };
-    state.prepare("INSERT INTO threads VALUES(?,?,'vscode','Codex Desktop',0,?)").run(id, chat.title, seconds);
-    history.prepare("INSERT INTO thread_turns VALUES(?,?,?,?,?,?,1)").run(id, chat.turnId, status === "cancelled" ? "interrupted" : status, chat.started, ["completed", "failed"].includes(status) ? ended : null, status === "failed" ? JSON.stringify({ message: "示例网络超时；请打开聊天重试" }) : null);
-    return chat;
+    return { id, title: ["整理项目文档", "修复窗口布局", "更新发布说明"][index] || `示例聊天 ${index + 1}`, turnId: `turn-${index}`, status, started: ended - 60, ended };
   });
+  replaceFixtureRows(state, () => {
+    state.exec("DELETE FROM threads;");
+    for (const chat of nextChats) state.prepare("INSERT INTO threads VALUES(?,?,'vscode','Codex Desktop',0,?)").run(chat.id, chat.title, seconds);
+  });
+  replaceFixtureRows(history, () => {
+    history.exec("DELETE FROM thread_turns;");
+    for (const chat of nextChats) history.prepare("INSERT INTO thread_turns VALUES(?,?,?,?,?,?,1)").run(chat.id, chat.turnId, chat.status === "cancelled" ? "interrupted" : chat.status, chat.started, ["completed", "failed"].includes(chat.status) ? chat.ended : null, chat.status === "failed" ? JSON.stringify({ message: "示例网络超时；请打开聊天重试" }) : null);
+  });
+  chats = nextChats;
   for (const socket of connections) for (const chat of chats) if (socket.followed.has(chat.id)) emit(socket, chat);
 }
 
@@ -161,24 +166,29 @@ async function setZcodeChats(statuses,age=10) {
     const desktopHome=ciSmoke ? path.join(root,"relocated/.zcode/v2") : path.join(zhome,"v2");
     await mkdir(desktopHome,{recursive:true});
     if(ciSmoke) await writeFile(path.join(zhome,"v2/setting.json"),JSON.stringify({dataBaseDir:path.join(root,"relocated")}));
-    zcodeIndex=new DatabaseSync(path.join(desktopHome,"tasks-index.sqlite"));
-    zcodeAgent=new DatabaseSync(path.join(zhome,"cli/db/db.sqlite"));
+    zcodeIndex=openFixtureDatabase(path.join(desktopHome,"tasks-index.sqlite"));
+    zcodeAgent=openFixtureDatabase(path.join(zhome,"cli/db/db.sqlite"));
     zcodeIndex.exec("CREATE TABLE tasks(workspace_key TEXT,workspace_path TEXT,workspace_identity TEXT,task_id TEXT,title TEXT,task_status TEXT,deleted INTEGER,meta_json TEXT);");
     zcodeAgent.exec("CREATE TABLE session(id TEXT,parent_id TEXT,task_type TEXT); CREATE TABLE turn_usage(session_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_code TEXT); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE part(id TEXT,message_id TEXT,session_id TEXT,time_updated INTEGER,data TEXT);");
   }
-  zcodeIndex.exec("DELETE FROM tasks;");zcodeAgent.exec("DELETE FROM session;DELETE FROM turn_usage;DELETE FROM message;DELETE FROM part;");
   const now=Date.now();
-  for(const [index,status]of statuses.entries()) {
-    const id=`ses-example-${index}`,title=`项目任务 ${index+1}`,project=path.join(root,`示例 项目 ${index+1}`);
-    await mkdir(project,{recursive:true});
-    zcodeIndex.prepare("INSERT INTO tasks VALUES(?,?,NULL,?,?,?,0,'{}')").run(project,project,id,title,status==="failed"?"error":"completed");
-    zcodeAgent.prepare("INSERT INTO session VALUES(?,NULL,'interactive')").run(id);
-    zcodeAgent.prepare("INSERT INTO turn_usage VALUES(?,?,?, ?,?,NULL)").run(id,`turn-${index}`,status==="waiting"||status==="permission"?"running":status==="failed"?"error":status,now,["completed","failed","cancelled"].includes(status)?now-age*60000:null);
-    if(status==="waiting"||status==="permission") {
-      zcodeAgent.prepare("INSERT INTO message VALUES(?,?,?,'{}')").run(`message-${index}`,id,now);
-      zcodeAgent.prepare("INSERT INTO part VALUES(?,?,?,?,?)").run(`part-${index}`,`message-${index}`,id,now,JSON.stringify({type:"tool",tool:status==="waiting"?"AskUserQuestion":"Bash",state:{status:"pending"}}));
+  const records = statuses.map((status, index) => ({index, status, id:`ses-example-${index}`, title:`项目任务 ${index+1}`, project:path.join(root,`示例 项目 ${index+1}`)}));
+  for (const record of records) await mkdir(record.project,{recursive:true});
+  replaceFixtureRows(zcodeIndex, () => {
+    zcodeIndex.exec("DELETE FROM tasks;");
+    for (const {status, id, title, project} of records) zcodeIndex.prepare("INSERT INTO tasks VALUES(?,?,NULL,?,?,?,0,'{}')").run(project,project,id,title,status==="failed"?"error":"completed");
+  });
+  replaceFixtureRows(zcodeAgent, () => {
+    zcodeAgent.exec("DELETE FROM session;DELETE FROM turn_usage;DELETE FROM message;DELETE FROM part;");
+    for (const {index, status, id} of records) {
+      zcodeAgent.prepare("INSERT INTO session VALUES(?,NULL,'interactive')").run(id);
+      zcodeAgent.prepare("INSERT INTO turn_usage VALUES(?,?,?, ?,?,NULL)").run(id,`turn-${index}`,status==="waiting"||status==="permission"?"running":status==="failed"?"error":status,now,["completed","failed","cancelled"].includes(status)?now-age*60000:null);
+      if(status==="waiting"||status==="permission") {
+        zcodeAgent.prepare("INSERT INTO message VALUES(?,?,?,'{}')").run(`message-${index}`,id,now);
+        zcodeAgent.prepare("INSERT INTO part VALUES(?,?,?,?,?)").run(`part-${index}`,`message-${index}`,id,now,JSON.stringify({type:"tool",tool:status==="waiting"?"AskUserQuestion":"Bash",state:{status:"pending"}}));
+      }
     }
-  }
+  });
 }
 try {
   let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
