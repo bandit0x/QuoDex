@@ -427,11 +427,13 @@ function FailedSurface({
   source: MeterSource;
   onRetry: () => void;
 }) {
+  const title = `无法读取 ${sourceLabels[source]} 配额`;
+  const reason = diagnostic.message.trim();
   return (
     <section className="failed-surface" aria-live="assertive">
       <span className="error-mark" aria-hidden="true">!</span>
-      <strong>无法读取 {sourceLabels[source]} 配额</strong>
-      <span>{sourceFailureHints[source]} · 诊断码 {diagnostic.code}</span>
+      <strong>{title}</strong>
+      <span>{reason && reason !== title ? reason : sourceFailureHints[source]} · 诊断码 {diagnostic.code}</span>
       <button type="button" onClick={onRetry}>重试</button>
     </section>
   );

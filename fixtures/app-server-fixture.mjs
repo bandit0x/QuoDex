@@ -70,7 +70,25 @@ function proWeeklyResult() {
 }
 
 function respondToRateLimitRead(request) {
-  if (scenario === "early-exit") process.exit(17);
+  const serviceErrors = {
+    "proxy-auth": { message: "failed to fetch codex rate limits: proxy authentication required" },
+    "transport-error": { message: "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)" },
+    "http-401": { message: "request failed with status 401 Unauthorized" },
+    "http-403": { message: "request failed with status 403 Forbidden" },
+    "http-429": { message: "request failed with status 429 Too Many Requests" },
+    "http-500": { message: "request failed with status 500 Internal Server Error" },
+    "structured-429": { message: "usage unavailable", data: { httpStatus: 429 } },
+    "generic-error": { message: "answer error" },
+    "credential-error": {
+      message: "sample protocol error; Bearer anonymous-bearer; Cookie: session=anonymous-cookie; secondary=anonymous-second-cookie\naccess_token=anonymous-access email=sample@example.invalid endpoint=https://sample:anonymous-password@proxy.invalid account_id=anonymous-account refreshToken=anonymous-refresh accessToken=anonymous-camel-token apiKey=anonymous-api password=\"anonymous pass phrase\"",
+      data: { refreshToken: "anonymous-structured-secret" },
+    },
+  };
+  if (serviceErrors[scenario]) {
+    write({ id: request.id, error: { code: -32603, ...serviceErrors[scenario] } });
+    return;
+  }
+  if (scenario === "early-exit" || scenario === "post-init-config-warning") process.exit(17);
   if (scenario === "timeout") return;
   if (scenario === "malformed") {
     process.stdout.write("{definitely-not-json}\n");
@@ -127,6 +145,13 @@ input.on("line", (line) => {
   }
 
   if (request.method === "initialize") {
+    if (scenario === "post-init-config-warning") {
+      process.stderr.write("MCP server sample: failed to load config; continuing without this optional server\n");
+    }
+    if (scenario === "startup-config-error") {
+      process.stderr.write("invalid configuration: sample config error; Bearer sk-anonymous-secret\n");
+      process.exit(17);
+    }
     write({
       id: request.id,
       result: {

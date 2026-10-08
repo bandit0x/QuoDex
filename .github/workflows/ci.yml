@@ -38,6 +38,8 @@ jobs:
         run: npm run typecheck
       - name: 前端测试
         run: npm test
+      - name: 原生 SQLite fixture 并发回归
+        run: npm run test:native-fixtures
       - name: 前端生产构建
         run: npm run build
       - name: Rust 测试

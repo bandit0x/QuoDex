@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:native-fixtures": "node --test scripts/test-native-fixture-db.mjs",
     "test:watch": "vitest",
     "preview": "vite preview",
     "tauri": "tauri",

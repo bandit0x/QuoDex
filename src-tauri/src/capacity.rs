@@ -1,13 +1,14 @@
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    env,
-    fs,
+    env, fs,
     path::PathBuf,
+    sync::LazyLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
     process::{ChildStdout, Command},
     time::timeout,
 };
@@ -343,7 +344,7 @@ impl CapacityService {
             .envs(self.command.environment.iter().cloned())
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
         #[cfg(target_os = "windows")]
         command.creation_flags(CREATE_NO_WINDOW);
@@ -361,40 +362,97 @@ impl CapacityService {
             .take()
             .ok_or_else(|| Diagnostic::new("CRV-103", "配额数据进程没有可读输出通道"))?;
         let mut lines = BufReader::new(stdout).lines();
-
-        write_message(
-            &mut stdin,
-            &json!({
-                "method": "initialize",
-                "id": 1,
-                "params": {
-                    "clientInfo": {
-                        "name": "codex_credits_view",
-                        "title": "QuoDex",
-                        "version": env!("CARGO_PKG_VERSION")
-                    }
+        let mut stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| Diagnostic::new("CRV-114", "配额数据进程没有诊断通道"))?;
+        // Drain concurrently to prevent a full stderr pipe blocking the protocol.
+        // Retain a bounded prefix for known startup markers; never export raw stderr.
+        let mut stderr_task = tokio::spawn(async move {
+            let mut prefix = Vec::new();
+            let mut chunk = [0_u8; 2048];
+            while let Ok(size) = stderr.read(&mut chunk).await {
+                if size == 0 {
+                    break;
                 }
-            }),
-        )
-        .await?;
-        wait_for_response(&mut lines, 1).await?;
+                let keep = size.min(8192 - prefix.len());
+                prefix.extend_from_slice(&chunk[..keep]);
+            }
+            String::from_utf8_lossy(&prefix).to_ascii_lowercase()
+        });
 
-        write_message(
-            &mut stdin,
-            &json!({ "method": "initialized", "params": {} }),
-        )
-        .await?;
-        write_message(
-            &mut stdin,
-            &json!({ "method": "account/rateLimits/read", "id": 2 }),
-        )
-        .await?;
+        let mut initialized = false;
+        let result = async {
+            write_message(
+                &mut stdin,
+                &json!({
+                    "method": "initialize",
+                    "id": 1,
+                    "params": {
+                        "clientInfo": {
+                            "name": "codex_credits_view",
+                            "title": "QuoDex",
+                            "version": env!("CARGO_PKG_VERSION")
+                        }
+                    }
+                }),
+            )
+            .await?;
+            wait_for_response(&mut lines, 1).await?;
+            initialized = true;
 
-        let response = wait_for_response(&mut lines, 2).await;
-        let mut result = response?;
-        collect_sparse_updates(&mut lines, &mut result).await?;
+            write_message(
+                &mut stdin,
+                &json!({ "method": "initialized", "params": {} }),
+            )
+            .await?;
+            write_message(
+                &mut stdin,
+                &json!({ "method": "account/rateLimits/read", "id": 2 }),
+            )
+            .await?;
+
+            let response = wait_for_response(&mut lines, 2).await;
+            let mut result = response?;
+            collect_sparse_updates(&mut lines, &mut result).await?;
+            Ok(result)
+        }
+        .await;
+        let exit_code = child
+            .try_wait()
+            .ok()
+            .flatten()
+            .and_then(|status| status.code());
         let _ = child.kill().await;
-        Ok(result)
+        let stderr_summary = match timeout(Duration::from_millis(200), &mut stderr_task).await {
+            Ok(Ok(summary)) => summary,
+            _ => {
+                stderr_task.abort();
+                String::new()
+            }
+        };
+        result.map_err(|mut diagnostic: Diagnostic| {
+            if matches!(diagnostic.code, "CRV-105" | "CRV-110") {
+                if !initialized
+                    && [
+                        "invalid configuration",
+                        "failed to load config",
+                        "error loading config",
+                    ]
+                    .iter()
+                    .any(|marker| stderr_summary.contains(marker))
+                {
+                    diagnostic = Diagnostic::new(
+                        "CRV-115",
+                        "Codex 配置无法加载；请在 Codex 中检查配置后重试",
+                    );
+                }
+                if let Some(code) = exit_code {
+                    diagnostic.detail = Some(format!("app-server exit status: {code}"));
+                }
+            }
+            diagnostic
+        })
     }
 }
 
@@ -480,15 +538,7 @@ async fn wait_for_response(
             }
 
             if let Some(error) = message.get("error") {
-                let detail = error.to_string();
-                if detail.to_ascii_lowercase().contains("logged")
-                    || detail.to_ascii_lowercase().contains("auth")
-                {
-                    return Err(Diagnostic::new("CRV-202", "Codex 尚未登录").with_detail(detail));
-                }
-                return Err(
-                    Diagnostic::new("CRV-108", "app-server 拒绝了配额请求").with_detail(detail)
-                );
+                return Err(classify_rpc_error(error));
             }
 
             return message
@@ -501,6 +551,88 @@ async fn wait_for_response(
     })
     .await
     .map_err(|_| Diagnostic::new("CRV-111", "读取 Codex 配额超时"))?
+}
+
+fn classify_rpc_error(error: &Value) -> Diagnostic {
+    static STATUS: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?:http(?: status)?|status(?: code)?)[ :=]+(\d{3})\b")
+            .expect("fixed HTTP status pattern")
+    });
+    let raw = error
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or("未知错误");
+    let lower = raw.to_ascii_lowercase();
+    let status = ["httpStatus", "status", "statusCode", "status_code"]
+        .iter()
+        .find_map(|key| error.get("data")?.get(key)?.as_u64())
+        .or_else(|| STATUS.captures(&lower)?.get(1)?.as_str().parse().ok());
+    let (code, message) = if status == Some(407) || lower.contains("proxy authentication") {
+        ("CRV-203", "代理认证失败；请检查代理登录或切换线路")
+    } else if status == Some(429) {
+        ("CRV-205", "额度请求被限流；稍后重试")
+    } else if status.is_some_and(|value| (500..600).contains(&value)) {
+        ("CRV-206", "Codex 额度服务暂时不可用；稍后重试")
+    } else if status == Some(403) {
+        ("CRV-207", "额度服务拒绝访问；请检查账户权限或网络线路")
+    } else if status == Some(401)
+        || lower.contains("not logged in")
+        || lower.contains("chatgpt authentication required")
+        || lower.contains("codex account authentication required")
+        || lower.contains("refresh token has already been used")
+        || lower.contains("refresh token has been revoked")
+    {
+        ("CRV-202", "Codex 登录不可用；请在 Codex 中重新登录")
+    } else if [
+        "error sending request",
+        "failed to connect",
+        "connection refused",
+        "dns",
+        "timed out",
+        "timeout",
+        "certificate",
+        "tls",
+    ]
+    .iter()
+    .any(|signal| lower.contains(signal))
+    {
+        ("CRV-204", "额度服务连接失败；请检查网络或代理后重试")
+    } else {
+        ("CRV-108", "额度服务返回异常；稍后重试")
+    };
+    let rpc_code = error
+        .get("code")
+        .and_then(Value::as_i64)
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unknown".to_owned());
+    Diagnostic::new(code, message)
+        .with_detail(format!("RPC {rpc_code}: {}", redact_codex_error(raw)))
+}
+
+fn redact_codex_error(raw: &str) -> String {
+    static PATTERNS: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
+        [
+            (r"(?i)(bearer|basic)\s+[a-z0-9_.+/=-]+", "$1 <REDACTED>"),
+            (r"\beyJ[\w-]+\.[\w-]+\.[\w-]+", "<REDACTED>"),
+            (r"\bsk[-_][\w-]+", "<REDACTED>"),
+            (r"(?i)(https?://)[^\s/]+@", "$1<REDACTED>@"),
+            (r"(?i)[\w.+-]+@[\w.-]+\.[a-z]{2,}", "<REDACTED>"),
+            (r#"(?i)(cookie["']?\s*[:=]\s*["']?)[^\r\n"']+"#, "$1<REDACTED>"),
+            (r#"(?i)((?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|authorization|cookie|chatgpt[_-]account[_-]id|account[_-]?id|password|token)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,"'&}]+)"#, "$1<REDACTED>"),
+        ].into_iter().map(|(pattern, replacement)| (Regex::new(pattern).expect("fixed credential pattern"), replacement)).collect()
+    });
+    let mut safe = raw.to_owned();
+    for (pattern, replacement) in PATTERNS.iter() {
+        safe = pattern.replace_all(&safe, *replacement).into_owned();
+    }
+    for name in ["HOME", "USERPROFILE"] {
+        if let Ok(home) = env::var(name) {
+            if !home.is_empty() {
+                safe = safe.replace(&home, "<HOME>");
+            }
+        }
+    }
+    safe.chars().take(1024).collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -541,7 +673,10 @@ struct ResetCreditWire {
     expires_at: Option<u64>,
 }
 
-fn parse_snapshot(result: Value, account_id: Option<String>) -> Result<CapacitySnapshot, Diagnostic> {
+fn parse_snapshot(
+    result: Value,
+    account_id: Option<String>,
+) -> Result<CapacitySnapshot, Diagnostic> {
     let wire: RateLimitReadResult = serde_json::from_value(result).map_err(|error| {
         Diagnostic::new("CRV-112", "Codex 配额响应结构不受支持").with_detail(error.to_string())
     })?;
@@ -767,6 +902,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fixture_distinguishes_service_failures_from_codex_login() {
+        for (scenario, expected) in [
+            ("proxy-auth", "CRV-203"),
+            ("transport-error", "CRV-204"),
+            ("http-401", "CRV-202"),
+            ("http-403", "CRV-207"),
+            ("http-429", "CRV-205"),
+            ("http-500", "CRV-206"),
+            ("structured-429", "CRV-205"),
+            ("generic-error", "CRV-108"),
+        ] {
+            let error = read_fixture_scenario(scenario)
+                .await
+                .expect_err("service failure");
+            assert_eq!(error.code, expected, "scenario: {scenario}");
+        }
+    }
+
+    #[tokio::test]
+    async fn fixture_identifies_startup_configuration_failure_without_exporting_stderr() {
+        let error = read_fixture_scenario("startup-config-error")
+            .await
+            .expect_err("startup failure");
+        assert_eq!(error.code, "CRV-115");
+        assert!(error.message.contains("配置"));
+        assert!(!error
+            .detail
+            .unwrap_or_default()
+            .contains("sk-anonymous-secret"));
+    }
+
+    #[tokio::test]
+    async fn fixture_rpc_diagnostic_retains_reason_without_credentials() {
+        let error = read_fixture_scenario("credential-error")
+            .await
+            .expect_err("RPC failure");
+        let detail = error.detail.expect("sanitized RPC detail");
+        assert!(detail.contains("sample protocol error"));
+        for secret in [
+            "anonymous-bearer",
+            "anonymous-cookie",
+            "anonymous-second-cookie",
+            "anonymous-access",
+            "sample@example.invalid",
+            "anonymous-password",
+            "anonymous-account",
+            "anonymous-structured-secret",
+            "anonymous-refresh",
+            "anonymous-camel-token",
+            "anonymous-api",
+            "anonymous pass phrase",
+        ] {
+            assert!(!detail.contains(secret), "diagnostic leaked {secret}");
+        }
+    }
+
+    #[tokio::test]
+    async fn fixture_does_not_misclassify_post_initialize_exit_with_config_warning() {
+        let error = read_fixture_scenario("post-init-config-warning")
+            .await
+            .expect_err("post-initialize exit");
+        assert_eq!(error.code, "CRV-110");
+    }
+
+    #[tokio::test]
     async fn fixture_reports_malformed_json_and_early_exit_separately() {
         let malformed = read_fixture_scenario("malformed")
             .await
@@ -840,7 +1040,8 @@ mod tests {
         )
         .unwrap();
 
-        let default_lookup = |name: &str| (name == "HOME").then(|| home.to_string_lossy().into_owned());
+        let default_lookup =
+            |name: &str| (name == "HOME").then(|| home.to_string_lossy().into_owned());
         assert_eq!(
             read_account_id(&default_lookup).as_deref(),
             Some("acct-default")
@@ -928,11 +1129,9 @@ mod tests {
         };
 
         let candidates = local_runtime_candidates();
-        assert!(candidates.iter().any(|candidate| {
-            candidate
-                .to_string_lossy()
-                .contains(expected.as_str())
-        }));
+        assert!(candidates
+            .iter()
+            .any(|candidate| { candidate.to_string_lossy().contains(expected.as_str()) }));
     }
 
     #[cfg(not(target_os = "windows"))]
