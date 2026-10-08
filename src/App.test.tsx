@@ -437,6 +437,16 @@ describe("Codex capacity overlay", () => {
     expect(await screen.findByText("76%", { exact: false })).toBeInTheDocument();
   });
 
+  it("shows the specific quota failure reason in the existing failure surface", async () => {
+    const message = "代理认证失败；请检查代理登录或切换线路";
+    render(<App {...inertPreferences} loadSnapshot={async () => {
+      throw { code: "CRV-203", message, detail: null };
+    }} />);
+    expect(await screen.findByText(`${message} · 诊断码 CRV-203`)).toBeInTheDocument();
+    expect(screen.queryByText("检查 Codex 是否已安装并登录", { exact: false })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
   it("reveals refresh, bounded click-through, and settings after expansion", async () => {
     const user = userEvent.setup();
     let clickThroughCalls = 0;
