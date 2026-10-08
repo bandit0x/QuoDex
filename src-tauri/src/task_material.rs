@@ -164,73 +164,13 @@ unsafe fn draw_rounded_mask(size: NSSize, radius: f64) -> Result<Retained<AnyObj
 
 #[cfg(windows)]
 fn apply(
-    window: &WebviewWindow,
-    regions: &[MaterialRegion],
-    visible: &[MaterialRegion],
+    _: &WebviewWindow,
+    _: &[MaterialRegion],
+    _: &[MaterialRegion],
 ) -> Result<(), Diagnostic> {
-    use tauri::window::{Color, Effect, EffectsBuilder};
-    use windows::Win32::{
-        Graphics::Gdi::{CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn, RGN_OR},
-    };
-    let error = || Diagnostic::new("QDT-631", "Windows 毛玻璃不可用；请检查系统透明效果设置");
-    let hwnd = window.hwnd().map_err(|_| error())?;
-    if regions.is_empty() {
-        window.set_effects(None).map_err(|_| error())?;
-        unsafe {
-            if SetWindowRgn(hwnd, None, true) == 0 {
-                return Err(error());
-            }
-        }
-        return Ok(());
-    }
-    let scale = window.scale_factor().map_err(|_| error())?;
-    // The system blur is window-wide. Its drawing region must exclude transparent gaps
-    // while retaining the cockpit, settings, controls and popover hit targets.
-    unsafe {
-        let region = CreateRectRgn(0, 0, 0, 0);
-        if region.0.is_null() {
-            return Err(error());
-        }
-        for r in visible {
-            let part = CreateRoundRectRgn(
-                (r.x * scale).floor() as i32,
-                (r.y * scale).floor() as i32,
-                ((r.x + r.width) * scale).ceil() as i32,
-                ((r.y + r.height) * scale).ceil() as i32,
-                (r.radius * 2.0 * scale).round() as i32,
-                (r.radius * 2.0 * scale).round() as i32,
-            );
-            if part.0.is_null() {
-                let _ = DeleteObject(region.into());
-                return Err(error());
-            }
-            let result = CombineRgn(Some(region), Some(region), Some(part), RGN_OR);
-            let _ = DeleteObject(part.into());
-            if result.0 == 0 {
-                let _ = DeleteObject(region.into());
-                return Err(error());
-            }
-        }
-        if SetWindowRgn(hwnd, Some(region), true) == 0 {
-            let _ = DeleteObject(region.into());
-            return Err(error());
-        }
-        // Successful SetWindowRgn transfers ownership to Windows.
-    }
-    if window
-        .set_effects(
-            EffectsBuilder::new()
-                .effect(Effect::Blur)
-                .color(Color(16, 36, 50, 18))
-                .build(),
-        )
-        .is_err()
-    {
-        unsafe {
-            let _ = SetWindowRgn(hwnd, None, true);
-        }
-        return Err(error());
-    }
+    // Windows accent blur affects the entire compositor surface, including the
+    // transparent gaps outside SetWindowRgn. Keep Tauri/WebView2 alpha compositing
+    // intact; the existing translucent CSS and glass canvases draw the controls.
     Ok(())
 }
 
