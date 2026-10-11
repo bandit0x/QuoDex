@@ -46,6 +46,7 @@ pub async fn set_task_material_regions(
     window: WebviewWindow,
     regions: Vec<MaterialRegion>,
     visible_regions: Vec<MaterialRegion>,
+    version: u64,
 ) -> Result<(), Diagnostic> {
     validate(&regions)?;
     validate(&visible_regions)?;
@@ -53,7 +54,10 @@ pub async fn set_task_material_regions(
     let native = window.clone();
     window
         .run_on_main_thread(move || {
-            let result = apply(&native, &regions, &visible_regions);
+            let result = crate::window_input::update_regions(&native, version, &visible_regions)
+                .and_then(|accepted| {
+                    if accepted { apply(&native, &regions, &visible_regions) } else { Ok(()) }
+                });
             let _ = tx.send(result);
         })
         .map_err(|_| Diagnostic::new("QDT-631", "系统毛玻璃未能更新；请重新打开 QuoDex"))?;

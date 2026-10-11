@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { useTaskMaterial } from "./useTaskMaterial";
 
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => undefined) }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => true, invoke: vi.fn(async () => undefined) }));
 afterEach(() => { document.body.innerHTML = ""; vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -83,5 +84,27 @@ it("updates the native mask when an open popover grows without resizing the app 
   requestFrame.mockClear();
   await act(async () => { draw(); await Promise.resolve(); });
   expect(requestFrame).not.toHaveBeenCalled();
+  unmount();
+});
+
+it("removes the closed detail from native input regions and versions every geometry update", async () => {
+  let draw = () => undefined;
+  vi.stubGlobal("requestAnimationFrame", (callback: () => undefined) => { draw = callback; return 1; });
+  vi.stubGlobal("cancelAnimationFrame", () => undefined);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  document.body.innerHTML = '<main class="app-frame"><section class="task-strip"></section><aside class="task-popover"></aside></main>';
+  const task = document.querySelector<HTMLElement>(".task-strip")!;
+  const detail = document.querySelector<HTMLElement>(".task-popover")!;
+  task.getBoundingClientRect = () => ({ x: 10, y: 180, width: 200, height: 30 }) as DOMRect;
+  detail.getBoundingClientRect = () => ({ x: 10, y: 10, width: 200, height: 160 }) as DOMRect;
+  const { unmount } = renderHook(() => useTaskMaterial("fixed-window", vi.fn()));
+  await act(async () => { draw(); await Promise.resolve(); });
+  const payloads = () => vi.mocked(invoke).mock.calls.filter(call => call[0] === "set_task_material_regions").map(call => call[1] as { version: number; visibleRegions: unknown[] });
+  const opened = payloads()[payloads().length - 1]!;
+  expect(opened.visibleRegions).toHaveLength(2);
+  await act(async () => { detail.remove(); await Promise.resolve(); draw(); await Promise.resolve(); });
+  const closed = payloads()[payloads().length - 1]!;
+  expect(closed.visibleRegions).toEqual([{ x: 10, y: 180, width: 200, height: 30, radius: 0 }]);
+  expect(closed.version).toBeGreaterThan(opened.version);
   unmount();
 });

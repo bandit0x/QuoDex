@@ -11,6 +11,7 @@ mod usage_server;
 mod usage_service;
 mod usage_sources;
 mod window_pin;
+mod window_input;
 mod zcode_quota;
 mod zcode_resets;
 mod zcode_tasks;
@@ -208,14 +209,15 @@ async fn enable_temporary_click_through(
         ));
     }
 
-    window.set_ignore_cursor_events(true).map_err(|error| {
-        Diagnostic::new("CRV-306", "无法启用鼠标穿透").with_detail(error.to_string())
-    })?;
-    let recovery_window = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(duration_ms)).await;
-        let _ = recovery_window.set_ignore_cursor_events(false);
-    });
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let native = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let _ = tx.send(window_input::temporary(&native, duration_ms));
+        })
+        .map_err(|_| Diagnostic::new("CRV-306", "无法启用鼠标穿透"))?;
+    rx.await
+        .map_err(|_| Diagnostic::new("CRV-306", "鼠标穿透更新中断"))??;
     Ok(())
 }
 

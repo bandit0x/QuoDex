@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { Diagnostic } from "./capacityTypes";
 
 interface MaterialRegion { x: number; y: number; width: number; height: number; radius: number }
 let materialQueue: Promise<unknown> = Promise.resolve();
+// Keep versions increasing across a WebView reload in the same native window.
+let materialVersion = Date.now() * 1000;
 
 export function useTaskMaterial(layoutKey: string, onError: (message: string) => void) {
   const errorHandler = useRef(onError);
@@ -11,6 +14,12 @@ export function useTaskMaterial(layoutKey: string, onError: (message: string) =>
   useEffect(() => {
     if (!isTauri()) return;
     let stopped = false;
+    const inputErrors = listen<Diagnostic>("window-input-error", event => {
+      if (!stopped) errorHandler.current(`${event.payload.message} · ${event.payload.code}`);
+    }).catch(() => {
+      if (!stopped) errorHandler.current("鼠标穿透诊断监听未能启动；请重新打开 QuoDex · QDT-633");
+      return () => undefined;
+    });
     let frame = 0;
     const transitions = new Map<Element, Set<string>>();
     let previous = "";
@@ -27,12 +36,12 @@ export function useTaskMaterial(layoutKey: string, onError: (message: string) =>
       // Native resize is asynchronous. Wait for the window viewport to catch up with the
       // approved popover layout; ResizeObserver delivers the final geometry afterwards.
       if ([...regions, ...visibleRegions].some(r => r.width <= 0 || r.height <= 0 || r.x < 0 || r.y < 0 || r.x + r.width > window.innerWidth + .1 || r.y + r.height > window.innerHeight + .1)) return;
-      const payload = { regions, visibleRegions };
-      const serialized = JSON.stringify(payload);
+      const serialized = JSON.stringify({ regions, visibleRegions });
       if (serialized === previous) return;
       previous = serialized;
+      const payload = { regions, visibleRegions, version: ++materialVersion };
       materialQueue = materialQueue.catch(() => undefined).then(async () => {
-        if (stopped) return;
+        if (stopped || payload.version !== materialVersion) return;
         await invoke("set_task_material_regions", payload);
         if (!stopped) document.documentElement.dataset.taskMaterial = "native";
       }).catch((error: Partial<Diagnostic> | null) => {
@@ -78,6 +87,6 @@ export function useTaskMaterial(layoutKey: string, onError: (message: string) =>
     observeRegions();
     window.addEventListener("resize", schedule);
     schedule();
-    return () => { stopped = true; observer.disconnect(); mutations.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", schedule); root?.removeEventListener("animationend", schedule); root?.removeEventListener("transitionrun", startTransition); root?.removeEventListener("transitionend", endTransition); root?.removeEventListener("transitioncancel", endTransition); };
+    return () => { stopped = true; void inputErrors.then(unlisten => unlisten()); observer.disconnect(); mutations.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", schedule); root?.removeEventListener("animationend", schedule); root?.removeEventListener("transitionrun", startTransition); root?.removeEventListener("transitionend", endTransition); root?.removeEventListener("transitioncancel", endTransition); };
   }, [layoutKey]);
 }
