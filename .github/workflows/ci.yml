@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: 24.18.0
           cache: npm
+      - name: Windows 原生验收背景预检
+        if: runner.os == 'Windows'
+        run: node scripts/verify-windows-backdrop.mjs
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.1
