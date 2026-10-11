@@ -94,17 +94,25 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: 记录构建前源码状态
+        run: node scripts/record-build-source.mjs before-build
       - name: 下载 WebView2 固定运行时
         shell: pwsh
         run: ./scripts/fetch-webview2-fixed-runtime.ps1
       - name: 打包 NSIS 安装器
         shell: pwsh
         run: npm run package:installer
+      - name: 记录构建后源码差异
+        if: always()
+        run: node scripts/record-build-source.mjs after-build
       - name: 安装后原生回归检测
         shell: pwsh
         run: |
           $installer = Get-ChildItem release/QuoDex-*-win-x64-setup.exe | Select-Object -First 1
           ./scripts/windows-release-smoke.ps1 -Installer $installer.FullName
+      - name: 记录原生验收后源码差异
+        if: always()
+        run: node scripts/record-build-source.mjs after-verification
       - name: 上传原生验证证据
         if: always()
         uses: actions/upload-artifact@v4
