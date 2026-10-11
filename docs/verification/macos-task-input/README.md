@@ -8,7 +8,12 @@
 - 环境：macOS 27.0.1 / 26A434，arm64，Node 24，Tauri 2 / WKWebView。
 - 产物：`release/macos/QuoDex-task-input.app`。
 - 主程序 SHA-256：`db8bcea9bde19c49618539bbb3e90e75982102ab493c7499d58ae89d903eae9d`。
-- 本轮未替换 `/Applications/QuoDex.app`。
+- 2026-10-11，按用户“替换app”的明确指令安装到 `/Applications/QuoDex.app`。
+- 旧安装备份：`release/macos/rollback-task-input-20261011-n7sglm4e/QuoDex.app`。
+- 安装版主程序 SHA-256：`66ae15dba13091aa8f9d8f48ae4b997f09f7b9fb82d442ec6cb8e16e2ce9b40b`。由于补入原安装的 Codex 运行时后重新签名，签名字节使主程序哈希与测试包不同，修复源码未变更。
+- 保留原安装的 Codex 运行时，其 SHA-256 为 `9ebc2056da80936b0e7e61b08b006c7315db842d131ab4a35c7263b6c4f358f7`；未借此次修复升级运行时。
+- 安装后 `codesign --verify --deep --strict /Applications/QuoDex.app` 通过；旧备份也通过严格签名检查。
+- 从 `/Applications/QuoDex.app` 正常启动，通过真实 WKWebView 可访问性状态与截图确认主界面出现、Codex 配额读取完成、真实任务状态恢复。未使用测试启动脚本或虚构任务环境。
 
 ## 原因与修复
 
