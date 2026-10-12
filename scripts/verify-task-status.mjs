@@ -9,6 +9,7 @@ import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
 const executable = path.resolve(process.env.QUODEX_EXECUTABLE || "src-tauri/target/release/codex-credits-view.exe");
 const ciSmoke = process.argv.includes("--ci-smoke");
+const inputOnly = process.argv.includes("--input-only");
 const output = path.resolve(process.env.QUODEX_TASK_REVIEW_DIR || ".impeccable/review/task-status");
 await mkdir(output, { recursive: true });
 await mkdir(".scratch", { recursive: true });
@@ -118,7 +119,7 @@ async function start(scenario = "healthy") {
     CODEX_CREDITS_APP_SERVER_EXECUTABLE: process.execPath,
     CODEX_CREDITS_APP_SERVER_ARGS: JSON.stringify([path.resolve("fixtures/app-server-fixture.mjs")]),
     CODEX_CREDITS_FIXTURE_SCENARIO: scenario, WEBVIEW2_USER_DATA_FOLDER: path.join(root, `webview-${randomUUID()}`),
-    ...(ciSmoke ? { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: path.join(path.dirname(executable), "webview2-runtime") } : {}),
+    ...(ciSmoke || inputOnly ? { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: process.env.QUODEX_WEBVIEW2_RUNTIME || path.join(path.dirname(executable), "webview2-runtime") } : {}),
   } });
   nativePid = nativeProcess.pid; nativeProcess.stderr.on("data", () => {});
   await pause(1800);
@@ -155,7 +156,8 @@ async function settingsRoundTrip() {
   await button("收起重置详情"); await dimensions(166);
 }
 const backgroundReady=path.join(root,"background-ready.json");
-const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background",readyPath:backgroundReady})).toString("base64")],{windowsHide:true});
+const backgroundClicks=path.join(root,"background-clicks.json");
+const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background",readyPath:backgroundReady,...(inputOnly ? {clickPath:backgroundClicks} : {})})).toString("base64")],{windowsHide:true});
 const shortcutBackup = path.join(root,"original-QuoDex.lnk");
 const shortcut = bridge("shortcut",{action:"save",backup:shortcutBackup});
 const protocol = action => JSON.parse(execFileSync(pwsh,["-NoProfile","-File",protocolScript,"-Action",action,"-Root",root],{encoding:"utf8",windowsHide:true}));
@@ -194,7 +196,80 @@ try {
   let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
   assert(ready?.visible,"native test backdrop is visible before capturing windows");
   setChats(["running", "running", "completed"]); await start();
-  if(ciSmoke) {
+  if(inputOnly) {
+    setChats(["completed"]);
+    const taskName="整理项目文档 · 已完成 · 10 分钟前";
+    await waitFor(data=>data.buttons.includes(taskName),"completed task available for input regression");
+    const clickCount=async()=>JSON.parse(await readFile(backgroundClicks,"utf8")).count;
+    const baseline=bridge("read");
+    const controlBefore=await clickCount();
+    bridge("clickPoint",{x:baseline.x-30,y:baseline.y-30});
+    await pause(200);
+    assert.equal(await clickCount(),controlBefore+1,"QWI-100: native backdrop must receive an unobstructed click");
+    const inputSamples=[];
+    for(let cycle=1;cycle<=2;cycle++) {
+      await button(taskName,"hover");
+      const opened=await waitFor(data=>data.buttons.includes("移除提醒"),"task detail opened");
+      const point={x:opened.x+Math.floor(opened.width/2),y:opened.y+20};
+      if(cycle===1)bridge("movePoint",{x:opened.x+1,y:opened.y+Math.floor(opened.height/2)});
+      else bridge("leave");
+      const closed=await waitFor(data=>!data.buttons.includes("移除提醒"),"task detail closed after pointer leave");
+      const inside=point.x>=closed.x&&point.x<closed.x+closed.width&&point.y>=closed.y&&point.y<closed.y+closed.height;
+      const imageName=`input-detail-closed-${cycle}.png`;
+      const captured=bridge("capture",{path:path.join(output,imageName),contentX:Math.floor(closed.width/4),contentY:closed.height-70,...(inside ? {sampleX:point.x-closed.x,sampleY:point.y-closed.y} : {})});
+      screenshots.push(imageName);
+      const pixel=captured.samplePixel;
+      const transparent=!inside || (pixel&&Math.abs(pixel.r-19)<=6&&Math.abs(pixel.g-34)<=6&&Math.abs(pixel.b-47)<=6);
+      assert(transparent,"QWI-102: click probe must lie in a visually transparent former detail area");
+      const content=captured.contentPixel;
+      assert(content&&(Math.abs(content.r-19)>6||Math.abs(content.g-34)>6||Math.abs(content.b-47)>6),"QWI-103: visible quota surface must remain painted while its padding passes clicks through");
+      const countBefore=await clickCount();
+      bridge("clickPoint",{...point,delayMs:0});
+      await pause(200);
+      const countAfter=await clickCount();
+      inputSamples.push({cycle,point,opened:{x:opened.x,y:opened.y,width:opened.width,height:opened.height},closed:{x:closed.x,y:closed.y,width:closed.width,height:closed.height},insideNativeWindow:inside,pixel,contentPixel:content,transparent,underlayClicksBefore:countBefore,underlayClicksAfter:countAfter,passed:countAfter===countBefore+1});
+    }
+    await writeFile(path.join(output,"input-result.json"),JSON.stringify({executable,sha256:createHash("sha256").update(await readFile(executable)).digest("hex"),samples:inputSamples,passed:inputSamples.every(sample=>sample.passed)},null,2));
+    console.log(JSON.stringify({inputSamples}));
+    assert(inputSamples.every(sample=>sample.passed),"QWI-101: transparent former task detail area must deliver the first click to the underlying native window");
+    checks.push("two task-detail hover/leave cycles deliver the first transparent-area click to the underlying native window");
+    const fastClickTraces=[];
+    async function fastControlClick(name,nextName) {
+      const data=bridge("capture",{path:path.join(output,"input-controls.png")});
+      const target=data.buttonBounds.find(item=>item.name===name);
+      assert(target,`QWI-104: visible control missing: ${name}`);
+      const count=await clickCount();
+      const trace=bridge("clickPoint",{x:target.x+Math.floor(target.width/2),y:target.y+Math.floor(target.height/2),delayMs:0});
+      fastClickTraces.push({name,styleBeforeClick:trace.styleBeforeClick,hitRootBeforeClick:trace.hitRootBeforeClick});
+      await writeFile(path.join(output,"input-fast-clicks.json"),JSON.stringify(fastClickTraces,null,2));
+      await waitFor(next=>next.buttons.includes(nextName),`first click activates ${name}`);
+      assert.equal(await clickCount(),count,"QWI-105: visible control click must not leak to the native underlay");
+    }
+    await fastControlClick("展开重置详情","收起重置详情");
+    await button("穿透 10 秒");
+    const manual=bridge("capture",{path:path.join(output,"input-manual.png")});
+    const collapse=manual.buttonBounds.find(item=>item.name==="收起重置详情");
+    assert(collapse);
+    const manualBefore=await clickCount();
+    bridge("clickPoint",{x:collapse.x+Math.floor(collapse.width/2),y:collapse.y+Math.floor(collapse.height/2),delayMs:0});
+    await pause(200);
+    assert.equal(await clickCount(),manualBefore+1,"QWI-106: manual mode passes even visible-control clicks through");
+    await pause(10500);
+    await fastControlClick("收起重置详情","展开重置详情");
+    checks.push("visible controls accept a zero-delay first click without leaking it; temporary pass-through includes controls and restores after timeout");
+    const beforeDrag=bridge("capture",{path:path.join(output,"input-before-drag.png")});
+    const dragClicks=await clickCount();
+    bridge("dragPoint",{x:beforeDrag.x+75,y:beforeDrag.y+beforeDrag.height-70,dx:90,dy:-130});
+    await pause(800);
+    const afterDrag=bridge("read");
+    assert(Math.hypot(afterDrag.x-beforeDrag.x,afterDrag.y-beforeDrag.y)>50,"QWI-107: dragging must retain input while the window follows the pointer");
+    assert.equal(await clickCount(),dragClicks,"QWI-108: drag mouse-down must not leak to the underlay");
+    const afterDragBefore=await clickCount();
+    bridge("clickPoint",{x:afterDrag.x+Math.floor(afterDrag.width/2),y:afterDrag.y+20,delayMs:0});
+    await pause(200);
+    assert.equal(await clickCount(),afterDragBefore+1,"QWI-109: releasing a drag restores transparent-area pass-through");
+    checks.push("native drag remains captured during movement and transparent padding restores after release");
+  } else if(ciSmoke) {
     await stop();
     const runtimeExe=path.join(root,"ZCode.exe");await copyFile(process.execPath,runtimeExe);
     zcodeRuntime=spawn(runtimeExe,["-e","setInterval(()=>{},1000)"],{windowsHide:true});await pause(250);

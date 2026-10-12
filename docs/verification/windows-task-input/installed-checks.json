@@ -1,0 +1,24 @@
+{
+  "status": "Verified",
+  "executable": "%LOCALAPPDATA%/QuoDex/codex-credits-view.exe",
+  "sha256": "3fbfd166eb846a82266bbb764fb73d9bd068824029317d58ae654b27644c5eb8",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "two task-detail hover/leave cycles deliver the first transparent-area click to the underlying native window",
+    "visible controls accept a zero-delay first click without leaking it; temporary pass-through includes controls and restores after timeout",
+    "native drag remains captured during movement and transparent padding restores after release"
+  ],
+  "screenshots": [
+    "input-detail-closed-1.png",
+    "input-detail-closed-2.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "Fixture does not prove live Desktop waiting requests or chat navigation."
+  ]
+}

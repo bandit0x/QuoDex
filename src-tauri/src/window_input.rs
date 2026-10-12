@@ -1,10 +1,10 @@
 //! One owner for automatic transparent-area input and temporary whole-window pass-through.
 use crate::{capacity::Diagnostic, task_material::MaterialRegion};
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 use std::time::Instant;
 use tauri::WebviewWindow;
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 #[derive(Default)]
 struct InputPolicy {
     version: u64,
@@ -13,7 +13,7 @@ struct InputPolicy {
     captured: bool,
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl InputPolicy {
     fn update_regions(&mut self, version: u64, regions: &[MaterialRegion]) -> bool {
         if self.regions.is_none() || version > self.version {
@@ -38,7 +38,7 @@ impl InputPolicy {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 fn contains(r: &MaterialRegion, (x, y): (f64, f64)) -> bool {
     if x < r.x || y < r.y || x >= r.x + r.width || y >= r.y + r.height {
         return false;
@@ -53,11 +53,11 @@ pub(crate) fn update_regions(
     version: u64,
     regions: &[MaterialRegion],
 ) -> Result<bool, Diagnostic> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     {
         native::update_regions(window, version, regions)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         let _ = (window, version, regions);
         Ok(true)
@@ -65,11 +65,11 @@ pub(crate) fn update_regions(
 }
 
 pub(crate) fn temporary(window: &WebviewWindow, duration_ms: u64) -> Result<(), Diagnostic> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     {
         native::temporary(window, duration_ms)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         window.set_ignore_cursor_events(true).map_err(|error| {
             Diagnostic::new("CRV-306", "无法启用鼠标穿透").with_detail(error.to_string())
@@ -80,6 +80,237 @@ pub(crate) fn temporary(window: &WebviewWindow, duration_ms: u64) -> Result<(), 
             let _ = recovery.set_ignore_cursor_events(false);
         });
         Ok(())
+    }
+}
+
+#[cfg(windows)]
+mod native {
+    use super::*;
+    use std::{cell::RefCell, time::Duration};
+    use tauri::Emitter;
+    use windows::Win32::{
+        Foundation::{
+            GetLastError, SetLastError, ERROR_SUCCESS, HWND, LPARAM, LRESULT, POINT, WPARAM,
+        },
+        Graphics::Gdi::ScreenToClient,
+        UI::{
+            HiDpi::GetDpiForWindow,
+            Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON},
+            WindowsAndMessaging::{
+                CallNextHookEx, GetAncestor, GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW,
+                SetWindowsHookExW, UnhookWindowsHookEx, WindowFromPoint, GA_ROOT, GWL_EXSTYLE,
+                HHOOK, MSLLHOOKSTRUCT, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+                WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+            },
+        },
+    };
+
+    #[derive(Default)]
+    struct InputState {
+        policy: InputPolicy,
+        window: Option<WebviewWindow>,
+        hwnd: Option<HWND>,
+        hook: Option<HHOOK>,
+        original_layered: bool,
+        reported_failure: bool,
+    }
+
+    impl Drop for InputState {
+        fn drop(&mut self) {
+            if let Some(hook) = self.hook.take() {
+                // SAFETY: This handle belongs to this thread-local owner and is
+                // unhooked once, before the retained window is released.
+                unsafe {
+                    let _ = UnhookWindowsHookEx(hook);
+                }
+            }
+        }
+    }
+
+    thread_local! { static INPUT: RefCell<InputState> = RefCell::new(InputState::default()); }
+
+    fn failure(reason: &str) -> Diagnostic {
+        Diagnostic::new("QDT-634", format!("{reason}；请重新打开 QuoDex"))
+    }
+
+    // Geometry updates and hook callbacks all run on Tauri's UI thread. The hook
+    // reconciles before Windows routes the input, so a fast first click cannot
+    // land on stale rectangular padding. It never consumes or records events.
+    fn refresh(event: Option<(u32, POINT)>) -> Result<bool, Diagnostic> {
+        let (hwnd, original_layered) = INPUT.with(|state| {
+            let state = state.borrow();
+            (state.hwnd, state.original_layered)
+        });
+        let hwnd = hwnd.ok_or_else(|| failure("Windows 输入窗口尚未就绪"))?;
+        // SAFETY: The retained window supplies the HWND; all calls are made on
+        // its UI thread. Win32 coordinate outputs are valid stack storage and
+        // fallible operations are checked before their results are used.
+        unsafe {
+            let (kind, desktop) = match event {
+                Some(event) => event,
+                None => {
+                    let mut point = POINT::default();
+                    GetCursorPos(&mut point)
+                        .map_err(|e| failure("无法读取系统指针").with_detail(e.to_string()))?;
+                    (0, point)
+                }
+            };
+            let mut point = desktop;
+            if !ScreenToClient(hwnd, &mut point).as_bool() {
+                return Err(failure("无法转换 Windows 输入坐标"));
+            }
+            let dpi = GetDpiForWindow(hwnd);
+            if dpi == 0 {
+                return Err(failure("无法读取窗口缩放比例"));
+            }
+            let scale = f64::from(dpi) / 96.0;
+            let pressed = matches!(kind, WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN);
+            // Low-level hooks run before asynchronous key state is updated.
+            let released_key = match kind {
+                WM_LBUTTONUP => Some(VK_LBUTTON),
+                WM_RBUTTONUP => Some(VK_RBUTTON),
+                WM_MBUTTONUP => Some(VK_MBUTTON),
+                _ => None,
+            };
+            let held = [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON]
+                .iter()
+                .any(|key| Some(*key) != released_key && GetAsyncKeyState(i32::from(key.0)) < 0);
+            let ignored = INPUT.with(|state| {
+                let mut state = state.borrow_mut();
+                if !pressed && !held {
+                    state.policy.captured = false;
+                }
+                state.policy.ignores_mouse(
+                    (f64::from(point.x) / scale, f64::from(point.y) / scale),
+                    Instant::now(),
+                )
+            });
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            let bits = (WS_EX_TRANSPARENT | WS_EX_LAYERED).0 as isize;
+            let desired = if ignored {
+                style | bits
+            } else {
+                (style & !bits)
+                    | if original_layered {
+                        WS_EX_LAYERED.0 as isize
+                    } else {
+                        0
+                    }
+            };
+            if desired != style {
+                SetLastError(ERROR_SUCCESS);
+                let previous = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, desired);
+                let error = GetLastError();
+                if previous == 0 && error != ERROR_SUCCESS {
+                    return Err(failure("系统未接受鼠标穿透状态").with_detail(error.0.to_string()));
+                }
+                if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) != desired {
+                    return Err(failure("Windows 鼠标穿透状态未生效"));
+                }
+            }
+            // Capture only a press delivered to our own visible controls. Native
+            // and DOM dragging keep receiving input until the button is released.
+            if pressed && !ignored && GetAncestor(WindowFromPoint(desktop), GA_ROOT) == hwnd {
+                INPUT.with(|state| state.borrow_mut().policy.captured = true);
+            }
+            Ok(ignored)
+        }
+    }
+
+    fn report(error: Diagnostic) {
+        let window = INPUT.with(|state| {
+            let mut state = state.borrow_mut();
+            if state.reported_failure {
+                return None;
+            }
+            state.reported_failure = true;
+            state.window.clone()
+        });
+        // Emitting can enter the WebView's event machinery. Release the state
+        // borrow first so a reentrant system callback cannot borrow it twice.
+        if let Some(window) = window {
+            let _ = window.emit("window-input-error", error);
+        }
+    }
+
+    unsafe extern "system" fn mouse_hook(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 {
+            // SAFETY: Windows supplies an MSLLHOOKSTRUCT for a non-negative
+            // low-level mouse callback; the pointer is used only in this call.
+            let event = &*(lparam.0 as *const MSLLHOOKSTRUCT);
+            if let Err(error) = refresh(Some((wparam.0 as u32, event.pt))) {
+                report(error);
+            }
+        }
+        // SAFETY: Forward the original callback arguments without consuming input.
+        CallNextHookEx(None, code, wparam, lparam)
+    }
+
+    fn ensure_started(window: &WebviewWindow) -> Result<(), Diagnostic> {
+        if INPUT.with(|state| state.borrow().hook.is_some()) {
+            return Ok(());
+        }
+        let hwnd = HWND(
+            window
+                .hwnd()
+                .map_err(|e| failure("无法连接 Windows 输入窗口").with_detail(e.to_string()))?
+                .0,
+        );
+        INPUT.with(|state| {
+            let mut state = state.borrow_mut();
+            state.hwnd = Some(hwnd);
+            state.window = Some(window.clone());
+            // SAFETY: HWND was just obtained from the live window on its UI thread.
+            state.original_layered =
+                unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_LAYERED.0 as isize != 0 };
+        });
+        // SAFETY: The callback lives for the process lifetime and this UI thread
+        // has Tauri's message loop. The owned hook is released on thread teardown.
+        let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook), None, 0) }
+            .map_err(|e| failure("系统未能创建鼠标输入监听").with_detail(e.to_string()))?;
+        INPUT.with(|state| state.borrow_mut().hook = Some(hook));
+        // Stationary-pointer layout changes, DPI/position changes, and manual
+        // timeout expiry also need reconciliation without another mouse event.
+        let window = window.clone();
+        tauri::async_runtime::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(32));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                if window
+                    .run_on_main_thread(|| {
+                        if let Err(error) = refresh(None) {
+                            report(error);
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+        Ok(())
+    }
+
+    pub(super) fn update_regions(
+        window: &WebviewWindow,
+        version: u64,
+        regions: &[MaterialRegion],
+    ) -> Result<bool, Diagnostic> {
+        ensure_started(window)?;
+        let accepted =
+            INPUT.with(|state| state.borrow_mut().policy.update_regions(version, regions));
+        refresh(None)?;
+        Ok(accepted)
+    }
+
+    pub(super) fn temporary(window: &WebviewWindow, duration_ms: u64) -> Result<(), Diagnostic> {
+        ensure_started(window)?;
+        INPUT.with(|state| {
+            state.borrow_mut().policy.manual_until =
+                Some(Instant::now() + Duration::from_millis(duration_ms))
+        });
+        refresh(None).map(|_| ())
     }
 }
 

@@ -29,7 +29,7 @@ export const TASK_POPOVER_HEIGHT = 160;
 // 只听 pointermove（真实指针移动才派发）而非 pointerover：布局变化时
 // WebKit 会按过渡帧几何合成 pointerover 命中空白，把标志错误刷成 false。
 // 移出窗口后事件投给别的 app、leave 事件不再可靠，出窗与否由 Rust 端
-// 的 NSEvent mouseLocation 原生查询兜底。
+// 的系统光标原生查询兜底。
 let pointerOverTaskArea = false;
 let lastRealPointerMoveAt = 0;
 if (typeof document !== "undefined") {
@@ -51,15 +51,14 @@ export async function isOverlayTaskPointerInside(): Promise<boolean> {
   return isCursorInWindow();
 }
 
-// 悬停补偿：overlay 非激活（用户在其他 app 前台）时 macOS 不投递鼠标移动，
-// WKWebView 的 hover 完全失灵。轮询原生光标位置，命中任务区且真实事件流
-// 已停摆时，向命中元素补发 mouse 事件驱动同一套 React 处理。
+// 悬停恢复：后台窗口或原生穿透刚恢复时，WebView 可能没有收到首次移动。
+// 轮询原生光标位置，仅在本窗口的任务区且真实事件流停摆时，驱动相同的悬停处理。
 if (typeof document !== "undefined" && isTauri()) {
   window.setInterval(() => {
     void (async () => {
       if (performance.now() - lastRealPointerMoveAt < 400) return;
       const position = await invoke<[number, number] | null>("cursor_viewport_position").catch(() => null);
-      if (!position) return;
+      if (!position) { pointerOverTaskArea = false; return; }
       const target = document.elementFromPoint(position[0], position[1]);
       const hit = target !== null && target.closest(".task-strip,.task-popover") !== null;
       // 窗口内但不在任务区：真实事件流停摆时无人更新标志，这里负责归 false，

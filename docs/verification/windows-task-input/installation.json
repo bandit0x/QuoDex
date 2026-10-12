@@ -1,0 +1,10 @@
+{
+  "installedVersion": "0.4.2",
+  "installer": "release/QuoDex-0.4.2-win-x64-local-input-fix-setup.exe",
+  "installerSha256": "9b0bae47b9dca147e90292c9513b9511c2a6ec163276315a9dfb5583dffaec3a",
+  "installedExecutableSha256": "3fbfd166eb846a82266bbb764fb73d9bd068824029317d58ae654b27644c5eb8",
+  "installerExitCode": 0,
+  "configurationFilesBefore": 3,
+  "configurationFilesAfter": 3,
+  "configurationContentPreserved": true
+}

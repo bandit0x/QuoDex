@@ -1,0 +1,205 @@
+{
+  "samples": [
+    {
+      "image": "windows-input-final-compact-0.png",
+      "expected": [
+        239,
+        75,
+        67
+      ],
+      "width": 300,
+      "layout": "compact",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        239,
+        75,
+        67
+      ],
+      "outside": [
+        239,
+        75,
+        67
+      ]
+    },
+    {
+      "image": "windows-input-final-compact-1.png",
+      "expected": [
+        35,
+        180,
+        105
+      ],
+      "width": 300,
+      "layout": "compact",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        35,
+        180,
+        105
+      ],
+      "outside": [
+        35,
+        180,
+        105
+      ]
+    },
+    {
+      "image": "windows-input-final-compact-2.png",
+      "expected": [
+        44,
+        125,
+        240
+      ],
+      "width": 300,
+      "layout": "compact",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        44,
+        125,
+        240
+      ],
+      "outside": [
+        44,
+        125,
+        240
+      ]
+    },
+    {
+      "image": "windows-input-final-settings-0.png",
+      "expected": [
+        239,
+        75,
+        67
+      ],
+      "width": 300,
+      "layout": "settings",
+      "height": 498,
+      "transparent": true,
+      "actual": [
+        239,
+        75,
+        67
+      ],
+      "outside": [
+        239,
+        75,
+        67
+      ]
+    },
+    {
+      "image": "windows-input-final-settings-1.png",
+      "expected": [
+        35,
+        180,
+        105
+      ],
+      "width": 300,
+      "layout": "settings",
+      "height": 498,
+      "transparent": true,
+      "actual": [
+        35,
+        180,
+        105
+      ],
+      "outside": [
+        35,
+        180,
+        105
+      ]
+    },
+    {
+      "image": "windows-input-final-settings-2.png",
+      "expected": [
+        44,
+        125,
+        240
+      ],
+      "width": 300,
+      "layout": "settings",
+      "height": 498,
+      "transparent": true,
+      "actual": [
+        44,
+        125,
+        240
+      ],
+      "outside": [
+        44,
+        125,
+        240
+      ]
+    },
+    {
+      "image": "windows-input-final-restored-0.png",
+      "expected": [
+        239,
+        75,
+        67
+      ],
+      "width": 300,
+      "layout": "restored",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        239,
+        75,
+        67
+      ],
+      "outside": [
+        239,
+        75,
+        67
+      ]
+    },
+    {
+      "image": "windows-input-final-restored-1.png",
+      "expected": [
+        35,
+        180,
+        105
+      ],
+      "width": 300,
+      "layout": "restored",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        35,
+        180,
+        105
+      ],
+      "outside": [
+        35,
+        180,
+        105
+      ]
+    },
+    {
+      "image": "windows-input-final-restored-2.png",
+      "expected": [
+        44,
+        125,
+        240
+      ],
+      "width": 300,
+      "layout": "restored",
+      "height": 334,
+      "transparent": true,
+      "actual": [
+        44,
+        125,
+        240
+      ],
+      "outside": [
+        44,
+        125,
+        240
+      ]
+    }
+  ],
+  "version": "0.4.2",
+  "passed": true,
+  "executable": "%LOCALAPPDATA%/QuoDex/codex-credits-view.exe"
+}

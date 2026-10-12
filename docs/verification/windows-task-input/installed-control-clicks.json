@@ -1,0 +1,12 @@
+[
+  {
+    "name": "展开重置详情",
+    "styleBeforeClick": "0x40118",
+    "hitRootBeforeClick": "0x17057C"
+  },
+  {
+    "name": "收起重置详情",
+    "styleBeforeClick": "0x40118",
+    "hitRootBeforeClick": "0x17057C"
+  }
+]

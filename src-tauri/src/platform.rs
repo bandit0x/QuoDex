@@ -50,13 +50,15 @@ pub(crate) fn enable_hover_mouse_moves(window: &tauri::WebviewWindow) {
 pub fn is_cursor_inside_window(window: tauri::WebviewWindow) -> bool {
     #[cfg(windows)]
     {
-        let (Ok(cursor), Ok(origin), Ok(size)) =
-            (window.cursor_position(), window.inner_position(), window.inner_size())
-        else {
+        let (Ok(cursor), Ok(origin), Ok(size)) = (
+            window.cursor_position(),
+            window.inner_position(),
+            window.inner_size(),
+        ) else {
             return false;
         };
-        // Compare physical desktop coordinates; DOM events still identify the
-        // task area. The macOS-only hover compensation returns None on Windows.
+        // Compare physical desktop coordinates; DOM events and the native
+        // viewport query identify the visible task area separately.
         cursor.x >= f64::from(origin.x)
             && cursor.y >= f64::from(origin.y)
             && cursor.x < f64::from(origin.x) + f64::from(size.width)
@@ -69,9 +71,9 @@ pub fn is_cursor_inside_window(window: tauri::WebviewWindow) -> bool {
 }
 
 /// Cursor position in viewport points (top-left origin) while it hovers this
-/// window; `None` when it is elsewhere. Both `NSEvent.mouseLocation` and the
-/// window frame live in AppKit's global point space, so no scale conversion is
-/// involved. Feeds the frontend hover compensation for the non-key overlay.
+/// window; `None` when it belongs elsewhere. Windows converts physical client
+/// coordinates using its DPI scale; macOS uses AppKit's logical point space.
+/// Feeds hover recovery when the WebView misses a native pointer event.
 #[tauri::command]
 pub fn cursor_viewport_position(window: tauri::WebviewWindow) -> Option<(f64, f64)> {
     cursor_viewport_position_impl(&window)
@@ -102,7 +104,46 @@ fn cursor_viewport_position_impl(window: &tauri::WebviewWindow) -> Option<(f64, 
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+fn cursor_viewport_position_impl(window: &tauri::WebviewWindow) -> Option<(f64, f64)> {
+    use windows::Win32::{
+        Foundation::{HWND, POINT},
+        UI::WindowsAndMessaging::{
+            GetAncestor, GetWindowLongPtrW, WindowFromPoint, GA_ROOT, GWL_EXSTYLE,
+            WS_EX_TRANSPARENT,
+        },
+    };
+    let cursor = window.cursor_position().ok()?;
+    let origin = window.inner_position().ok()?;
+    let size = window.inner_size().ok()?;
+    let scale = window.scale_factor().ok()?;
+    let hwnd = HWND(window.hwnd().ok()?.0);
+    let x = cursor.x - f64::from(origin.x);
+    let y = cursor.y - f64::from(origin.y);
+    if scale <= 0.0
+        || x < 0.0
+        || y < 0.0
+        || x >= f64::from(size.width)
+        || y >= f64::from(size.height)
+    {
+        return None;
+    }
+    // SAFETY: These read-only calls use a live window handle and a value POINT.
+    // Pass-through, hidden, or covered windows must not synthesize task hover.
+    let belongs = unsafe {
+        GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TRANSPARENT.0 as isize == 0
+            && GetAncestor(
+                WindowFromPoint(POINT {
+                    x: cursor.x as i32,
+                    y: cursor.y as i32,
+                }),
+                GA_ROOT,
+            ) == hwnd
+    };
+    belongs.then_some((x / scale, y / scale))
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn cursor_viewport_position_impl(_: &tauri::WebviewWindow) -> Option<(f64, f64)> {
     None
 }

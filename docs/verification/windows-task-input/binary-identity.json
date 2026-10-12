@@ -1,0 +1,7 @@
+{
+  "sourceUnbundledSha256": "abda73734320a4f570159bc61e769dade6e233b8a7019b90c8a8115e56d4bbb3",
+  "nsisExpectedSha256": "3fbfd166eb846a82266bbb764fb73d9bd068824029317d58ae654b27644c5eb8",
+  "installedSha256": "3fbfd166eb846a82266bbb764fb73d9bd068824029317d58ae654b27644c5eb8",
+  "documentedTransform": "__TAURI_BUNDLE_TYPE_VAR_UNK -> __TAURI_BUNDLE_TYPE_VAR_NSS",
+  "identicalOutsideBundleMarker": true
+}

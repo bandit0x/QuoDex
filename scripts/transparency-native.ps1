@@ -17,8 +17,14 @@ public class QuoDexTransparencyProbe {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr handle,out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr handle,IntPtr after,int x,int y,int width,int height,uint flags);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr handle);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+  public static void MovePointer(int x,int y) {
+    uint nx=(uint)Math.Clamp((x-GetSystemMetrics(76)+0.5)*65536/GetSystemMetrics(78),0,65535);
+    uint ny=(uint)Math.Clamp((y-GetSystemMetrics(77)+0.5)*65536/GetSystemMetrics(79),0,65535);
+    mouse_event(0xC001,nx,ny,0,UIntPtr.Zero);
+  }
 }
 '@
 $taskProject = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -99,7 +105,12 @@ try {
       } finally { $taskBitmap.Dispose() }
       if ($taskIndex -eq 2 -or $taskIndex -eq 5) {
         $taskClickY = if ($taskIndex -eq 2) { $taskRect.Bottom-64 } else { $taskRect.Bottom-228 }
-        [void][QuoDexTransparencyProbe]::SetCursorPos($taskRect.Left+100,$taskClickY)
+        [void][QuoDexTransparencyProbe]::SetForegroundWindow($taskProcess.MainWindowHandle)
+        [QuoDexTransparencyProbe]::MovePointer($taskRect.Left+100,$taskClickY)
+        # This probe measures rendered colors and settings geometry. Settle the
+        # foreground/hover handoff; zero-delay input is checked separately by
+        # verify-task-status.mjs --input-only against a native click receiver.
+        Start-Sleep -Milliseconds 100
         [QuoDexTransparencyProbe]::mouse_event(8,0,0,0,[UIntPtr]::Zero)
         [QuoDexTransparencyProbe]::mouse_event(16,0,0,0,[UIntPtr]::Zero)
       }

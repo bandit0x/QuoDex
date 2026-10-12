@@ -38,6 +38,15 @@ public class QuoDexBackdrop {
   $taskForm.BackColor = [System.Drawing.Color]::FromArgb(19,34,47)
   $taskForm.ShowInTaskbar = $false
   $taskForm.TopMost = $true
+  if ($taskRequest.clickPath) {
+    $taskClickState = @{count=0}
+    @{count=0} | ConvertTo-Json -Compress | Set-Content -LiteralPath $taskRequest.clickPath -Encoding utf8
+    $taskForm.Add_MouseDown({
+      $taskClickState.count++
+      @{count=$taskClickState.count; x=[System.Windows.Forms.Cursor]::Position.X; y=[System.Windows.Forms.Cursor]::Position.Y} |
+        ConvertTo-Json -Compress | Set-Content -LiteralPath $taskRequest.clickPath -Encoding utf8
+    })
+  }
   # A hidden process launch can suppress the first ShowWindow call. Reveal only
   # this test-owned form after startup, without activating another application.
   $taskTimer = [System.Windows.Forms.Timer]::new()
@@ -63,18 +72,39 @@ using System;
 using System.Runtime.InteropServices;
 public class QuoDexNative {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr handle, out Rect rect);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr handle);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr handle,IntPtr after,int x,int y,int width,int height,uint flags);
   [DllImport("user32.dll")] public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+  [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr handle,int index);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr handle,uint flags);
+  [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point point);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr handle);
+  public static void MovePointer(int x,int y) {
+    uint nx=(uint)Math.Clamp((x-GetSystemMetrics(76)+0.5)*65536/GetSystemMetrics(78),0,65535);
+    uint ny=(uint)Math.Clamp((y-GetSystemMetrics(77)+0.5)*65536/GetSystemMetrics(79),0,65535);
+    // Generate a real input movement (including low-level hooks), rather than
+    // silently warping the pointer with SetCursorPos before an immediate click.
+    mouse_event(0xC001,nx,ny,0,UIntPtr.Zero);
+  }
 }
 '@
 $taskProcess = Get-Process -Id $taskRequest.pid
 $taskHandle = $taskProcess.MainWindowHandle
 if ($taskHandle -eq [IntPtr]::Zero) { throw 'Native window not available' }
-if ($taskRequest.op -eq 'position') { [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::Zero,400,500,0,0,5) }
+if ($taskRequest.op -eq 'zorder') {
+  $taskOrder=if ($taskRequest.topmost) { -1 } else { -2 }
+  [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::new($taskOrder),0,0,0,0,19)
+}
+if ($taskRequest.op -eq 'position') {
+  $taskX=if ($null -ne $taskRequest.x) { [int]$taskRequest.x } else { 400 }
+  $taskY=if ($null -ne $taskRequest.y) { [int]$taskRequest.y } else { 500 }
+  [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::Zero,$taskX,$taskY,0,0,5)
+}
 if ($taskRequest.op -in @('position','capture','pulse','hover','click','settings')) { [void][QuoDexNative]::SetWindowPos($taskHandle,[IntPtr]::new(-1),0,0,0,0,19) }
 $taskRect = [QuoDexNative+Rect]::new()
 [void][QuoDexNative]::GetWindowRect($taskHandle,[ref]$taskRect)
@@ -82,6 +112,13 @@ $taskRoot = [System.Windows.Automation.AutomationElement]::FromHandle($taskHandl
 $taskElements = $taskRoot.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
 $taskButtons = @($taskElements | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button })
 $taskResult = @{ width=$taskRect.Right-$taskRect.Left; height=$taskRect.Bottom-$taskRect.Top; x=$taskRect.Left; y=$taskRect.Top; buttons=@($taskButtons | ForEach-Object { $_.Current.Name }); names=@($taskElements | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+$taskCursor=[QuoDexNative+Point]::new()
+[void][QuoDexNative]::GetCursorPos([ref]$taskCursor)
+$taskResult.cursor=@{x=$taskCursor.X;y=$taskCursor.Y}
+$taskResult.topmost=([QuoDexNative]::GetWindowLongPtr($taskHandle,-20).ToInt64() -band 8) -ne 0
+$taskResult.dpi=[int][QuoDexNative]::GetDpiForWindow($taskHandle)
+$taskResult.executable=$taskProcess.Path
+$taskResult.version=(Get-Item -LiteralPath $taskProcess.Path).VersionInfo.ProductVersion
 $taskResult.buttonBounds = @($taskButtons | ForEach-Object { $taskB = $_.Current.BoundingRectangle; @{ name=$_.Current.Name; help=$_.Current.HelpText; x=$taskB.X; y=$taskB.Y; width=$taskB.Width; height=$taskB.Height } })
 if ($taskRequest.op -eq 'cpu') {
   $taskAllProcesses = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId
@@ -109,9 +146,9 @@ if($taskRequest.op -in @('click','hover')) {
   [void][QuoDexNative]::GetWindowRect($taskHandle,[ref]$taskRect)
   $taskBounds = $taskTarget.Current.BoundingRectangle
   $taskResult.target = @{x=$taskBounds.X;y=$taskBounds.Y;width=$taskBounds.Width;height=$taskBounds.Height;offscreen=$taskTarget.Current.IsOffscreen;enabled=$taskTarget.Current.IsEnabled;patterns=@($taskTarget.GetSupportedPatterns() | ForEach-Object {$_.ProgrammaticName})}
-  [void][QuoDexNative]::SetCursorPos($taskRect.Right+10,$taskRect.Bottom+10)
+  [QuoDexNative]::MovePointer($taskRect.Right+10,$taskRect.Bottom+10)
   Start-Sleep -Milliseconds 30
-  [void][QuoDexNative]::SetCursorPos([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
+  [QuoDexNative]::MovePointer([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
   if($taskRequest.op -eq 'click') {
     # WebView's aria-expanded pattern can change without delivering React's click event.
     $taskResult.action='mouse'
@@ -119,10 +156,10 @@ if($taskRequest.op -in @('click','hover')) {
     [QuoDexNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
     [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     # A resize can place a chat under the old click position; hover is tested separately.
-    if ($taskRequest.movePointerAway) { [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100) }
+    if ($taskRequest.movePointerAway) { [QuoDexNative]::MovePointer($taskRect.Right+100,$taskRect.Bottom+100) }
   } else {
     $taskResult.target = @{x=$taskBounds.X;y=$taskBounds.Y;width=$taskBounds.Width;height=$taskBounds.Height}
-    [void][QuoDexNative]::SetCursorPos([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
+    [QuoDexNative]::MovePointer([int]($taskBounds.X+$taskBounds.Width/2),[int]($taskBounds.Y+$taskBounds.Height/2))
     $taskResult.trace = @(0..6 | ForEach-Object {
       $taskSample = [QuoDexNative+Rect]::new()
       [void][QuoDexNative]::GetWindowRect($taskHandle,[ref]$taskSample)
@@ -133,7 +170,7 @@ if($taskRequest.op -in @('click','hover')) {
 }
 if($taskRequest.op -eq 'settings') {
   [void][QuoDexNative]::SetForegroundWindow($taskHandle)
-  [void][QuoDexNative]::SetCursorPos($taskRect.Left+100,$taskRect.Bottom-64)
+  [QuoDexNative]::MovePointer($taskRect.Left+100,$taskRect.Bottom-64)
   [QuoDexNative]::mouse_event(8,0,0,0,[UIntPtr]::Zero)
   [QuoDexNative]::mouse_event(16,0,0,0,[UIntPtr]::Zero)
 }
@@ -141,10 +178,33 @@ if($taskRequest.op -eq 'escape') {
   [void][QuoDexNative]::SetForegroundWindow($taskHandle)
   [QuoDexNative]::keybd_event(27,0,0,[UIntPtr]::Zero)
   [QuoDexNative]::keybd_event(27,0,2,[UIntPtr]::Zero)
-  [void][QuoDexNative]::SetCursorPos($taskRect.Right+10,$taskRect.Bottom+10)
+  [QuoDexNative]::MovePointer($taskRect.Right+10,$taskRect.Bottom+10)
 }
 if($taskRequest.op -eq 'leave') {
-  [void][QuoDexNative]::SetCursorPos($taskRect.Right+100,$taskRect.Bottom+100)
+  [QuoDexNative]::MovePointer($taskRect.Right+100,$taskRect.Bottom+100)
+}
+if($taskRequest.op -eq 'clickPoint') {
+  [QuoDexNative]::MovePointer([int]$taskRequest.x,[int]$taskRequest.y)
+  $taskDelay = if ($null -ne $taskRequest.delayMs) { [int]$taskRequest.delayMs } else { 100 }
+  if ($taskDelay -gt 0) { Start-Sleep -Milliseconds $taskDelay }
+  $taskResult.styleBeforeClick=('0x{0:X}' -f [QuoDexNative]::GetWindowLongPtr($taskHandle,-20).ToInt64())
+  $taskPoint=[QuoDexNative+Point]::new(); $taskPoint.X=[int]$taskRequest.x; $taskPoint.Y=[int]$taskRequest.y
+  $taskResult.hitRootBeforeClick=('0x{0:X}' -f [QuoDexNative]::GetAncestor([QuoDexNative]::WindowFromPoint($taskPoint),2).ToInt64())
+  [QuoDexNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+}
+if($taskRequest.op -eq 'movePoint') {
+  [QuoDexNative]::MovePointer([int]$taskRequest.x,[int]$taskRequest.y)
+}
+if($taskRequest.op -eq 'dragPoint') {
+  [QuoDexNative]::MovePointer([int]$taskRequest.x,[int]$taskRequest.y)
+  [QuoDexNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  try {
+    for ($taskStep=1;$taskStep -le 10;$taskStep++) {
+      [QuoDexNative]::MovePointer([int]($taskRequest.x+$taskRequest.dx*$taskStep/10),[int]($taskRequest.y+$taskRequest.dy*$taskStep/10))
+      Start-Sleep -Milliseconds 15
+    }
+  } finally { [QuoDexNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
 }
 if($taskRequest.op -eq 'toggle') {
   $taskTarget = $taskElements | Where-Object { $_.Current.Name -eq $taskRequest.name -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::CheckBox } | Select-Object -First 1
@@ -159,6 +219,14 @@ if($taskRequest.op -eq 'capture') {
     $taskBitmap.Save($taskRequest.path,[System.Drawing.Imaging.ImageFormat]::Png)
     $taskCorner=$taskBitmap.GetPixel(0,0)
     $taskResult.backgroundPixel=@{r=[int]$taskCorner.R;g=[int]$taskCorner.G;b=[int]$taskCorner.B}
+    if ($null -ne $taskRequest.sampleX -and $null -ne $taskRequest.sampleY) {
+      $taskPixel=$taskBitmap.GetPixel([int]$taskRequest.sampleX,[int]$taskRequest.sampleY)
+      $taskResult.samplePixel=@{r=[int]$taskPixel.R;g=[int]$taskPixel.G;b=[int]$taskPixel.B}
+    }
+    if ($null -ne $taskRequest.contentX -and $null -ne $taskRequest.contentY) {
+      $taskPixel=$taskBitmap.GetPixel([int]$taskRequest.contentX,[int]$taskRequest.contentY)
+      $taskResult.contentPixel=@{r=[int]$taskPixel.R;g=[int]$taskPixel.G;b=[int]$taskPixel.B}
+    }
   } finally { $taskBitmap.Dispose() }
 }
 if($taskRequest.op -eq 'pulse') {

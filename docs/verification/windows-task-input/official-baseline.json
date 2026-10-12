@@ -1,0 +1,75 @@
+{
+  "executable": "%LOCALAPPDATA%/QuoDex/codex-credits-view.exe",
+  "sha256": "b4242cfc3b5bb37859a1a0208608481baab1c2c0b1ddc15edad3f6962c484d13",
+  "samples": [
+    {
+      "cycle": 1,
+      "point": {
+        "x": 550,
+        "y": 520
+      },
+      "opened": {
+        "x": 400,
+        "y": 500,
+        "width": 300,
+        "height": 334
+      },
+      "closed": {
+        "x": 400,
+        "y": 500,
+        "width": 300,
+        "height": 334
+      },
+      "insideNativeWindow": true,
+      "pixel": {
+        "r": 19,
+        "b": 47,
+        "g": 34
+      },
+      "contentPixel": {
+        "r": 26,
+        "b": 156,
+        "g": 122
+      },
+      "transparent": true,
+      "underlayClicksBefore": 1,
+      "underlayClicksAfter": 1,
+      "passed": false
+    },
+    {
+      "cycle": 2,
+      "point": {
+        "x": 550,
+        "y": 520
+      },
+      "opened": {
+        "x": 400,
+        "y": 500,
+        "width": 300,
+        "height": 334
+      },
+      "closed": {
+        "x": 400,
+        "y": 500,
+        "width": 300,
+        "height": 334
+      },
+      "insideNativeWindow": true,
+      "pixel": {
+        "g": 34,
+        "r": 19,
+        "b": 47
+      },
+      "contentPixel": {
+        "g": 118,
+        "r": 25,
+        "b": 152
+      },
+      "transparent": true,
+      "underlayClicksBefore": 1,
+      "underlayClicksAfter": 1,
+      "passed": false
+    }
+  ],
+  "passed": false
+}

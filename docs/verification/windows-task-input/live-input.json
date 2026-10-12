@@ -1,0 +1,38 @@
+{
+  "status": "Verified",
+  "scenario": "actual local tasks: hover detail, leave, first transparent-area click",
+  "version": "0.4.2",
+  "executableSha256": "3fbfd166eb846a82266bbb764fb73d9bd068824029317d58ae654b27644c5eb8",
+  "dpi": 96,
+  "samples": [
+    {
+      "cycle": 1,
+      "point": {
+        "x": 152,
+        "y": 350
+      },
+      "closedSize": {
+        "width": 300,
+        "height": 334
+      },
+      "before": 1,
+      "after": 2,
+      "passed": true
+    },
+    {
+      "cycle": 2,
+      "point": {
+        "x": 152,
+        "y": 350
+      },
+      "closedSize": {
+        "width": 300,
+        "height": 334
+      },
+      "before": 2,
+      "after": 3,
+      "passed": true
+    }
+  ],
+  "privacy": "No chat names, identifiers, account data, or task payloads recorded."
+}
