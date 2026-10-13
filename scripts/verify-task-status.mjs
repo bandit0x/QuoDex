@@ -157,7 +157,12 @@ async function settingsRoundTrip() {
 }
 const backgroundReady=path.join(root,"background-ready.json");
 const backgroundClicks=path.join(root,"background-clicks.json");
+const backgroundStarted=Date.now();
 const background = spawn(pwsh,["-NoProfile","-File",bridgePath,"-RequestBase64",Buffer.from(JSON.stringify({op:"background",readyPath:backgroundReady,...(inputOnly ? {clickPath:backgroundClicks} : {})})).toString("base64")],{windowsHide:true});
+const backgroundClosed=new Promise(resolve=>background.once("close",resolve));
+let backgroundStderr="",backgroundError;
+background.stderr.on("data",chunk=>{backgroundStderr+=chunk;});
+background.on("error",error=>{backgroundError=error.message;});
 const shortcutBackup = path.join(root,"original-QuoDex.lnk");
 const shortcut = bridge("shortcut",{action:"save",backup:shortcutBackup});
 const protocol = action => JSON.parse(execFileSync(pwsh,["-NoProfile","-File",protocolScript,"-Action",action,"-Root",root],{encoding:"utf8",windowsHide:true}));
@@ -193,8 +198,20 @@ async function setZcodeChats(statuses,age=10) {
   });
 }
 try {
-  let ready;for(let attempt=0;attempt<40;attempt++){try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));break;}catch{await pause(100);}}
-  assert(ready?.visible,"native test backdrop is visible before capturing windows");
+  // Cold PowerShell/WinForms initialization measured 5.074s on the release runner.
+  // Wait for the real visibility signal; do not relax the screenshot assertion.
+  let ready,backgroundReadError;
+  while(Date.now()-backgroundStarted<30000) {
+    if(backgroundError||background.exitCode!==null)break;
+    try{ready=JSON.parse(await readFile(backgroundReady,"utf8"));}
+    catch(error){backgroundReadError=error.message;if(error.code!=="ENOENT"&&!(error instanceof SyntaxError))break;}
+    if(ready?.visible)break;
+    await pause(100);
+  }
+  if(backgroundError||background.exitCode!==null)await backgroundClosed;
+  const backgroundResult={elapsedMs:Date.now()-backgroundStarted,ready,exitCode:background.exitCode,error:backgroundError,readError:backgroundReadError,stderr:backgroundStderr};
+  await writeFile(path.join(output,"background-startup.json"),JSON.stringify(backgroundResult,null,2));
+  assert(ready?.visible,`QWS-112: native test backdrop not visible; see ${output}/background-startup.json`);
   setChats(["running", "running", "completed"]); await start();
   if(inputOnly) {
     setChats(["completed"]);

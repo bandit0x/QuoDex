@@ -1,18 +1,17 @@
 # macOS 任务透明区域输入修复
 
-核心 bug 状态：Verified（用户真实鼠标验收通过）。扩展原生回归状态：Acceptance pending。
+0.4.1 修复包核心点击：Verified（用户真实鼠标验收通过）；0.4.2 构建、干净数据启动与安装冒烟：Verified；0.4.2 点击复验及扩展原生回归：Acceptance pending。
 
 ## 来源与产物
 
-- 来源基线：`cc6c844`；修复源码提交：`72278ea`。后续仅补充本文的手工验收记录，测试产物未变更。
+- 来源基线：`cc6c844`；修复源码提交：`72278ea`；v0.4.2 发布源码：`59c9529`。
 - 环境：macOS 27.0.1 / 26A434，arm64，Node 24，Tauri 2 / WKWebView。
-- 产物：`release/macos/QuoDex-task-input.app`。
-- 主程序 SHA-256：`db8bcea9bde19c49618539bbb3e90e75982102ab493c7499d58ae89d903eae9d`。
-- 2026-10-11，按用户“替换app”的明确指令安装到 `/Applications/QuoDex.app`。
-- 旧安装备份：`release/macos/rollback-task-input-20261011-n7sglm4e/QuoDex.app`。
-- 安装版主程序 SHA-256：`66ae15dba13091aa8f9d8f48ae4b997f09f7b9fb82d442ec6cb8e16e2ce9b40b`。由于补入原安装的 Codex 运行时后重新签名，签名字节使主程序哈希与测试包不同，修复源码未变更。
-- 保留原安装的 Codex 运行时，其 SHA-256 为 `9ebc2056da80936b0e7e61b08b006c7315db842d131ab4a35c7263b6c4f358f7`；未借此次修复升级运行时。
-- 安装后 `codesign --verify --deep --strict /Applications/QuoDex.app` 通过；旧备份也通过严格签名检查。
+- 当前产物：`release/macos/QuoDex.app`、`release/macos/QuoDex_0.4.2_aarch64.dmg`；安装路径 `/Applications/QuoDex.app`，版本 `0.4.2`。
+- 安装版与打包版主程序 SHA-256 相同：`20350f7a2585c52025d176348c80c078ba31a73ba73774b99130a566b24bb6e4`。
+- DMG SHA-256：`98449ba3dfc140df6d1965f755b7243cedad2d47a405ac9b04e6bc7d3ff2a55d`；`hdiutil verify` 通过。
+- 当前包由 `npm run package:app` 注入锁定的 Codex 运行时并重新签名；安装前后 `codesign --verify --deep --strict` 通过。
+- 2026-10-11，按用户明确要求升级 v0.4.2 并删除已识别的 20 个旧 `.app` 副本，包括此前 0.4.1 测试包及回滚包。仅删除应用包，保留配置、数据库、日志和源码。清理后可读范围内扫描仅剩三个 0.4.2 副本（安装版、发布包、Tauri 构建包）；macOS 隐私保护目录不可读，扫描并非全磁盘无遗漏证明。清理明细位于忽略目录 `.scratch/release-v0.4.2/cleanup.json`。
+- 历史用户点击验收使用 0.4.1 无探针修复包，主程序 SHA-256 `db8bcea9bde19c49618539bbb3e90e75982102ab493c7499d58ae89d903eae9d`。v0.4.2 的输入修复源码相同，仅版本与发布记录变更；没有把此前手工结果冒充新包复测。
 - 从 `/Applications/QuoDex.app` 正常启动，通过真实 WKWebView 可访问性状态与截图确认主界面出现、Codex 配额读取完成、真实任务状态恢复。未使用测试启动脚本或虚构任务环境。
 
 ## 原因与修复
@@ -26,8 +25,8 @@
 ```sh
 npm test
 cargo test --manifest-path src-tauri/Cargo.toml --offline
-npm run tauri:build -- --bundles app
-node scripts/launch-macos-input-review.mjs release/macos/QuoDex-task-input.app/Contents/MacOS/codex-credits-view
+npm run package:app
+node scripts/launch-macos-input-review.mjs release/macos/QuoDex.app/Contents/MacOS/codex-credits-view
 ```
 
 - 前端：12 个测试文件、171 项通过。新增关闭详情后区域移除、版本递增检查先失败（版本缺失），修复后通过。
@@ -40,6 +39,17 @@ node scripts/launch-macos-input-review.mjs release/macos/QuoDex-task-input.app/C
 - 审查：Standards 发现的失败原因丢失和事件魔数已修复；Spec 发现的过期材质更新及透明处无条件捕获已修复。首次真实点击时序已由用户手工验收；此结果限定于本次环境与操作，未据此宣称所有极端时序均通过。
 
 本轮日志保存在 `.scratch/task-hover-input/`（忽略目录）。源码提交不包含测试缓存、虚构数据库、截图或构建产物。
+
+v0.4.2 在版本变更后重新运行前端 171 项、Rust 137 项（5 项既有 ignored）、原生 SQLite fixture 2 项及 strict Clippy，均通过；重新执行完整 macOS 打包。在新建数据目录启动正式发布包，原生 WKWebView 出现虚构验收任务及额度；退出后从 `/Applications/QuoDex.app` 启动，真实任务与 Codex PRO 配额读取正常，两次真实产物截图见聊天工具记录。此次发布日志位于 `.scratch/release-v0.4.2/`。
+
+## v0.4.2 远程发布
+
+- `59c9529` 与注释标签 `v0.4.2` 已推送到 `bandit0x/QuoDex`；提交、标签及 [Release](https://github.com/bandit0x/QuoDex/releases/tag/v0.4.2) 均使用用户 `bandit0x` 身份。macOS DMG 已正式发布，GitHub 返回的 SHA-256 与上述本机值一致。
+- [标签 CI](https://github.com/bandit0x/QuoDex/actions/runs/38115044039) 的双平台前端 171 项、SQLite fixture、Rust 测试及 strict Clippy 通过；macOS Rust 137 项（5 ignored），Windows Rust 140 项（4 ignored），macOS 打包通过。Windows 安装后的验收在应用启动之前失败：测试背景窗口未在旧脚本 4 秒上限内就绪，没有据此宣称 Windows 应用验收通过。
+- 最小原生预检实测背景冷启动需要 5.074 秒，窗口真实可见、进程 stderr 为空。后续 `e93d06c` 增加可单独执行的预检，`e8fd930` 按真实可见信号等待（30 秒上限），保留所有窗口和截图断言，记录启动错误及耗时。应用源码、依赖、安装器脚本与标签相比无差异。[后续 CI](https://github.com/bandit0x/QuoDex/actions/runs/38116512945) 的双平台检查和完整 Windows 安装验收通过：NSIS 静默安装、两次冷启动、ZCode 数据路径、原生详情保持与移开关闭、正常退出、等待与取消状态、设置往返后的九个背景 RGB 样本均通过。
+- 该次 Windows manifest 的 `sourceDirty=true` 未记录具体文件，不能追溯其来源；该轮安装器没有发布。`f0ad813` 增加构建前、构建后、原生验收后三阶段的 porcelain、tracked diff 与未跟踪文件记录，并拒绝脏的初始构建目录。[来源复验 CI](https://github.com/bandit0x/QuoDex/actions/runs/38118070844) 全部通过：构建前 status 为空；构建后与验收后仅 `src-tauri/Cargo.toml` 被标记 modified；三个阶段相对 HEAD 的 binary diff 均为空，无未跟踪文件。manifest 如实保留 `sourceDirty=true`；这证明本轮 Git 内容比较没有 tracked 差异，不宣称原始文件字节完全一致，也不据此追溯旧运行。两份锁文件均按 CRLF 换行转换与标签内容核对一致。
+- 本轮已正式发布的 Windows 安装器 `QuoDex-0.4.2-win-x64-setup.exe` 的 SHA-256 为 `be190694ecc53a21bd964477ed18d24651fa179104f7da1c2c598d7d96ca6273`，与下载的 CI manifest 及 GitHub Release 返回的 digest 一致；安装后主程序 SHA-256 为 `b4242cfc3b5bb37859a1a0208608481baab1c2c0b1ddc15edad3f6962c484d13`。来源为 `f0ad813`，产品源码、依赖及打包输入与标签 `v0.4.2` 相同，额外提交仅补充 CI 与验收脚本。环境为 Windows NT 10.0.26100.0、Node 24.18.0、Rust 1.97.1、WebView2 151.0.4129.78。NSIS 安装及完整原生回归通过；本轮背景冷启动耗时 10.419 秒，最终窗口可见且 stderr 为空，验证了固定 4 秒等待上限确实不足。
+- 已检查本轮原生冷启动、任务列表及设置截图，九个背景颜色样本全部与期望 RGB 一致，窗口高度设置往返为 334 → 498 → 334。截图与来源文件保存于忽略目录 `.scratch/release-v0.4.2/windows-source-verified-evidence/`，CI 中对应 `windows-evidence-f0ad813…` artifact。匿名协议与 SQLite fixtures 不证明真实 ZCode 活跃任务、真实账号等待请求或聊天跳转；截图显示 TomatoCloud 路由不可用，本轮不验证其联网连通性。125% / 150% DPI 与多屏仍需单独验收。
 
 ## 手工验收结果与剩余覆盖
 
