@@ -585,7 +585,7 @@ mod tests {
         let worker = std::thread::spawn(move || {
             let (mut s, _) = listener.accept().unwrap();
             let mut b = [0; 2048];
-            s.read(&mut b).unwrap();
+            assert!(s.read(&mut b).unwrap() > 0, "client sent no request bytes");
             let body = r#"{"error":"authorization_pending"}"#;
             write!(
                 s,

@@ -23,6 +23,7 @@ QuoDex lives in a corner of your desktop: check how much Codex / ZCode quota rem
 - **Two task groups** — Codex and ZCode side by side with 5 items each, color-coded as running / waiting / succeeded / errored; completion alerts dismiss in one click.
 - **Liquid glass** — the fluid level follows your remaining balance and sloshes naturally while dragging; compact, expanded and narrow-strip views with adjustable opacity.
 - **Token usage** — one click in Settings opens a local web page: six ranges from 7 days to 1 year, combined or split views, monthly heat walls and trend charts; the local ledger is kept long-term.
+- **Cross-PC ledger** — connect your own Baidu Netdisk app to view recorded token usage across devices, with automatic sync every six hours, request deduplication and explicit conflict reporting. Live transfer has been verified on one Windows PC; two-PC and macOS sync validation remain pending. [Setup and verification](docs/research/remote-record/README.md)
 
 ## Screenshots
 

@@ -1,8 +1,8 @@
 # remote-record：个人用量账本跨 PC 同步
 
-本文件是唯一当前状态与决策入口。日期：2026-10-13（Asia/Shanghai）。分支 `remote-record`，设计基线 `953f9c21c65594615633e4296daad0ff23fd27a1`，产品版本 0.4.2；最终源码版本见本地提交记录，最新验证程序 SHA256 见 [原生冒烟报告](../../verification/remote-record/live-baidu/native-smoke.json)。
+本文件是唯一当前状态与决策入口。日期：2026-10-13（Asia/Shanghai）。分支 `remote-record`，设计基线 `953f9c21c65594615633e4296daad0ff23fd27a1`，产品版本 0.4.5；最终源码版本见 `v0.4.5` 标签，最新构建检查及 SHA256 见 [版本验证](../../verification/v0.4.5/README.md)。
 
-**本地交付：Acceptance pending。本机百度实网上传/下载/重复同步：Verified。双物理 PC 验证：Blocked。** 用户已经连接并明确授权实网测试，同时确认只测试 QuoDex 同步目录。本次直接使用本机安全存储内的授权调用现有 Rust 适配器，完成匿名文件上传/下载、两轮同步、重复批次导入和本机原账条数保留检查；未出现 QDS-112。凭据仅进入测试进程内存，不写日志、报告或仓库；未访问照片或其他目录，未 push。[实网证据与复现](../../verification/remote-record/live-baidu/README.md)。
+**本地交付：Acceptance pending。本机百度实网上传/下载/重复同步：Verified。双物理 PC 验证：Blocked。** 用户已经连接并明确授权实网测试，同时确认只测试 QuoDex 同步目录。本次直接使用本机安全存储内的授权调用现有 Rust 适配器，完成匿名文件上传/下载、两轮同步、重复批次导入和本机原账条数保留检查；未出现 QDS-112。凭据仅进入测试进程内存，不写日志、报告或仓库；未访问照片或其他目录。用户随后明确授权以 bandit0x 名义将 v0.4.5 推送 GitHub；分支与版本标签按此发布。[实网证据与复现](../../verification/remote-record/live-baidu/README.md)。
 
 ## 已确认的产品合同
 

@@ -435,8 +435,7 @@ impl UsageLedger {
                 .or_default()
                 .push(observation);
         }
-        let mut result = Totals::default();
-        result.unidentified = self
+        let unidentified = self
             .conn
             .query_row(
                 "SELECT COUNT(*) FROM usage_events e WHERE NOT EXISTS
@@ -446,6 +445,10 @@ impl UsageLedger {
                 |r| r.get::<_, i64>(0).map(|n| n as u64),
             )
             .map_err(storage)?;
+        let mut result = Totals {
+            unidentified,
+            ..Totals::default()
+        };
         for observations in groups.values() {
             let by_id: HashMap<_, _> = observations.iter().map(|o| (o.id.as_str(), o)).collect();
             let mut parents = HashSet::new();
