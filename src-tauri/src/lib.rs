@@ -14,6 +14,8 @@ mod usage_sync;
 mod sync_engine;
 mod baidu_sync;
 mod sync_runtime;
+#[cfg(all(test, target_os = "windows"))]
+mod live_sync_probe;
 mod window_pin;
 mod window_input;
 mod zcode_quota;

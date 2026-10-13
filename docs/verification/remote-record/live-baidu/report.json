@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "existing_authorization_loaded_without_logging_secrets",
+    "official_application_directory_listed",
+    "remote_manifest_downloaded_and_validated",
+    "anonymous_probe_uploaded_with_non_overwrite_create",
+    "probe_download_is_byte_identical",
+    "two_live_sync_cycles_finish_without_duplicate_totals",
+    "local_original_rows_retained",
+    "real_remote_batch_replayed_twice_without_recount"
+  ],
+  "date": "2026-10-13T07:27:14.792838400+00:00",
+  "diagnostic": null,
+  "limitations": "single Windows PC; no token rotation, six-hour wait or second physical PC verified",
+  "scope": "existing QuoDex app subdirectory only; no photos or unrelated directories",
+  "sideEffect": "one small qa-UUID.json synthetic marker retained inside QuoDex directory; no deletion",
+  "sourceBase": "d5b128a8a68a02b83b529f9f85a622575439e73a",
+  "status": "Verified"
+}
