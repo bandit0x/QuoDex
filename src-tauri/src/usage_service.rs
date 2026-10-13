@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::time::Duration;
 
-use chrono::{Local, Offset, TimeZone};
+use chrono::TimeZone;
 use serde::Serialize;
 
 use crate::capacity::Diagnostic;
@@ -84,6 +84,8 @@ pub struct UsageService {
     home: PathBuf,
     ledger_path: PathBuf,
     ledger: Mutex<Option<UsageLedger>>,
+    /// Serialize source reads as well as writes: an older scan must not become a newer observation.
+    refresh_lock: Mutex<()>,
     /// Codex rollout 文件增量状态；持久化到账本 meta，重启后避免全量重扫。
     codex_scan_state: Mutex<SourceScanState>,
     snapshot: RwLock<UsageSnapshot>,
@@ -97,6 +99,7 @@ impl UsageService {
             home,
             ledger_path,
             ledger: Mutex::new(None),
+            refresh_lock: Mutex::new(()),
             codex_scan_state: Mutex::new(SourceScanState::default()),
             snapshot: RwLock::new(UsageSnapshot {
                 generated_at_ms: crate::usage_ledger::now_ms(),
@@ -130,7 +133,7 @@ impl UsageService {
         snapshot
     }
 
-    fn with_ledger<T>(
+    pub(crate) fn with_ledger<T>(
         &self,
         body: impl FnOnce(&mut UsageLedger) -> Result<T, Diagnostic>,
     ) -> Result<T, Diagnostic> {
@@ -214,6 +217,7 @@ impl UsageService {
     /// 单轮采集：先 ZCode（快），再 Codex（逐文件上报进度）。
     /// 任何来源失败都不清空账本数据，只置 failed 并保留上一轮成功时间。
     pub fn refresh(&self) {
+        let _refresh = self.refresh_lock.lock().expect("usage refresh lock");
         self.progress.importing_zcode.store(true, Ordering::Relaxed);
         self.refresh_zcode();
         self.progress.importing_zcode.store(false, Ordering::Relaxed);
@@ -229,6 +233,7 @@ impl UsageService {
         match scan_zcode_usage(&db_path) {
             Ok(records) => {
                 let identity = zcode_db_identity(&db_path);
+                let identities: Vec<_> = records.iter().map(|r| (format!("zcode:{identity}:{}", r.id), r.session_id.clone(), r.id.clone())).collect();
                 let events: Vec<UsageEvent> = records
                     .into_iter()
                     .map(|record| UsageEvent {
@@ -244,6 +249,9 @@ impl UsageService {
                     .collect();
                 let count = events.len();
                 let write = self.with_ledger(|ledger| {
+                    for (key, session, id) in &identities {
+                        ledger.identify_zcode(key, session, id)?;
+                    }
                     for event in &events {
                         ledger.upsert_zcode(event)?;
                     }
@@ -266,6 +274,7 @@ impl UsageService {
         let mut scan_state = self.codex_scan_state.lock().expect("scan state lock").clone();
         // 先探测文件总数供进度展示；目录缺失时报告 701。
         let mut conflicts = 0u64;
+        let mut write_failure = None;
         let ledger_has_codex = self.ledger_has(SOURCE_CODEX);
         let result = scan_codex_sessions(&sessions_dir, &mut scan_state, |_, records| {
             self.progress
@@ -287,15 +296,21 @@ impl UsageService {
                     reasoning_tokens: record.reasoning_tokens,
                 })
                 .collect();
-                    let _ = self.with_ledger(|ledger| {
-                        for event in &events {
-                            if ledger.upsert_codex(event)? == CodexUpsert::Conflict {
-                                conflicts += 1;
-                            }
-                        }
-                        Ok(())
-                    });
+            if let Err(diagnostic) = self.with_ledger(|ledger| {
+                for event in &events {
+                    if ledger.upsert_codex(event)? == CodexUpsert::Conflict {
+                        conflicts += 1;
+                    }
+                }
+                Ok(())
+            }) {
+                write_failure = Some(diagnostic);
+            }
         });
+        if let Some(diagnostic) = write_failure {
+            self.record_source_failure(SOURCE_CODEX, diagnostic);
+            return; // Do not acknowledge file stamps until every usage write succeeds.
+        }
         match result {
             Ok(report) => {
                 self.progress
@@ -403,6 +418,7 @@ impl UsageService {
 
     /// 单来源重试：只重新读取指定来源并保留其余来源状态。
     pub fn refresh_source(&self, source: &str) {
+        let _refresh = self.refresh_lock.lock().expect("usage refresh lock");
         match source {
             SOURCE_ZCODE => {
                 self.progress.importing_zcode.store(true, Ordering::Relaxed);
@@ -447,7 +463,7 @@ fn maybe_history_missing(diagnostic: Diagnostic, ledger_has_records: bool) -> Di
 }
 
 fn local_offset() -> chrono::FixedOffset {
-    Local::now().offset().fix()
+    chrono::FixedOffset::east_opt(8 * 3600).expect("Asia/Shanghai")
 }
 
 fn local_day_now() -> String {

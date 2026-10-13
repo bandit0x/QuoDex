@@ -2,6 +2,7 @@ import { readyTaskSources } from "./taskStatusTypes";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import SyncSettings from "./SyncSettings";
 import type {
   CapacitySnapshot,
   SourceSelection,
@@ -201,6 +202,6 @@ if (fixtureEnabled) {
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <App {...fixtureProps} />
+    {new URLSearchParams(window.location.search).get("view") === "sync" ? <SyncSettings /> : <App {...fixtureProps} />}
   </React.StrictMode>,
 );

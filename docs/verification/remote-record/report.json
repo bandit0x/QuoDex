@@ -1,0 +1,36 @@
+{
+  "status": "Verified",
+  "scope": "Windows native product, synthetic local records, no cloud account",
+  "date": "2026-10-13T05:25:38.711Z",
+  "node": "v24.18.0",
+  "executableSha256": "9e92a7426f5a8fcece0fc24a9ea1a980d5cfbc56eae5af29b052445d4f703c84",
+  "checks": [
+    {
+      "name": "Fresh desktop product imports isolated Codex and ZCode; sync remains disconnected",
+      "status": "Verified"
+    },
+    {
+      "name": "Local mutation bridge refuses foreign Origin and missing capability",
+      "status": "Verified"
+    },
+    {
+      "name": "Scope switch preserves exact total and works by keyboard",
+      "status": "Verified"
+    },
+    {
+      "name": "Native settings uses masked secrets and rejects invalid folder before networking",
+      "status": "Verified"
+    },
+    {
+      "name": "390px usage page stays within viewport",
+      "status": "Verified"
+    },
+    {
+      "name": "Disconnect from native settings retains collected history",
+      "status": "Verified"
+    }
+  ],
+  "browserErrors": [],
+  "limitation": "Baidu authorization, real transfer, OS credential rotation and two physical PCs are not verified.",
+  "error": null
+}

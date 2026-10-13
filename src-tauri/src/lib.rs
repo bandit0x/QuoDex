@@ -10,6 +10,10 @@ mod usage_ledger;
 mod usage_server;
 mod usage_service;
 mod usage_sources;
+mod usage_sync;
+mod sync_engine;
+mod baidu_sync;
+mod sync_runtime;
 mod window_pin;
 mod window_input;
 mod zcode_quota;
@@ -231,15 +235,15 @@ fn quit_app(app: tauri::AppHandle) {
 /// 用量统计入口：确保本机只读服务已启动，并把页面交给系统默认浏览器。
 /// 准备失败报 QUT-701，派发失败报 QUT-702；网页自身的诊断走 QDU-7xx。
 #[tauri::command]
-async fn usage_page_open(runtime: State<'_, UsageRuntime>) -> Result<String, Diagnostic> {
+async fn usage_page_open(app: AppHandle, runtime: State<'_, UsageRuntime>, sync: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>) -> Result<String, Diagnostic> {
     let needs_start = runtime
         .server
         .lock()
         .expect("usage server lock")
         .is_none();
     if needs_start {
-        let server =
-            usage_server::UsageServer::start(std::sync::Arc::clone(&runtime.service)).await?;
+        let actions = sync_actions(app, sync.inner().clone());
+        let server = usage_server::UsageServer::start_with_sync(std::sync::Arc::clone(&runtime.service), Some(actions)).await?;
         *runtime.server.lock().expect("usage server lock") = Some(server);
     }
     let url = runtime
@@ -261,6 +265,57 @@ async fn usage_page_open(runtime: State<'_, UsageRuntime>) -> Result<String, Dia
 struct UsageRuntime {
     service: std::sync::Arc<usage_service::UsageService>,
     server: std::sync::Mutex<Option<usage_server::UsageServer>>,
+}
+
+fn open_sync_settings(app: &AppHandle) -> Result<(), Diagnostic> {
+    if let Some(window) = app.get_webview_window("sync-settings") {
+        window.show().and_then(|_| window.set_focus()).map_err(|_| Diagnostic::new("QDS-113", "无法显示同步设置；请重启 QuoDex"))?;
+        return Ok(());
+    }
+    let builder = tauri::WebviewWindowBuilder::new(app, "sync-settings", tauri::WebviewUrl::App("index.html?view=sync".into()))
+        .title("QuoDex · 个人账本同步").inner_size(720.0, 720.0).min_inner_size(390.0, 560.0)
+        .resizable(true);
+    // WebView2 >=150 ignores environment browser flags in elevated test runners.
+    // Use its explicit API only in debug builds with an isolated QA config directory.
+    #[cfg(all(debug_assertions,target_os="windows"))]
+    let builder = match (std::env::var("QUODEX_QA_CDP_PORT").ok().and_then(|p|p.parse::<u16>().ok()).filter(|p|*p>0),std::env::var_os("CODEX_CREDITS_CONFIG_DIR")) {
+        (Some(port),Some(dir)) => builder.additional_browser_args(&format!("--remote-debugging-address=127.0.0.1 --remote-debugging-port={port}"))
+            .data_directory(std::path::PathBuf::from(dir).join("qa-sync-webview")),
+        _=>builder,
+    };
+    builder.build().map_err(|_| Diagnostic::new("QDS-113", "无法打开同步设置；请重启 QuoDex"))?;
+    Ok(())
+}
+fn sync_actions(app: AppHandle, sync: std::sync::Arc<sync_runtime::SyncRuntime>) -> usage_server::SyncActions {
+    // The HTTP bridge runs this on a blocking worker. Creating WebView2 from a
+    // main-thread event handler deadlocks on Windows (Tauri builder contract).
+    usage_server::SyncActions::new(sync, move || open_sync_settings(&app))
+}
+
+fn sync_window(window: &WebviewWindow) -> Result<(), Diagnostic> {
+    if window.label() == "sync-settings" { Ok(()) } else { Err(Diagnostic::new("QDS-113", "请从同步设置窗口操作")) }
+}
+#[tauri::command]
+fn sync_read(window: WebviewWindow, runtime: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>) -> Result<sync_runtime::SyncView, Diagnostic> {
+    sync_window(&window)?; Ok(runtime.view())
+}
+#[tauri::command]
+fn sync_connect(window: WebviewWindow, runtime: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>, app_key: String, secret_key: String, folder: String) -> Result<(), Diagnostic> {
+    sync_window(&window)?; runtime.connect(app_key, secret_key, folder)
+}
+#[tauri::command]
+fn sync_disconnect(window: WebviewWindow, runtime: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>) -> Result<(), Diagnostic> {
+    sync_window(&window)?; runtime.disconnect()
+}
+#[tauri::command]
+fn sync_now(window: WebviewWindow, runtime: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>) -> Result<(), Diagnostic> {
+    sync_window(&window)?; runtime.synchronize()
+}
+#[tauri::command]
+fn sync_authorize_open(window: WebviewWindow, runtime: State<'_, std::sync::Arc<sync_runtime::SyncRuntime>>) -> Result<(), Diagnostic> {
+    sync_window(&window)?;
+    let url=runtime.view().authorization_url.ok_or_else(||Diagnostic::new("QDS-101","请先生成设备码"))?;
+    open::that(url).map_err(|_|Diagnostic::new("QDS-113","无法打开百度授权页；请检查默认浏览器"))
 }
 
 fn usage_home_dir() -> std::path::PathBuf {
@@ -309,14 +364,18 @@ pub fn run() {
                 config_dir.join("usage-ledger.sqlite"),
             ));
             let _ = usage_service.spawn_refresh_loop();
+            let sync = sync_runtime::SyncRuntime::start(usage_service.clone(), &config_dir);
+            app.manage(sync.clone());
             app.manage(UsageRuntime {
                 service: usage_service.clone(),
                 server: std::sync::Mutex::new(None),
             });
             let usage_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                match usage_server::UsageServer::start(usage_service).await {
+                let actions = sync_actions(usage_handle.clone(), sync);
+                match usage_server::UsageServer::start_with_sync(usage_service, Some(actions)).await {
                     Ok(server) => {
+                        if let Some(path)=std::env::var_os("QUODEX_USAGE_URL_FILE") { let _=std::fs::write(path,&server.url); }
                         *usage_handle
                             .state::<UsageRuntime>()
                             .server
@@ -331,7 +390,7 @@ pub fn run() {
             setup_tray(app)?;
             Ok(())
         })
-        .on_window_event(|window, event| match event {
+        .on_window_event(|window, event| { if window.label() != "main" { return; } match event {
             WindowEvent::Moved(position) => {
                 let _ = window
                     .state::<PreferencesStore>()
@@ -354,7 +413,7 @@ pub fn run() {
                 }
             }
             _ => {}
-        })
+        }})
         .invoke_handler(tauri::generate_handler![
             read_task_status,
             task_material::set_task_material_regions,
@@ -372,6 +431,11 @@ pub fn run() {
             window_pin::read_window_pin_startup_diagnostic,
             enable_temporary_click_through,
             usage_page_open,
+            sync_read,
+            sync_connect,
+            sync_disconnect,
+            sync_now,
+            sync_authorize_open,
             quit_app
         ])
         .build(tauri::generate_context!())

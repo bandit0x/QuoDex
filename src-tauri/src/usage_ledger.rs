@@ -59,7 +59,7 @@ pub struct SourceFileStamp {
 }
 
 pub struct UsageLedger {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl UsageLedger {
@@ -93,11 +93,13 @@ impl UsageLedger {
             );",
         )
         .map_err(open_diagnostic)?;
+        crate::usage_sync::initialize(&conn)?;
         Ok(Self { conn })
     }
 
     pub fn upsert_codex(&mut self, event: &UsageEvent) -> Result<CodexUpsert, crate::capacity::Diagnostic> {
         debug_assert_eq!(event.source, SOURCE_CODEX);
+        let tx = self.conn.unchecked_transaction().map_err(write_diagnostic)?;
         let existing: Option<i64> = self
             .conn
             .query_row(
@@ -111,18 +113,22 @@ impl UsageLedger {
                 other => Err(other),
             })
             .map_err(write_diagnostic)?;
-        match existing {
+        let result = match existing {
             None => {
                 self.insert(event)?;
                 Ok(CodexUpsert::Inserted)
             }
-            Some(total) if total == event.total_tokens => Ok(CodexUpsert::Unchanged),
+            Some(_) if self.event_matches(event)? => Ok(CodexUpsert::Unchanged),
             Some(_) => Ok(CodexUpsert::Conflict),
-        }
+        }?;
+        crate::usage_sync::observe(&tx, event, result == CodexUpsert::Conflict)?;
+        tx.commit().map_err(write_diagnostic)?;
+        Ok(result)
     }
 
     pub fn upsert_zcode(&mut self, event: &UsageEvent) -> Result<ZcodeUpsert, crate::capacity::Diagnostic> {
         debug_assert_eq!(event.source, SOURCE_ZCODE);
+        let tx = self.conn.unchecked_transaction().map_err(write_diagnostic)?;
         let existing: Option<i64> = self
             .conn
             .query_row(
@@ -136,12 +142,12 @@ impl UsageLedger {
                 other => Err(other),
             })
             .map_err(write_diagnostic)?;
-        match existing {
+        let result = match existing {
             None => {
                 self.insert(event)?;
                 Ok(ZcodeUpsert::Inserted)
             }
-            Some(total) if total == event.total_tokens => Ok(ZcodeUpsert::Unchanged),
+            Some(_) if self.event_matches(event)? => Ok(ZcodeUpsert::Unchanged),
             Some(_) => {
                 self.conn
                     .execute(
@@ -163,10 +169,21 @@ impl UsageLedger {
                     .map_err(write_diagnostic)?;
                 Ok(ZcodeUpsert::Updated)
             }
-        }
+        }?;
+        crate::usage_sync::observe(&tx, event, false)?;
+        tx.commit().map_err(write_diagnostic)?;
+        Ok(result)
     }
 
-    fn insert(&mut self, event: &UsageEvent) -> Result<(), crate::capacity::Diagnostic> {
+    fn event_matches(&self, event: &UsageEvent) -> Result<bool, crate::capacity::Diagnostic> {
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM usage_events WHERE source=?1 AND request_key=?2
+            AND source_ts_ms=?3 AND total_tokens=?4 AND input_tokens=?5 AND output_tokens=?6
+            AND cached_input_tokens=?7 AND reasoning_tokens=?8)",
+            rusqlite::params![event.source,event.request_key,event.source_ts_ms,event.total_tokens,event.input_tokens,
+                event.output_tokens,event.cached_input_tokens,event.reasoning_tokens], |r| r.get(0)).map_err(read_diagnostic)
+    }
+
+    fn insert(&self, event: &UsageEvent) -> Result<(), crate::capacity::Diagnostic> {
         self.conn
             .execute(
                 "INSERT INTO usage_events (source, request_key, source_ts_ms, total_tokens, input_tokens,

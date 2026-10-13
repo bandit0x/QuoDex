@@ -19,10 +19,24 @@ const PAGE_MATERIAL_JS: &str = include_str!("../usage-page/usage-material.js");
 pub struct UsageServer {
     pub url: String,
 }
+pub struct SyncActions {
+    runtime: Arc<crate::sync_runtime::SyncRuntime>,
+    open_settings: Box<dyn Fn() -> Result<(), Diagnostic> + Send + Sync>,
+    token: String,
+}
+impl SyncActions {
+    pub fn new(runtime: Arc<crate::sync_runtime::SyncRuntime>, open_settings: impl Fn() -> Result<(), Diagnostic> + Send + Sync + 'static) -> Self {
+        Self { runtime, open_settings: Box::new(open_settings), token: uuid::Uuid::new_v4().to_string() }
+    }
+}
 
 impl UsageServer {
     /// 绑定 127.0.0.1 的随机可用端口并开始服务。
+    #[cfg(test)]
     pub async fn start(service: Arc<UsageService>) -> Result<UsageServer, Diagnostic> {
+        Self::start_with_sync(service, None).await
+    }
+    pub async fn start_with_sync(service: Arc<UsageService>, actions: Option<SyncActions>) -> Result<UsageServer, Diagnostic> {
         let listener = TcpListener::bind("127.0.0.1:0").await.map_err(|error| {
             Diagnostic::new("QUT-701", "无法准备本机用量页，请重试")
                 .with_detail(format!("本机服务端口绑定失败：{error}"))
@@ -31,10 +45,12 @@ impl UsageServer {
             Diagnostic::new("QUT-701", "无法准备本机用量页，请重试")
                 .with_detail(format!("本机服务地址读取失败：{error}"))
         })?;
+        let actions = actions.map(Arc::new);
+        let authority = address.to_string();
         let accept_loop = async move {
             while let Ok((stream, _)) = listener.accept().await {
                 let service = Arc::clone(&service);
-                tokio::spawn(serve_connection(stream, service));
+                tokio::spawn(serve_connection(stream, service, actions.clone(), authority.clone()));
             }
         };
         tauri::async_runtime::spawn(async move {
@@ -49,7 +65,7 @@ impl UsageServer {
     }
 }
 
-async fn serve_connection(mut stream: TcpStream, service: Arc<UsageService>) {
+async fn serve_connection(mut stream: TcpStream, service: Arc<UsageService>, actions: Option<Arc<SyncActions>>, authority: String) {
     let _ = stream.set_nodelay(true);
     let mut head = Vec::new();
     let mut chunk = [0u8; 2048];
@@ -72,6 +88,34 @@ async fn serve_connection(mut stream: TcpStream, service: Arc<UsageService>) {
         let _ = stream.write_all(&response("400 Bad Request", "text/plain; charset=utf-8", b"bad request".to_vec())).await;
         return;
     };
+    if let Some(actions) = &actions {
+        let headers = String::from_utf8_lossy(&head);
+        let header = |key: &str| headers.lines().skip(1).filter_map(|l| l.split_once(':'))
+            .find(|(k,_)| k.eq_ignore_ascii_case(key)).map(|(_,v)|v.trim());
+        let origin = format!("http://{authority}");
+        if header("host") != Some(authority.as_str()) || header("origin").is_some_and(|o|o!=origin)
+            || (method == "POST" && header("x-quodex-action") != Some(actions.token.as_str())) {
+            let _=stream.write_all(&response("403 Forbidden","text/plain",b"forbidden".to_vec())).await;return;
+        }
+        if method == "POST" && matches!(target,"/api/sync"|"/api/sync/settings") {
+            let result = if target == "/api/sync" { actions.runtime.synchronize() } else {
+                let actions=actions.clone();
+                tauri::async_runtime::spawn_blocking(move || (actions.open_settings)()).await
+                    .unwrap_or_else(|_|Err(Diagnostic::new("QDS-113","无法打开同步设置；请重启 QuoDex")))
+            };
+            let (status,body) = match result { Ok(())=>("202 Accepted",br#"{"accepted":true}"#.to_vec()),
+                Err(e)=>("500 Internal Server Error",serde_json::to_vec(&e).unwrap_or_default()) };
+            let _=stream.write_all(&response(status,"application/json; charset=utf-8",body)).await;return;
+        }
+        if method == "GET" && target.split('?').next() == Some("/api/usage") {
+            let body=serde_json::to_vec(&actions.runtime.snapshot()).unwrap_or_default();
+            let _=stream.write_all(&response("200 OK","application/json; charset=utf-8",body)).await;return;
+        }
+        if method == "GET" && matches!(target,"/"|"/index.html") {
+            let body=PAGE_INDEX.replace("__QUODEX_ACTION__",&actions.token).into_bytes();
+            let _=stream.write_all(&response("200 OK","text/html; charset=utf-8",body)).await;return;
+        }
+    }
     // 单来源重试：POST /api/refresh?source=codex|zcode|all，在阻塞线程执行读取。
     if method == "POST" && target.split(['?', '#']).next() == Some("/api/refresh") {
         let source = target
@@ -138,7 +182,7 @@ fn route(method: &str, target: &str, service: &UsageService) -> (&'static str, &
 
 fn response(status: &str, content_type: &str, body: Vec<u8>) -> Vec<u8> {
     let mut head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n",
         body.len()
     )
     .into_bytes();

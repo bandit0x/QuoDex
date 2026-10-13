@@ -24,7 +24,6 @@ import {
   periodRange,
   sourceDayInfo,
   sumRange,
-  todayKey,
   weekdayIndex,
 } from "./usage-core.js";
 
@@ -43,15 +42,19 @@ const SOURCES = [
 ];
 const POLL_INTERVAL_MS = 15000;
 const MAX_RANGE_DAYS = 800;
+const todayKey = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
+const actionHeaders = { "X-QuoDex-Action": document.querySelector('meta[name="quodex-action"]')?.content ?? "" };
 
 const state = {
   range: "30d",
   view: "merged",
+  scope: "local",
   selectedDay: todayKey(),
   snapshot: null,
   connection: "connecting",
   lastFetchAtMs: null,
   refreshBusy: false,
+  syncBusy: null,
   retryBusy: {},
 };
 
@@ -67,7 +70,7 @@ for (const id of [
 
 function timeText(ms, withSeconds = false) {
   if (!ms) return "";
-  const options = { hour12: false, hour: "2-digit", minute: "2-digit" };
+  const options = { hour12: false, hour: "2-digit", minute: "2-digit", timeZone: "Asia/Shanghai" };
   if (withSeconds) options.second = "2-digit";
   return new Date(ms).toLocaleTimeString("zh-CN", options);
 }
@@ -78,7 +81,7 @@ function dateShort(iso) {
 }
 
 function snapshotSources() {
-  const snapshot = state.snapshot;
+  const snapshot = state.scope === "all" ? state.snapshot?.allDevices : state.snapshot;
   return {
     codex: snapshot?.codex ?? null,
     zcode: snapshot?.zcode ?? null,
@@ -124,7 +127,8 @@ async function fetchSnapshot() {
     const next = await response.json();
     // generatedAtMs 每次轮询都会变；只有来源数据本身变化才替换快照，
     // 避免无新增的刷新触发整页重渲染打断焦点与交互。
-    const meaningful = JSON.stringify([next.codex, next.zcode]);
+    const meaningful = JSON.stringify([next.codex, next.zcode, next.allDevices, next.sync]);
+    if (!state.snapshot && next.sync?.lastSuccessAtMs) state.scope = "all";
     if (!state.snapshot || meaningful !== lastSnapshotKey) {
       state.snapshot = next;
       lastSnapshotKey = meaningful;
@@ -162,7 +166,7 @@ async function retrySource(sourceKey) {
   state.retryBusy[sourceKey] = true;
   render();
   try {
-    await fetch(`/api/refresh?source=${sourceKey}`, { method: "POST", cache: "no-store" });
+    await fetch(`/api/refresh?source=${sourceKey}`, { method: "POST", headers: actionHeaders, cache: "no-store" });
   } catch {
     /* 断连时重试请求本身失败，等待下一次轮询。 */
   }
@@ -186,6 +190,7 @@ function renderStateKey() {
     JSON.stringify(state.snapshot),
     state.range,
     state.view,
+    state.scope,
     state.selectedDay,
     state.connection,
     JSON.stringify(state.retryBusy),
@@ -205,6 +210,62 @@ function render() {
   renderCalendar();
   renderTrend();
   renderUpdatedLine();
+  renderSync();
+}
+
+function renderSync() {
+  const sync = state.snapshot?.sync;
+  const labels = { disconnected: "尚未连接网盘 · 本机持续记账", authorizing: "等待百度授权 · 请在同步设置中继续", syncing: "正在同步 · 本机持续记账", "catching-up": "正在补齐历史", ready: "本轮同步完成", failed: "同步暂不可用 · 保留已收到的账目", reauthorize: "需要重新授权 · 本机持续记账" };
+  let message = labels[sync?.state] ?? "正在读取同步状态…";
+  if (state.connection === "lost") message = "本机服务已断开 · 显示上次数据";
+  else if (sync?.diagnostic) message = `${sync.diagnostic.message} · ${sync.diagnostic.code}`;
+  if (sync?.lastSuccessAtMs) message += ` · 最近同步 ${new Date(sync.lastSuccessAtMs).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}`;
+  document.getElementById("sync-summary").textContent = message;
+  document.getElementById("sync-detail-status").textContent = message;
+  document.getElementById("sync-dot").dataset.state = sync?.state ?? "disconnected";
+  document.getElementById("scope-label").textContent = state.scope === "all" ? "个人账本 · 全部设备已收到记录" : "本机所有项目 · 已记录用量";
+  for (const key of ["all", "local"]) {
+    const button = document.getElementById(`scope-${key}`);
+    button.setAttribute("aria-pressed", String(state.scope === key));
+    button.dataset.selected = String(state.scope === key);
+  }
+  const list = document.getElementById("sync-devices");
+  list.replaceChildren();
+  for (const device of sync?.devices ?? []) {
+    const li = document.createElement("li");
+    const name = document.createElement("span"); name.textContent = `设备 ${device.id.slice(0, 8)}`;
+    const time = document.createElement("span"); time.textContent = device.uploadedAtMs ? new Date(device.uploadedAtMs).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "尚无上传时间";
+    li.append(name, time); list.append(li);
+  }
+  if (!list.children.length) { const li = document.createElement("li"); li.textContent = "连接网盘后，这里会列出已上传账目的设备。"; list.append(li); }
+  const excluded = [];
+  if (sync?.conflicts) excluded.push(`${sync.conflicts} 条冲突请求暂不计入全部设备合计`);
+  if (sync?.incomplete) excluded.push(`${sync.incomplete} 条请求等待补齐前序记录`);
+  if (sync?.unidentified) excluded.push(`${sync.unidentified} 条旧账缺少可靠身份，仅保留在本机`);
+  if (sync?.pending) excluded.push(`${sync.pending} 条记录等待上传`);
+  if (sync?.pendingDownloads) excluded.push(`${sync.pendingDownloads} 个历史批次等待接收`);
+  document.getElementById("sync-exclusions").textContent = excluded.join("；");
+  if (excluded.length) document.getElementById("sync-summary").textContent += ` · ${excluded.join("；")}`;
+  document.getElementById("sync-now").disabled = !!state.syncBusy || !sync || ["disconnected", "authorizing", "reauthorize", "syncing"].includes(sync.state);
+  document.getElementById("sync-settings").disabled = !!state.syncBusy;
+}
+
+for (const key of ["all", "local"]) document.getElementById(`scope-${key}`).addEventListener("click", () => { state.scope = key; render(); });
+document.getElementById("sync-details-open").addEventListener("click", () => document.getElementById("sync-details").showModal());
+document.getElementById("sync-details-close").addEventListener("click", () => document.getElementById("sync-details").close());
+for (const [id, path] of [["sync-now", "/api/sync"], ["sync-settings", "/api/sync/settings"]]) {
+  document.getElementById(id).addEventListener("click", async event => {
+    if (state.syncBusy) return;
+    state.syncBusy = id; renderSync();
+    const output = document.getElementById("sync-action-error"); output.textContent = "";
+    try {
+      const response = await fetch(path, { method: "POST", headers: actionHeaders });
+      if (!response.ok) throw new Error("操作未被本机服务接受，请刷新页面后重试 · QDS-113");
+      if (id === "sync-settings") output.textContent = "已请求打开 QuoDex 同步设置窗口。";
+      await fetchSnapshot();
+    } catch (error) { output.textContent = error.message || "本机服务连接失败 · QDS-113"; }
+    finally { state.syncBusy = null; renderSync(); }
+  });
 }
 
 function renderUpdatedLine() {

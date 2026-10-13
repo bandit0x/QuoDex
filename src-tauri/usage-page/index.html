@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="quodex-action" content="__QUODEX_ACTION__" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'" />
   <title>QuoDex · 用量统计</title>
@@ -20,7 +21,7 @@
       <div class="brand">
         <span class="brand-name">QuoDex</span>
         <h1 class="page-title">用量统计</h1>
-        <span class="scope">本机所有项目 · 已记录用量</span>
+        <span class="scope" id="scope-label">本机所有项目 · 已记录用量</span>
       </div>
       <div class="header-status">
         <span id="updated-line" class="updated-line" role="status"></span>
@@ -32,8 +33,18 @@
       <div class="range-group" role="group" aria-label="时间区间" id="range-group"></div>
       <span class="controls-divider" aria-hidden="true"></span>
       <div class="view-group" role="group" aria-label="显示模式" id="view-group"></div>
+      <div class="view-group device-scope" role="group" aria-label="设备范围">
+        <button class="pill" id="scope-all" type="button" aria-pressed="false">全部设备</button>
+        <button class="pill" id="scope-local" type="button" aria-pressed="true">本机</button>
+      </div>
       <span id="range-dates" class="range-dates"></span>
     </nav>
+
+    <section class="sync-strip" aria-label="个人账本同步">
+      <span class="sync-dot" id="sync-dot" aria-hidden="true"></span>
+      <span id="sync-summary" role="status">尚未连接网盘 · 本机持续记账</span>
+      <button class="pill pill--action" id="sync-details-open" type="button">同步详情</button>
+    </section>
 
     <section id="banner" class="banner" hidden></section>
 
@@ -70,9 +81,19 @@
         <span class="section-note" id="trend-dates"></span>
       </div>
       <div class="trend-charts" id="trend-charts"></div>
-      <p class="trend-caption">仅统计本机仍留存的记录；缺失历史不等于零用量。精确数字以千位分隔显示，图表刻度为缩写。</p>
+      <p class="trend-caption">仅统计已留存的历史账目，按 Asia/Shanghai 划分日期；缺失历史不等于零用量。精确数字以千位分隔显示，图表刻度为缩写。</p>
     </section>
   </main>
+
+  <dialog id="sync-details" class="sync-dialog glass-panel" aria-labelledby="sync-details-title">
+    <div class="section-head"><h2 id="sync-details-title">同步详情</h2><button class="pill" id="sync-details-close" type="button" aria-label="关闭同步详情">关闭</button></div>
+    <p id="sync-detail-status"></p>
+    <p class="section-note">显示各设备最后上传时间，不代表设备当前在线。</p>
+    <ul id="sync-devices" class="sync-device-list"></ul>
+    <p id="sync-exclusions" class="sync-exclusions"></p>
+    <p id="sync-action-error" role="alert"></p>
+    <div class="sync-actions"><button class="pill pill--action" id="sync-now" type="button">立即同步</button><button class="pill pill--action" id="sync-settings" type="button">管理连接<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M7 6h11v11" /></svg></button></div>
+  </dialog>
 
   <footer class="page-footer" aria-hidden="true"></footer>
   <noscript>本页需要启用 JavaScript 才能显示用量统计。</noscript>

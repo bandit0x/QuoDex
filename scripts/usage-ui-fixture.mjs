@@ -2,13 +2,14 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { addDays, periodRange, sumRange, todayKey } from "../src-tauri/usage-page/usage-core.js";
 
 export const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export async function createUsageFixture() {
-  const root = await mkdtemp("/private/tmp/quodex-usage-ui-");
+  const root = await mkdtemp(path.join(os.tmpdir(), "quodex-usage-ui-"));
   const today = todayKey();
   const daily = { codex: {}, zcode: {} };
   const gaps = [addDays(today, -11), addDays(today, -6)];

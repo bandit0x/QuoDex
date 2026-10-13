@@ -255,6 +255,7 @@ fn parse_rollout_file(
 #[derive(Debug, Clone)]
 pub struct ZcodeUsageRecord {
     pub id: String,
+    pub session_id: String,
     pub started_at_ms: i64,
     pub total_tokens: i64,
     pub input_tokens: i64,
@@ -281,7 +282,7 @@ pub fn scan_zcode_usage(db_path: &Path) -> Result<Vec<ZcodeUsageRecord>, Diagnos
     let mut statement = conn
         .prepare(
             "SELECT id, started_at, computed_total_tokens, input_tokens, output_tokens,
-             cache_read_input_tokens, cache_creation_input_tokens, reasoning_tokens
+             cache_read_input_tokens, cache_creation_input_tokens, reasoning_tokens, session_id
              FROM model_usage",
         )
         .map_err(map_zcode_query_error)?;
@@ -291,6 +292,7 @@ pub fn scan_zcode_usage(db_path: &Path) -> Result<Vec<ZcodeUsageRecord>, Diagnos
             let cache_write: i64 = row.get(6)?;
             Ok(ZcodeUsageRecord {
                 id: row.get(0)?,
+                session_id: row.get(8)?,
                 started_at_ms: row.get(1)?,
                 total_tokens: row.get(2)?,
                 input_tokens: row.get(3)?,
