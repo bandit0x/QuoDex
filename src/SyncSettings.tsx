@@ -87,7 +87,7 @@ export default function SyncSettings() {
       </div>}
     </section>
     <footer className="sync-settings-footnote"><span>只同步匿名请求标识、时间与 token 数。</span><span>不上传聊天正文、项目路径或模型 API key。</span>
-      <details><summary>首次连接需要准备什么？</summary><p>在百度网盘开放平台完成个人开发者认证，创建应用并开通网盘权限。将 AppKey、SecretKey 和应用文件夹填入上方；然后登录你的百度账号确认授权。</p><p>网盘只负责保存账目。无需维护常驻服务，离线仍会记账；联网后约每分钟同步一次，网络失败时逐步延长重试间隔。</p></details>
+      <details><summary>首次连接需要准备什么？</summary><p>在百度网盘开放平台完成个人开发者认证，创建应用并开通网盘权限。将 AppKey、SecretKey 和应用文件夹填入上方；然后登录你的百度账号确认授权。</p><p>网盘只负责保存账目。启动或首次授权后同步一次，此后每 6 小时自动同步；离线仍会记账，失败在下一周期重试，也可点击立即同步。</p></details>
     </footer>
   </main>;
 }

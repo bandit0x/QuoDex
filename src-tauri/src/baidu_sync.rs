@@ -227,10 +227,21 @@ fn trusted(url: &Url, upload: bool) -> bool {
         && url.username().is_empty()
         && url.password().is_none()
         && url.port().is_none()
-        && url
-            .host_str()
-            .is_some_and(|h| h.ends_with(".pcs.baidu.com") || h == "pcs.baidu.com")
+        && url.host_str().is_some_and(|h| {
+            h.ends_with(".pcs.baidu.com")
+                || h == "pcs.baidu.com"
+                || (!upload && (h == "baidupcs.com" || h.ends_with(".baidupcs.com")))
+        })
         && (!upload || (url.path() == "/" && url.query().is_none() && url.fragment().is_none()))
+}
+fn rejected_download(url: &Url) -> Diagnostic {
+    error(
+        "QDS-112",
+        &format!(
+            "下载地址未通过安全校验（主机：{}）；已停止请求，请反馈此主机名以检查支持情况",
+            url.host_str().unwrap_or("无有效主机")
+        ),
+    )
 }
 pub struct BaiduStore {
     client: Client,
@@ -399,10 +410,7 @@ impl Store for BaiduStore {
         let mut url = Url::parse(&required(row, "dlink")?).map_err(|_| protocol())?;
         for _ in 0..5 {
             if !self.trusted(&url, false) {
-                return Err(error(
-                    "QDS-112",
-                    "百度返回了尚未支持的下载域名；已停止凭据转发，请更新 QuoDex",
-                ));
+                return Err(rejected_download(&url));
             }
             let pairs: Vec<(String, String)> = url
                 .query_pairs()
@@ -519,6 +527,19 @@ impl Store for BaiduStore {
 mod tests {
     use super::*;
     #[test]
+    fn accepts_baidu_download_cdn_without_expanding_upload_hosts() {
+        let cdn =
+            Url::parse("https://qdbh-cu01.baidupcs.com/file/synthetic?sign=synthetic").unwrap();
+        assert!(
+            trusted(&cdn, false),
+            "Baidu download CDN incorrectly triggers QDS-112"
+        );
+        assert!(!trusted(
+            &Url::parse("https://qdbh-cu01.baidupcs.com/").unwrap(),
+            true
+        ));
+    }
+    #[test]
     fn refuses_credential_forwarding_to_untrusted_hosts() {
         for u in [
             "http://c.pcs.baidu.com/",
@@ -526,6 +547,11 @@ mod tests {
             "https://user@c.pcs.baidu.com/",
             "https://127.0.0.1/",
             "https://c.pcs.baidu.com:8443/",
+            "https://baidupcs.com.evil.org/file",
+            "https://evilbaidupcs.com/file",
+            "http://cdn.baidupcs.com/file",
+            "https://cdn.baidupcs.com:8443/file",
+            "https://secret@cdn.baidupcs.com/file",
         ] {
             assert!(!trusted(&Url::parse(u).unwrap(), false), "{u}");
         }
@@ -536,6 +562,16 @@ mod tests {
     }
     #[test]
     fn errors_are_actionable_without_echoing_server_secrets() {
+        let rejected = rejected_download(&Url::parse("https://secret@unknown.example/private-path?access_token=sensitive-token#private-fragment").unwrap());
+        assert!(rejected.message.contains("unknown.example"));
+        for secret in [
+            "secret",
+            "private-path",
+            "sensitive-token",
+            "private-fragment",
+        ] {
+            assert!(!rejected.to_string().contains(secret));
+        }
         let e = checked(json!({"errno":110,"errmsg":"sensitive-token"})).unwrap_err();
         assert_eq!(e.code, "QDS-101");
         assert!(!e.to_string().contains("sensitive"));

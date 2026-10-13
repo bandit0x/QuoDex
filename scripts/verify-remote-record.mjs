@@ -67,6 +67,14 @@ try {
   await settings.getByLabel("AppKey", { exact: true }).waitFor();
   assert.equal(await page.locator("#sync-now").isDisabled(), true, "Opening settings must preserve disconnected action state");
   await settings.screenshot({ path: path.join(output, "connection-native.png") });
+  await check("Native settings explains the six-hour automatic cadence", async () => {
+    await settings.getByText("首次连接需要准备什么？", { exact: true }).click();
+    assert.ok(await settings.getByText(/此后每 6 小时自动同步/).isVisible());
+    await settings.getByText(/此后每 6 小时自动同步/).scrollIntoViewIfNeeded();
+    await settings.screenshot({ path: path.join(output, "connection-schedule-native.png"), fullPage: true });
+    await settings.getByText("首次连接需要准备什么？", { exact: true }).click();
+    await settings.evaluate(() => window.scrollTo(0, 0));
+  });
   await check("Native settings uses masked secrets and rejects invalid folder before networking", async () => {
     assert.equal(await settings.getByLabel("SecretKey", { exact: true }).getAttribute("type"), "password");
     await settings.getByLabel("AppKey", { exact: true }).fill("synthetic-key");

@@ -16,6 +16,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+const AUTO_SYNC_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncView {
@@ -289,7 +291,6 @@ impl SyncRuntime {
         }
         let mut authorization: Option<(Credentials, DeviceCode)> = None;
         let mut next = Instant::now();
-        let mut backoff = 60u64;
         loop {
             let timeout = if active.is_some() || authorization.is_some() {
                 next.saturating_duration_since(Instant::now())
@@ -449,7 +450,6 @@ impl SyncRuntime {
                         v.devices = outcome.devices;
                         v.diagnostic = None;
                     }
-                    backoff = 60;
                 }
                 Err(e) => {
                     let pause = matches!(e.code, "QDS-101" | "QDS-107" | "QDS-110" | "QDS-112");
@@ -462,10 +462,11 @@ impl SyncRuntime {
                     if pause {
                         active = None;
                     }
-                    backoff = (backoff * 2).min(900);
                 }
             }
-            next = Instant::now() + Duration::from_secs(backoff);
+            // Success, backlog and transient failure share the user's six-hour cadence.
+            // Explicit Sync/Connect commands still wake the worker immediately.
+            next = Instant::now() + AUTO_SYNC_INTERVAL;
         }
     }
 }
