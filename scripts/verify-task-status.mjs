@@ -150,10 +150,15 @@ async function toggleReducedMotion() {
 }
 const brightTravel = frames => Math.max(...frames.map(frame=>Math.hypot(frame.brightX-frames[0].brightX,frame.brightY-frames[0].brightY)));
 async function settingsRoundTrip() {
-  await button("展开重置详情"); await dimensions(196);
-  await button("设置"); await dimensions(356); await capture("settings-windows");
-  await button("关闭设置"); await dimensions(196); await pause(300);
-  await button("收起重置详情"); await dimensions(166);
+  // Native height includes the persistent 44px task row and 160px popup reserve.
+  await dimensions(334);
+  await button("展开重置详情"); await dimensions(364);
+  await button("设置"); await dimensions(528);
+  const { version } = JSON.parse(await readFile("package.json", "utf8"));
+  await waitFor(data => data.names.includes(`v${version}`), "native settings shows the application version");
+  await capture("settings-windows");
+  await button("关闭设置"); await dimensions(364); await pause(300);
+  await button("收起重置详情"); await dimensions(334);
 }
 const backgroundReady=path.join(root,"background-ready.json");
 const backgroundClicks=path.join(root,"background-clicks.json");

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { version } from "../package.json";
 import "./SyncSettings.css";
 
 type Issue = { code: string; message: string };
@@ -86,8 +87,8 @@ export default function SyncSettings() {
         <p className="sync-settings-muted">断开后停止同步，已经保存的账目仍会保留。</p>
       </div>}
     </section>
-    <footer className="sync-settings-footnote"><span>只同步匿名请求标识、时间与 token 数。</span><span>不上传聊天正文、项目路径或模型 API key。</span>
-      <details><summary>首次连接需要准备什么？</summary><p>在百度网盘开放平台完成个人开发者认证，创建应用并开通网盘权限。将 AppKey、SecretKey 和应用文件夹填入上方；然后登录你的百度账号确认授权。</p><p>网盘只负责保存账目。启动或首次授权后同步一次，此后每 6 小时自动同步；离线仍会记账，失败在下一周期重试，也可点击立即同步。</p></details>
+    <footer className="sync-settings-footnote"><span>{`QuoDex v${version}`}</span><span>只同步匿名请求标识、时间与 token 数。</span><span>不上传聊天正文、项目路径或模型 API key。</span>
+      <details><summary>首次连接需要准备什么？</summary><p>在百度网盘开放平台完成个人开发者认证，创建应用并开通网盘权限。将 AppKey、SecretKey 和应用文件夹填入上方；然后登录你的百度账号确认授权。</p><p>网盘只负责保存账目。启动或首次授权后同步一次，此后每 6 小时自动同步；离线仍会记账，失败在下一周期重试，也可点击立即同步。手动同步不改变自动同步的到期时间。</p></details>
     </footer>
   </main>;
 }

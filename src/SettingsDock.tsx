@@ -3,6 +3,7 @@ import type { Diagnostic, DisplayPreferences, SourceSelection } from "./capacity
 import { OpticalShell } from "./OpticalShell";
 import { GlassLensCanvas } from "./GlassLensCanvas";
 import { PlanSegmented } from "./PlanSegmented";
+import { version } from "../package.json";
 import "./SettingsDock.css";
 
 export type PreferenceSaveState = "idle" | "saving" | "saved" | "failed";
@@ -63,7 +64,10 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
           <span>减少动效</span><input type="checkbox" checked={preferences.reducedMotion} onChange={event => onChange({ ...preferences, reducedMotion: event.target.checked })} />
           <span className="dock-switch" aria-hidden="true" />
         </label>
-        <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
+        <span className="dock-info">
+          <span className="dock-version">{`v${version}`}</span>
+          <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
+        </span>
         <button className="dock-quit" type="button" aria-label="退出应用" onClick={onQuit}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6v9.4" /><path d="M17.8 6.2a8.2 8.2 0 1 1-11.6 0" /></svg>
           <span>退出</span>

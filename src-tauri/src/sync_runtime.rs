@@ -18,6 +18,25 @@ use std::{
 
 const AUTO_SYNC_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
+struct SyncSchedule {
+    next_automatic: Instant,
+}
+impl SyncSchedule {
+    fn new(now: Instant) -> Self {
+        Self {
+            next_automatic: now,
+        }
+    }
+    fn should_run(&self, now: Instant, manual: bool) -> bool {
+        manual || now >= self.next_automatic
+    }
+    fn complete(&mut self, started: Instant, finished: Instant) {
+        if started >= self.next_automatic {
+            self.next_automatic = finished + AUTO_SYNC_INTERVAL;
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncView {
@@ -290,13 +309,19 @@ impl SyncRuntime {
             }
         }
         let mut authorization: Option<(Credentials, DeviceCode)> = None;
-        let mut next = Instant::now();
+        let mut authorization_next = Instant::now();
+        let mut schedule = SyncSchedule::new(authorization_next);
         loop {
-            let timeout = if active.is_some() || authorization.is_some() {
-                next.saturating_duration_since(Instant::now())
+            let timeout = if authorization.is_some() {
+                authorization_next.saturating_duration_since(Instant::now())
+            } else if active.is_some() {
+                schedule
+                    .next_automatic
+                    .saturating_duration_since(Instant::now())
             } else {
                 Duration::from_secs(3600)
             };
+            let mut manual_sync = false;
             match receiver.recv_timeout(timeout) {
                 Ok(Command::Disconnect) => {
                     active = None;
@@ -335,7 +360,8 @@ impl SyncRuntime {
                             v.authorization_expires_at_ms = Some(code.expires_at);
                             v.app_key = c.app_key.clone();
                             v.folder = c.folder.clone();
-                            next = Instant::now() + Duration::from_secs(code.interval);
+                            authorization_next =
+                                Instant::now() + Duration::from_secs(code.interval);
                             authorization = Some((c, code));
                         }
                         Err(e) => self.state("failed", Some(e)),
@@ -346,7 +372,7 @@ impl SyncRuntime {
                     if authorization.is_some() {
                         continue;
                     }
-                    next = Instant::now();
+                    manual_sync = true;
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -362,12 +388,12 @@ impl SyncRuntime {
                 }
                 match baidu_sync::poll(&c, &code.code) {
                     Ok(Authorization::Pending) => {
-                        next = Instant::now() + Duration::from_secs(code.interval);
+                        authorization_next = Instant::now() + Duration::from_secs(code.interval);
                         authorization = Some((c, code));
                     }
                     Ok(Authorization::Slow) => {
                         code.interval = (code.interval + 6).min(300);
-                        next = Instant::now() + Duration::from_secs(code.interval);
+                        authorization_next = Instant::now() + Duration::from_secs(code.interval);
                         authorization = Some((c, code));
                     }
                     Ok(Authorization::Ready(token)) => {
@@ -379,7 +405,7 @@ impl SyncRuntime {
                         }) {
                             Ok(()) => {
                                 active = Some(c);
-                                next = Instant::now();
+                                schedule = SyncSchedule::new(Instant::now());
                             }
                             Err(e) => self.state("failed", Some(e)),
                         }
@@ -394,7 +420,8 @@ impl SyncRuntime {
             let Some(c) = active.as_mut() else {
                 continue;
             };
-            if Instant::now() < next {
+            let started = Instant::now();
+            if !schedule.should_run(started, manual_sync) {
                 continue;
             }
             self.state("syncing", None);
@@ -464,9 +491,9 @@ impl SyncRuntime {
                     }
                 }
             }
-            // Success, backlog and transient failure share the user's six-hour cadence.
-            // Explicit Sync/Connect commands still wake the worker immediately.
-            next = Instant::now() + AUTO_SYNC_INTERVAL;
+            // Only a round started at/after the automatic deadline advances it.
+            // Manual rounds run immediately without postponing the automatic round.
+            schedule.complete(started, Instant::now());
         }
     }
 }
@@ -474,6 +501,58 @@ impl SyncRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn manual_sync_does_not_postpone_the_automatic_round() {
+        let start = Instant::now();
+        let mut schedule = SyncSchedule::new(start);
+        assert!(
+            schedule.should_run(start, false),
+            "startup sync runs immediately"
+        );
+        schedule.complete(start, start);
+        for hour in [1, 3, 5] {
+            let manual_start = start + Duration::from_secs(hour * 3600);
+            assert!(schedule.should_run(manual_start, true));
+            schedule.complete(manual_start, manual_start + Duration::from_secs(10));
+            assert!(!schedule.should_run(manual_start + Duration::from_secs(11), false));
+        }
+        assert!(
+            schedule.should_run(start + Duration::from_secs(21_600), false),
+            "manual sync must leave the original six-hour deadline unchanged"
+        );
+    }
+
+    #[test]
+    fn automatic_round_waits_until_an_overrunning_manual_round_finishes() {
+        let start = Instant::now();
+        let mut schedule = SyncSchedule::new(start);
+        schedule.complete(start, start);
+        let manual_start = start + Duration::from_secs(21_599);
+        let manual_finish = start + Duration::from_secs(21_601);
+        assert!(schedule.should_run(manual_start, true));
+        schedule.complete(manual_start, manual_finish);
+        assert!(
+            schedule.should_run(manual_finish, false),
+            "overdue automatic round runs next"
+        );
+        schedule.complete(manual_finish, manual_finish);
+        assert!(!schedule.should_run(start + Duration::from_secs(43_200), false));
+        assert!(schedule.should_run(start + Duration::from_secs(43_201), false));
+    }
+
+    #[test]
+    fn manual_request_at_the_automatic_deadline_uses_one_round() {
+        let start = Instant::now();
+        let mut schedule = SyncSchedule::new(start);
+        schedule.complete(start, start);
+        let due = start + Duration::from_secs(21_600);
+        assert!(schedule.should_run(due, true));
+        schedule.complete(due, due + Duration::from_secs(10));
+        assert!(!schedule.should_run(due + Duration::from_secs(10), false));
+        assert!(!schedule.should_run(start + Duration::from_secs(43_209), false));
+        assert!(schedule.should_run(start + Duration::from_secs(43_210), false));
+    }
+
     #[test]
     fn ledger_read_failure_preserves_last_displayed_total() {
         let home = std::env::temp_dir().join(format!("quodex-sync-view-{}", uuid::Uuid::new_v4()));

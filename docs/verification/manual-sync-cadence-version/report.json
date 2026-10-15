@@ -1,0 +1,171 @@
+{
+  "status": "Acceptance pending",
+  "verifiedAt": "2026-10-15T10:25:59.0147838+08:00",
+  "source": {
+    "revision": "The local Git commit containing this report; file digests identify the compiled source.",
+    "base": "eeebcd9cb12cedfed770d4a1b54754a89750c0bb",
+    "branch": "fix/manual-sync-cadence-version",
+    "fileSha256": {
+      "src-tauri/src/sync_runtime.rs": "3bf58b147e67207dba9b346e0309696be72f73cd4a751b185441dd7278dede88",
+      "src/SettingsDock.tsx": "e69f5823d3a5f058a3cc061cbaf24d6ab720fd53e03ccb03998d37bd00c6bd8d",
+      "src/SettingsDock.css": "2ab4c3ed8281ff5911a065cead39aa1638b408ddd28c08bad285790f1daea321",
+      "src/SyncSettings.tsx": "f841764c77237bbaf41be475d0cbe0ac390ab80336ed195c06275d5d010a0a82",
+      "package.json": "262b300357fb311290f9b3e4a7f440443b9f2dad93dea9f01df0ba6f723616bf",
+      "src-tauri/tauri.conf.json": "72c19ee4ce472911c09dacd184048b4c3729721e4baa78e6285c598b47750dbf"
+    }
+  },
+  "artifact": {
+    "version": "0.4.5",
+    "installedPath": "C:\\Users\\bandit\\AppData\\Local\\QuoDex\\codex-credits-view.exe",
+    "installedProcessId": 17996,
+    "path": "src-tauri/target/release/codex-credits-view.exe",
+    "originalProcessQuitNormally": true,
+    "sha256": "eba201ec6f818716da49c1fcadc7800ecb77fea2f9fb442a5c74f78787505c37",
+    "installedSha256Matches": true,
+    "scope": "Local revision of v0.4.5; no GitHub release or tag changed"
+  },
+  "environment": {
+    "webview2": "151.0.4129.78",
+    "powerShell": "7.6.5",
+    "windows": "Microsoft Windows NT 10.0.26200.0",
+    "node": "v24.18.0",
+    "rust": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  },
+  "checks": {
+    "releaseBuild": "passed",
+    "ledgerPreservation": {
+      "before": 19042,
+      "after": 19043,
+      "missingOriginalEvents": 0
+    },
+    "nativeSettings": {
+      "status": "Verified",
+      "executable": "D:\\bandit\\projects\\QuoDex\\QuoDex\\src-tauri\\target\\release\\codex-credits-view.exe",
+      "sha256": "eba201ec6f818716da49c1fcadc7800ecb77fea2f9fb442a5c74f78787505c37",
+      "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+      "checks": [
+        "minimal native settings round trip with task row"
+      ],
+      "screenshots": [
+        "settings-windows.png"
+      ],
+      "errors": [],
+      "methods": [
+        "initialize",
+        "thread-owner-discovery",
+        "thread-stream-following-changed"
+      ],
+      "limitations": [
+        "Fixture does not prove live Desktop waiting requests or chat navigation."
+      ]
+    },
+    "nativeFixtureTests": {
+      "failed": 0,
+      "passed": 2
+    },
+    "finalSettingsTextTests": {
+      "failed": 0,
+      "passed": 10
+    },
+    "debugBuild": "passed",
+    "nativeSync": {
+      "status": "Verified",
+      "scope": "Windows native product, synthetic local records, no cloud account",
+      "date": "2026-10-15T02:24:26.812Z",
+      "node": "v24.18.0",
+      "executableSha256": "349cbeb2edea5c75960f97ecdd897fa211f0c26ad63776f0558c75a14476f22c",
+      "checks": [
+        {
+          "name": "Fresh desktop product imports isolated Codex and ZCode; sync remains disconnected",
+          "status": "Verified"
+        },
+        {
+          "name": "Local mutation bridge refuses foreign Origin and missing capability",
+          "status": "Verified"
+        },
+        {
+          "name": "Scope switch preserves exact total and works by keyboard",
+          "status": "Verified"
+        },
+        {
+          "name": "Native settings explains the six-hour automatic cadence",
+          "status": "Verified"
+        },
+        {
+          "name": "Native settings uses masked secrets and rejects invalid folder before networking",
+          "status": "Verified"
+        },
+        {
+          "name": "390px usage page stays within viewport",
+          "status": "Verified"
+        },
+        {
+          "name": "Disconnect from native settings retains collected history",
+          "status": "Verified"
+        }
+      ],
+      "browserErrors": [],
+      "limitation": "Baidu authorization, real transfer, OS credential rotation and two physical PCs are not verified.",
+      "error": null
+    },
+    "frontendTests": {
+      "failed": 0,
+      "passed": 175
+    },
+    "rustTests": {
+      "ignored": 5,
+      "passed": 162,
+      "failed": 0,
+      "ignoredScope": "Opt-in live account and pre-existing Desktop/ZCode checks; see rust-tests.log"
+    },
+    "clippyWarningsAsErrors": "passed",
+    "scheduleRegression": {
+      "clock": "Production SyncSchedule with explicit monotonic instants; no sleeps, real credentials or interval shortening",
+      "cases": [
+        "repeated manual rounds at hours 1/3/5 do not postpone the hour-6 automatic round",
+        "manual round starting before but finishing after the deadline leaves the automatic round due for serialized execution",
+        "manual request at the automatic deadline shares one round and schedules the next automatic round six hours after completion"
+      ],
+      "redFailure": "manual sync must leave the original six-hour deadline unchanged",
+      "redLog": ".scratch/manual-sync-cadence-version/schedule-red.log",
+      "greenLog": ".scratch/manual-sync-cadence-version/schedule-green.log"
+    },
+    "installedLiveCheck": {
+      "observedAt": "2026-10-15T10:26:35.4365474+08:00",
+      "settingsVersion": "v0.4.5",
+      "syncState": "ready",
+      "lastSuccessAtMs": 1792031122513,
+      "lastSuccessLocal": "2026-10-15 10:25:22 +08:00",
+      "pending": 1,
+      "pendingDownloads": 0,
+      "diagnostic": null,
+      "processRunning": true
+    }
+  },
+  "screenshots": {
+    "syncSettings": "sync-settings-native.png",
+    "displaySettings": "settings-native.png",
+    "inspection": "Both show v0.4.5. Display dock keeps existing bounds, switches, save status and usage row; synchronization footer uses existing typography."
+  },
+  "investigations": {
+    "finalNativeResult": "Version, open/close dimensions and screenshots passed after corrections; original failure artifacts retained in local scratch.",
+    "firstNativeFailure": "Outdated geometry assertion expected 196/356 pixels. Current task row and reserved popup add 204 pixels; expanded/settings windows are 364/528 pixels. Updated the native check to retain exact production dimensions.",
+    "secondNativeFailure": "UI Automation exposed JSX v and 0.4.5 as separate text nodes. Saved screenshot already showed the version. Rendering each version label as one template string makes the complete version available as a single native text label."
+  },
+  "reproduction": [
+    "cargo test --locked --manifest-path src-tauri/Cargo.toml --lib sync_runtime",
+    "npm.cmd test",
+    "npm.cmd run test:native-fixtures",
+    "cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "npm.cmd run tauri -- build --no-bundle -- --locked",
+    "Set QUODEX_EXECUTABLE to the release executable and WEBVIEW2_BROWSER_EXECUTABLE_FOLDER to the installed fixed runtime; node scripts/verify-task-status.mjs --settings-only",
+    "npm.cmd run tauri -- build --debug --no-bundle -- --locked",
+    "Set QUODEX_QA_APP to the debug executable and QUODEX_QA_OUTPUT to a new output folder; node scripts/verify-remote-record.mjs"
+  ],
+  "limitations": [
+    "The six-hour behavior was tested with explicit instants against production scheduling logic; no full six-hour wall-clock run was performed.",
+    "Native source records are anonymous fixtures. Two physical PCs, macOS and credential rotation are outside this revision verification.",
+    "MSVC prints creation of DLL import libraries as a linker stdout warning; release/debug builds completed and strict Clippy passed."
+  ],
+  "nextStep": "User acceptance of the installed local revision; keep the app running to observe the full six-hour interval."
+}

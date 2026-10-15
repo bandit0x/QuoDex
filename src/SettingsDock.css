@@ -93,7 +93,9 @@
 .dock-motion input:checked + .dock-switch { background:rgba(32,123,99,.48); }
 .dock-motion input:checked + .dock-switch::before { transform:translateX(32px); }
 .dock-motion input:focus-visible + .dock-switch { outline:2px solid var(--cyan); outline-offset:3px; }
-.dock-save-state { position:relative; z-index:6; display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; color:#9ff3cd; font-size:16px; white-space:nowrap; pointer-events:none; }
+.dock-info { position:relative; z-index:6; display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:0; pointer-events:none; }
+.dock-version { color:#afc3d2; font-size:18px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.dock-save-state { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; color:#9ff3cd; font-size:16px; white-space:nowrap; }
 .dock-save-state svg { width:16px; height:16px; }
 .dock-controls[data-save-state="saving"] .dock-save-state { color:#bcd9e4; }
 /* 用量统计入口行：出血铺满控制仓（吃掉左右内边距与相邻 gap），整行都是点击热区；
