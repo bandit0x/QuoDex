@@ -278,6 +278,31 @@ export function niceTicks(maxValue) {
   return [0, top / 2, top];
 }
 
+/** 固定向后窗口；缺失与未结束的今日不参与完整日平均，原值独立保留。 */
+export function usageTrend(source, days, today, windowDays) {
+  const read = day => {
+    const info = sourceDayInfo(source ?? { daily: {} }, day, today);
+    if (info.cls === "value" && (!Number.isFinite(info.value) || info.value < 0)) {
+      return { cls: "unknown", value: null };
+    }
+    return { cls: info.cls, value: info.cls === "zero" ? 0 : info.value };
+  };
+  const points = days.map(day => {
+    const raw = read(day);
+    let average = null;
+    if (day < today) {
+      const samples = Array.from({ length: windowDays }, (_, i) => read(addDays(day, -i)));
+      if (samples.every(p => p.cls === "value" || p.cls === "zero")) {
+        average = samples.reduce((sum, p) => sum + p.value, 0) / windowDays;
+      }
+    }
+    return { day, ...raw, average };
+  });
+  // Include isolated raw points and today's cumulative reading in the visible scale.
+  const max = points.reduce((peak, p) => Math.max(peak, p.average ?? p.value ?? 0), 0);
+  return { points, max, hasGap: points.some(p => p.cls === "unknown"), windowDays };
+}
+
 /**
  * 趋势图顶边的单调三次插值路径（Fritsch–Carlson 限幅）。
  *

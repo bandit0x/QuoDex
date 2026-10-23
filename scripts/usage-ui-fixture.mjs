@@ -8,11 +8,11 @@ import { addDays, periodRange, sumRange, todayKey } from "../src-tauri/usage-pag
 
 export const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-export async function createUsageFixture() {
+export async function createUsageFixture({ continuous = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "quodex-usage-ui-"));
   const today = todayKey();
   const daily = { codex: {}, zcode: {} };
-  const gaps = [addDays(today, -11), addDays(today, -6)];
+  const gaps = continuous ? [] : [addDays(today, -11), addDays(today, -6)];
   await mkdir(path.join(root, "config"), { recursive: true });
   await mkdir(path.join(root, "zcode-config"), { recursive: true });
   await mkdir(path.join(root, ".zcode/cli/db"), { recursive: true });
@@ -90,7 +90,7 @@ export async function createUsageFixture() {
     return [key, { ...range, codex, zcode, merged: codex + zcode }];
   }));
   const expected = { today, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    earliest, gaps, daily, requestCount: 36, ranges };
+    earliest, gaps, daily, requestCount: (20 - gaps.length) * 2, ranges };
   await writeFile(path.join(root, "expected.json"), `${JSON.stringify(expected, null, 2)}\n`);
   const env = {
     ...process.env,

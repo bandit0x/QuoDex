@@ -1,0 +1,7 @@
+   Compiling codex-credits-view v0.4.5 (D:\bandit\projects\QuoDex\QuoDex\src-tauri)
+warning: linker stdout: 正在创建库 E:\QuoDex-builds\trend-redesign-target\release\deps\codex_credits_view_lib.dll.lib 和对象 E:\QuoDex-builds\trend-redesign-target\release\deps\codex_credits_view_lib.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `codex-credits-view` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 31.24s

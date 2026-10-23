@@ -413,6 +413,20 @@ button.calendar-cell:active { transform: translateY(1px); }
 .trend-recent { margin-left: auto; display: grid; grid-auto-flow: column; gap: 3px 14px; color: var(--text-faint); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .trend-chart { position: relative; width: 100%; display: block; }
 .trend-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.trend-chart { display: flex; flex-direction: column; gap: 10px; }
+.trend-chart > div:has(> svg) { order: 3; }
+.trend-status { order: 0; display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 12px; min-height: 28px; }
+.trend-status[data-state="failed"] { color: #ffc4b2; flex-wrap: wrap; }
+.trend-status button { margin-left: auto; }
+.trend-today { order: 1; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.trend-tooltip-slot { order: 2; }
+.trend-tooltip-slot:not([data-active="true"])::before { content: attr(data-hint); color: var(--text-secondary); font-size: 12px; }
+.trend-head::after { content: attr(data-window); color: var(--text-secondary); font-size: 12px; border: 1px solid #76cce140; border-radius: 16px; padding: 4px 10px; }
+@media (max-width: 600px) {
+  .trend-tooltip-slot { order: 4; }
+  .trend-today { line-height: 1.7; }
+  .trend-status button { min-height: 44px; }
+}
 .trend-caption { margin: 14px 0 0; color: var(--text-faint); font-size: 12.5px; }
 .trend-empty { color: var(--text-secondary); font-size: 14px; padding: 40px 0; text-align: center; }
 
@@ -564,6 +578,7 @@ span.heat-cell { cursor: default; }
   background: rgba(205, 243, 255, 0.45);
   pointer-events: none;
 }
+.trend-raw-dot { position: absolute; width: 6px; height: 6px; margin: -3px; border: 1.5px solid; border-radius: 50%; pointer-events: none; z-index: 1; }
 .trend-dot {
   position: absolute;
   width: 9px;
@@ -575,7 +590,7 @@ span.heat-cell { cursor: default; }
   box-shadow: 0 0 8px rgba(160, 240, 220, 0.5);
   pointer-events: none;
 }
-.trend-tooltip-slot { min-height: 46px; margin-bottom: 8px; }
+.trend-tooltip-slot { min-height: 112px; margin-bottom: 8px; }
 .trend-tooltip {
   position: static;
   z-index: 5;
@@ -649,7 +664,7 @@ span.heat-cell { cursor: default; }
   .trend-recent { grid-auto-flow: row; grid-template-columns: repeat(3, auto); justify-content: start; text-align: left; }
   .coverage-row button { min-height: 44px; }
   .pill--retry { min-height: 44px; }
-  .trend-tooltip-slot { min-height: 76px; }
+  .trend-tooltip-slot { min-height: 152px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,13 @@
+
+> quodex@0.4.5 build
+> tsc && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 60 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:   0.27 kB
+dist/assets/index-srQ4LNKK.css   45.75 kB │ gzip:  10.78 kB
+dist/assets/index-63Q7tMap.js   319.26 kB │ gzip: 100.36 kB
+✓ built in 583ms

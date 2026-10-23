@@ -1,0 +1,14 @@
+{
+  "status": "Verified",
+  "fixtureRoot": "C:\\Users\\bandit\\AppData\\Local\\Temp\\quodex-usage-ui-FoRoBY",
+  "executable": "E:\\QuoDex-builds\\trend-redesign-target\\release\\codex-credits-view.exe",
+  "checks": [
+    "native source ingestion matches anonymous fixture exactly",
+    "7/30 day windows, same-axis/split, keyboard readings and Escape",
+    "390px: no overflow, exact readings below chart",
+    "real network failure retains curve; QDU-708; retry recovers"
+  ],
+  "errors": [],
+  "url": "http://127.0.0.1:3309/",
+  "browser": "156.0.8078.47"
+}

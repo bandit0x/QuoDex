@@ -24,6 +24,7 @@ import {
   periodRange,
   sourceDayInfo,
   sumRange,
+  usageTrend,
   weekdayIndex,
 } from "./usage-core.js";
 
@@ -1284,14 +1285,7 @@ function renderTrend() {
 }
 
 function seriesOf(source, days) {
-  const points = days.map(day => {
-    const info = sourceDayInfo(source ?? { daily: {} }, day, todayKey());
-    return { day, cls: info.cls, value: info.cls === "value" ? info.value : 0 };
-  });
-  const max = points.reduce((peak, point) => Math.max(peak, point.value), 0);
-  const hasGap = points.some(point => point.cls === "unknown");
-  const knownCount = points.filter(point => point.cls === "value").length;
-  return { points, max, hasGap, knownCount };
+  return usageTrend(source, days, todayKey(), state.range === "7d" ? 3 : 7);
 }
 
 function emptyTrend(message) {
@@ -1305,6 +1299,7 @@ function mergedTrendChart(codexSeries, zcodeSeries, days) {
   const card = document.createElement("div");
   const head = document.createElement("div");
   head.className = "trend-head";
+  head.dataset.window = (state.range === "7d" ? 3 : 7) + "日平均";
   const title = document.createElement("span");
   title.className = "trend-title";
   const codexDot = document.createElement("span");
@@ -1314,23 +1309,23 @@ function mergedTrendChart(codexSeries, zcodeSeries, days) {
   zcodeDot.className = "source-dot source-dot--zcode";
   zcodeDot.setAttribute("aria-hidden", "true");
   zcodeDot.style.marginLeft = "8px";
-  title.append(codexDot, document.createTextNode("Codex"), zcodeDot, document.createTextNode("ZCode · 合并"));
+  title.append(codexDot, document.createTextNode("Codex"), zcodeDot, document.createTextNode("ZCode · 同轴对比"));
   head.append(title);
   card.append(head);
-  const codexBaseline = new Map(codexSeries.points.map(point => [point.day, point.cls === "value" ? point.value : 0]));
+
   card.append(buildChartSvg(
     days,
     [
-      { name: "Codex", series: codexSeries, color: "rgba(94, 211, 255, 0.55)", edge: "rgba(94, 211, 255, 0.9)", baselineOf: point => 0 },
+      { name: "Codex", series: codexSeries, color: "rgba(94, 211, 255, 0.14)", edge: "rgba(94, 211, 255, 0.9)" },
       {
         name: "ZCode",
         series: zcodeSeries,
-        color: "rgba(88, 242, 171, 0.5)",
+        color: "rgba(88, 242, 171, 0.12)",
         edge: "rgba(88, 242, 171, 0.9)",
-        baselineOf: point => codexBaseline.get(point.day) ?? 0,
+        baselineOf: () => 0,
       },
     ],
-    Math.max(codexSeries.max + zcodeSeries.max, 1),
+    Math.max(Math.max(codexSeries.max, zcodeSeries.max), 1),
     "merged",
   ));
   return card;
@@ -1340,6 +1335,7 @@ function trendChart(sourceKey, name, series, sharedMax, days) {
   const card = document.createElement("div");
   const head = document.createElement("div");
   head.className = "trend-head";
+  head.dataset.window = (state.range === "7d" ? 3 : 7) + "日平均";
   const title = document.createElement("span");
   title.className = "trend-title";
   const dot = document.createElement("span");
@@ -1354,34 +1350,49 @@ function trendChart(sourceKey, name, series, sharedMax, days) {
     : sourceState(source) === "failed"
       ? `上次数据 ${timeText(source?.lastSuccessAtMs)} · 本次读取失败`
       : "读取中";
-  const recent = document.createElement("span");
-  recent.className = "trend-recent";
-  const known = series.points.filter(point => point.cls === "value").slice(-6);
-  for (const point of known) {
-    const item = document.createElement("span");
-    item.textContent = `${dateShort(point.day)} ${abbrevTokens(point.value)}`;
-    recent.append(item);
-  }
-  head.append(title, time, recent);
+  head.append(title, time);
   card.append(head);
-  card.append(buildChartSvg(days, [{ name, series, color: sourceKey === "codex" ? "rgba(94, 211, 255, 0.5)" : "rgba(88, 242, 171, 0.5)", edge: sourceKey === "codex" ? "rgba(94, 211, 255, 0.9)" : "rgba(88, 242, 171, 0.9)", baselineOf: () => 0 }], Math.max(sharedMax, 1), sourceKey));
+  card.append(buildChartSvg(days, [{ name, series, color: sourceKey === "codex" ? "rgba(94, 211, 255, 0.14)" : "rgba(88, 242, 171, 0.12)", edge: sourceKey === "codex" ? "rgba(94, 211, 255, 0.9)" : "rgba(88, 242, 171, 0.9)" }], Math.max(sharedMax, 1), sourceKey));
   return card;
 }
 
 /**
- * 面积图：已知点连续成段，缺口不断线也不补零，只铺斜纹；
+ * 平均趋势：完整连续窗口才成段，缺失不补零、不跨接。
  * y 轴用 nice 刻度，x 轴约五档日期标签。几何走 viewBox 拉伸，
  * 文本标签用 HTML 定位在与 svg 完全相同的区域内，避免文字变形。
  */
 function buildChartSvg(days, layers, maxValue, chartId) {
   const width = 600;
-  const height = 210;
+  const height = 240;
   const axisLeft = 40;
   const axisBottom = 22;
   const plotTop = 8;
   const wrapper = document.createElement("div");
   wrapper.className = "trend-chart";
   wrapper.style.position = "relative";
+  const status = document.createElement("div");
+  status.className = "trend-status";
+  const sources = snapshotSources();
+  const displayedSources = chartId === "merged" ? [sources.codex, sources.zcode] : [sources[chartId]];
+  const failed = displayedSources.find(source => sourceState(source) === "failed");
+  if (state.connection === "lost" || failed) {
+    status.dataset.state = "failed";
+    status.textContent = state.connection === "lost"
+      ? "无法连接 QuoDex；请启动或重新打开后重试 · QDU-708 · 保留上次数据"
+      : (failed.diagnostic?.message ?? "来源读取失败") + " · " + (failed.diagnostic?.code ?? "详情见来源状态") + " · 保留上次数据";
+    const retry = document.createElement("button");
+    retry.className = "pill";
+    retry.textContent = "重试";
+    retry.disabled = state.refreshBusy;
+    retry.addEventListener("click", () => {
+      if (state.connection === "lost") void manualRefresh();
+      else void retrySource(failed === sources.codex ? "codex" : "zcode");
+    });
+    status.append(retry);
+  } else {
+    status.textContent = state.refreshBusy ? "正在刷新…" : "已更新 " + timeText(state.lastFetchAtMs);
+  }
+  wrapper.append(status);
   const body = document.createElement("div");
   body.style.position = "relative";
   body.style.height = `${height}px`;
@@ -1392,7 +1403,8 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   tooltipSlot.className = "trend-tooltip-slot";
   wrapper.append(tooltipSlot, body);
 
-  const top = niceTicks(maxValue)[2] || maxValue || 1;
+  const scaleMax = Math.max(maxValue, 1);
+  const top = niceTicks(scaleMax)[2];
   const xAt = index => (days.length <= 1 ? width / 2 : (index / (days.length - 1)) * width);
   const yAt = value => height - (value / top) * (height - plotTop);
 
@@ -1409,7 +1421,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     </pattern>`;
   svg.append(defs);
 
-  for (const tick of niceTicks(maxValue)) {
+  for (const tick of niceTicks(scaleMax)) {
     const line = document.createElementNS(ns, "line");
     line.setAttribute("x1", 0);
     line.setAttribute("x2", width);
@@ -1442,7 +1454,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
       const rect = document.createElementNS(ns, "rect");
       rect.setAttribute("x", xAt(gapStart));
       rect.setAttribute("y", plotTop);
-      rect.setAttribute("width", Math.max(xAt(index) - xAt(gapStart), 2));
+      rect.setAttribute("width", Math.max(xAt(Math.min(index, days.length - 1)) - xAt(gapStart), 2));
       rect.setAttribute("height", height - plotTop);
       rect.setAttribute("fill", `url(#hatch-${chartId})`);
       rect.setAttribute("opacity", 0.5);
@@ -1451,41 +1463,51 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     }
   }
 
-  for (const layer of layers) {
-    // 连续已知段分别成面，段间断开，不跨缺口连线
+  for (const [layerIndex, layer] of layers.entries()) {
+    const gradientId = "trend-fill-" + chartId + "-" + layerIndex;
+    const gradient = document.createElementNS(ns, "linearGradient");
+    gradient.id = gradientId;
+    gradient.setAttribute("x2", "0");
+    gradient.setAttribute("y2", "1");
+    gradient.innerHTML = '<stop offset="0" stop-color="' + layer.edge + '" stop-opacity="0.16"/><stop offset="1" stop-color="' + layer.edge + '" stop-opacity="0"/>';
+    defs.append(gradient);
+    const circle = (point, index, raw) => {
+      const dot = document.createElement("span");
+      dot.className = "trend-raw-dot";
+      dot.style.left = `${xAt(index) / width * 100}%`;
+      dot.style.top = `${yAt(raw ? point.value : point.average) / height * 100}%`;
+      dot.style.borderColor = layer.edge;
+      dot.style.background = raw ? "#082633" : layer.edge;
+      dot.setAttribute("data-trend-point", raw ? "raw" : "average");
+      body.append(dot);
+    };
     let run = [];
     const flushRun = () => {
-      if (run.length >= 2) {
-        const path = document.createElementNS(ns, "path");
-        // 顶边走单调三次插值让折线圆润；底边保持直线，段端垂直起落不变。
-        const tops = run.map(point => [xAt(point.index), yAt(layer.baselineOf(point) + point.value)]);
-        let d = `M ${tops[0][0]} ${yAt(layer.baselineOf(run[0]))} L ${tops[0][0]} ${tops[0][1]}`;
-        d += monotoneTopPath(tops);
-        for (let position = run.length - 1; position >= 0; position -= 1) {
-          const point = run[position];
-          d += ` L ${xAt(point.index)} ${yAt(layer.baselineOf(point))}`;
-        }
-        d += " Z";
-        path.setAttribute("d", d);
-        path.setAttribute("fill", layer.color);
-        svg.append(path);
-      } else if (run.length === 1 && run[0].cls === "value") {
-        // 孤立单点：画一根窄柱，避免面积不可见
-        const rect = document.createElementNS(ns, "rect");
-        rect.setAttribute("x", xAt(run[0].index) - 2);
-        rect.setAttribute("y", yAt(run[0].value));
-        rect.setAttribute("width", 4);
-        rect.setAttribute("height", Math.max(height - yAt(run[0].value), 2));
-        rect.setAttribute("fill", layer.color);
-        svg.append(rect);
-      }
+      if (run.length > 1) {
+        const tops = run.map(p => [xAt(p.index), yAt(p.average)]);
+        const lineD = "M " + tops[0].join(" ") + monotoneTopPath(tops);
+        const area = document.createElementNS(ns, "path");
+        area.setAttribute("d", lineD + " L " + tops.at(-1)[0] + " " + height + " L " + tops[0][0] + " " + height + " Z");
+        area.setAttribute("fill", "url(#" + gradientId + ")");
+        svg.append(area);
+        const line = document.createElementNS(ns, "path");
+        line.setAttribute("d", lineD);
+        line.setAttribute("fill", "none");
+        line.setAttribute("stroke", layer.edge);
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("stroke-linecap", "round");
+        line.setAttribute("stroke-linejoin", "round");
+        line.setAttribute("vector-effect", "non-scaling-stroke");
+        line.setAttribute("data-trend-line", layer.name);
+        svg.append(line);
+      } else if (run.length === 1) circle(run[0], run[0].index, false);
       run = [];
     };
     layer.series.points.forEach((point, index) => {
-      if (point.cls === "value" || point.cls === "zero") {
-        run.push({ ...point, index });
-      } else {
+      if (point.average !== null) run.push({ ...point, index });
+      else {
         flushRun();
+        if (point.cls === "value" || point.cls === "zero") circle(point, index, true);
       }
     });
     flushRun();
@@ -1493,7 +1515,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
 
   body.append(svg);
   // x 轴标签（挂在 wrapper 上，位置与 body 绘图区对齐）
-  const tickCount = Math.min(5, days.length);
+  const tickCount = Math.min(4, days.length);
   for (let tick = 0; tick < tickCount; tick += 1) {
     const index = Math.round((tick / Math.max(tickCount - 1, 1)) * (days.length - 1));
     const label = document.createElement("span");
@@ -1501,15 +1523,15 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     if (tick === tickCount - 1) {
       label.style.right = "0";
     } else {
-      label.style.left = `calc(${axisLeft}px + (100% - ${axisLeft}px) * ${index / Math.max(days.length - 1, 1)})`;
+      label.style.left = `${(index / Math.max(days.length - 1, 1)) * 100}%`;
     }
-    label.style.bottom = "0";
+    label.style.bottom = "-22px";
     label.style.transform = tick === 0 ? "none" : tick === tickCount - 1 ? "none" : "translateX(-50%)";
     label.textContent = dateShort(days[index]);
     label.style.fontSize = "11px";
     label.style.color = "var(--text-faint)";
     label.style.fontVariantNumeric = "tabular-nums";
-    wrapper.append(label);
+    body.append(label);
   }
 
   /* ---- 悬停/触摸/键盘交互：十字线 + 来源标记点 + 精确数浮层 ---- */
@@ -1519,9 +1541,10 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   crosshair.className = "trend-crosshair";
   crosshair.hidden = true;
   body.append(crosshair);
-  const markers = layers.map(() => {
+  const markers = layers.map(layer => {
     const dot = document.createElement("div");
     dot.className = "trend-dot";
+    dot.style.background = layer.edge;
     dot.hidden = true;
     body.append(dot);
     return dot;
@@ -1532,6 +1555,15 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   tooltip.setAttribute("role", "status");
   tooltipSlot.append(tooltip);
   let activeIndex = null;
+  const windowDays = layers[0].series.windowDays;
+  tooltipSlot.dataset.hint = windowDays + "日平均 · 悬停或聚焦后逐日查看原值";
+  const todayNote = document.createElement("div");
+  todayNote.className = "trend-today";
+  todayNote.textContent = "今日累计 · " + layers.map(layer => {
+    const p = layer.series.points.at(-1);
+    return layer.name + " " + (p.day === todayKey() && p.value !== null ? formatTokens(p.value) : "暂无记录");
+  }).join(" · ");
+  wrapper.append(todayNote);
 
   const setActive = index => {
     if (index === null || !days.length) {
@@ -1539,6 +1571,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
       crosshair.hidden = true;
       markers.forEach(dot => { dot.hidden = true; });
       tooltip.hidden = true;
+      tooltipSlot.dataset.active = "false";
       return;
     }
     activeIndex = Math.max(0, Math.min(days.length - 1, index));
@@ -1551,16 +1584,13 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     layers.forEach((layer, position) => {
       const point = layer.series.points[activeIndex];
       const dot = markers[position];
-      if (point.cls === "value") {
-        dot.hidden = false;
+      if (point.cls === "value" || point.cls === "zero") {
+        dot.hidden = point.average === null;
         dot.style.left = `${fraction * 100}%`;
-        dot.style.top = `${(yAt(layer.baselineOf(point) + point.value) / height) * 100}%`;
-        rows.push(`${layer.name} ${formatTokens(point.value)}`);
+        dot.style.top = `${(yAt(point.average ?? point.value) / height) * 100}%`;
+        rows.push(`${layer.name} ${formatTokens(point.value)}（当日实际${point.day === todayKey() ? " · 今日累计" : ""}） / ${windowDays}日平均 ${point.average === null ? "—（样本不足或今日未结束）" : formatTokens(point.average)}`);
         total += point.value;
         totalKnown = true;
-      } else if (point.cls === "zero") {
-        dot.hidden = true;
-        rows.push(`${layer.name} 0（已确认）`);
       } else {
         dot.hidden = true;
         rows.push(`${layer.name} 无可核对记录`);
@@ -1568,9 +1598,17 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     });
     const day = days[activeIndex];
     const lines = [`${day.replaceAll("-", ".")} ${formatDayTitle(day).split(" · ")[1] ?? ""}`, ...rows];
-    if (layers.length > 1 && totalKnown) lines.push(`合计 ${formatTokens(total)}`);
-    tooltip.textContent = lines.join(" · ");
+    if (layers.length > 1 && totalKnown) {
+      const complete = layers.every(layer => ["value", "zero"].includes(layer.series.points[activeIndex].cls));
+      lines.push(`${complete ? "合计" : "已知部分"} ${formatTokens(total)}`);
+    }
+    tooltip.replaceChildren(...lines.map(text => {
+      const row = document.createElement("div");
+      row.textContent = text;
+      return row;
+    }));
     tooltip.hidden = false;
+    tooltipSlot.dataset.active = "true";
   };
 
   body.addEventListener("pointermove", event => {
@@ -1579,7 +1617,12 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     const fraction = (event.clientX - rect.left) / rect.width;
     setActive(Math.round(fraction * (days.length - 1)));
   });
-  body.addEventListener("pointerleave", () => {
+  body.addEventListener("pointerdown", event => {
+    const rect = body.getBoundingClientRect();
+    setActive(Math.round(((event.clientX - rect.left) / rect.width) * (days.length - 1)));
+  });
+  body.addEventListener("pointerleave", event => {
+    if (event.pointerType === "touch") return;
     if (document.activeElement !== wrapper) setActive(null);
   });
   wrapper.addEventListener("keydown", event => {
