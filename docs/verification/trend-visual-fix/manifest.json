@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "path": "src-tauri/usage-page/usage-core.js",
+      "sha256": "3E3640D97C6C11A3E795716F798321711468DED44E3356609045CB79C06C4A85"
+    },
+    {
+      "path": "src-tauri/usage-page/usage.js",
+      "sha256": "187A421F947708247EAC77DDDAB183EC97F64FF7BB0530E8321220C55693196E"
+    },
+    {
+      "path": "src-tauri/usage-page/usage.css",
+      "sha256": "0AFA2EE1A8E625CECF8044C74B7A7AE49EA1621682179493913FB4664B25DB59"
+    },
+    {
+      "path": "src-tauri/usage-page/index.html",
+      "sha256": "6DC97302A2424701D181F2735A539D8E6D70B39DE9668AF2D93AB85DF63335FF"
+    }
+  ],
+  "status": "Acceptance pending",
+  "installedSha256": "54C30C3DB0773A9727F0045C11E1CA3936AF42EC7D9D4616D3293060D8C37672",
+  "baseCommit": "43cda3e",
+  "nativeMainWindow": "Verified",
+  "appDataPreserved": true,
+  "productionBuild": "npm run tauri:build -- --no-bundle -- --locked"
+}

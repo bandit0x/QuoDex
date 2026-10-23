@@ -1394,6 +1394,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   }
   wrapper.append(status);
   const body = document.createElement("div");
+  body.className = "trend-plot";
   body.style.position = "relative";
   body.style.height = `${height}px`;
   body.style.marginLeft = `${axisLeft}px`;
@@ -1469,7 +1470,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     gradient.id = gradientId;
     gradient.setAttribute("x2", "0");
     gradient.setAttribute("y2", "1");
-    gradient.innerHTML = '<stop offset="0" stop-color="' + layer.edge + '" stop-opacity="0.16"/><stop offset="1" stop-color="' + layer.edge + '" stop-opacity="0"/>';
+    gradient.innerHTML = '<stop offset="0" stop-color="' + layer.edge + '" stop-opacity="0.24"/><stop offset="1" stop-color="' + layer.edge + '" stop-opacity="0"/>';
     defs.append(gradient);
     const circle = (point, index, raw) => {
       const dot = document.createElement("span");
@@ -1507,7 +1508,6 @@ function buildChartSvg(days, layers, maxValue, chartId) {
       if (point.average !== null) run.push({ ...point, index });
       else {
         flushRun();
-        if (point.cls === "value" || point.cls === "zero") circle(point, index, true);
       }
     });
     flushRun();
@@ -1564,6 +1564,19 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     return layer.name + " " + (p.day === todayKey() && p.value !== null ? formatTokens(p.value) : "暂无记录");
   }).join(" · ");
   wrapper.append(todayNote);
+  const coverage = document.createElement("div");
+  coverage.className = "trend-coverage";
+  const partial = layers.filter(layer => layer.series.points.some(p => p.day < todayKey() && p.average === null));
+  coverage.textContent = partial.length
+    ? partial.map(layer => layer.name).join(" / ") + `：部分日期不足${windowDays}日连续记录，平均线已断开；原值仍可逐日查看`
+    : "平均趋势 · 原始用量可逐日查看";
+  wrapper.append(coverage);
+  if (layers.every(layer => layer.series.points.every(p => p.average === null))) {
+    const empty = document.createElement("div");
+    empty.className = "trend-insufficient";
+    empty.textContent = `连续完整记录不足${windowDays}天，暂不绘制平均线；原值可逐日查看`;
+    body.append(empty);
+  }
 
   const setActive = index => {
     if (index === null || !days.length) {
@@ -1602,8 +1615,9 @@ function buildChartSvg(days, layers, maxValue, chartId) {
       const complete = layers.every(layer => ["value", "zero"].includes(layer.series.points[activeIndex].cls));
       lines.push(`${complete ? "合计" : "已知部分"} ${formatTokens(total)}`);
     }
-    tooltip.replaceChildren(...lines.map(text => {
+    tooltip.replaceChildren(...lines.map((text, rowIndex) => {
       const row = document.createElement("div");
+      row.className = rowIndex === 0 ? "trend-readout-date" : "trend-readout-row";
       row.textContent = text;
       return row;
     }));

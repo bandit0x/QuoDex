@@ -1,6 +1,6 @@
 # 区间趋势 A 方案验收
 
-状态：Acceptance pending。日期：2026-10-23。用户已批准设计并授权实现，当前等待实际体验验收。
+状态：Blocked（历史交付撤回）。日期：2026-10-23。这里的检查仅覆盖独立统计页，未覆盖原生主窗口；原交付主窗口访问 localhost 并显示 ERR_CONNECTION_REFUSED。完整修复与重新安装验证见 [当前验证入口](../trend-visual-fix/README.md)，不能用本页旧产物作为整体验收依据。
 
 ## 结果与来源
 
@@ -33,7 +33,7 @@ Windows / PowerShell 7.6.5 / Node 24.18.0 / Chrome 156.0.8078.47。真实 Rust r
 npm.cmd test
 npm.cmd run build
 $env:CARGO_TARGET_DIR = 'E:\QuoDex-builds\trend-redesign-target'
-cargo build --release --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:build -- --no-bundle -- --locked
 node scripts/verify-usage-trend.mjs 'E:/QuoDex-builds/trend-redesign-target/release/codex-credits-view.exe' 'C:/Users/bandit/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs' 'C:/Program Files/Google/Chrome/Application/chrome.exe' 'docs/verification/trend-redesign'
 # 额外验证缺口：相同命令改输出为 docs/verification/trend-redesign/gaps，追加 --gaps
 ```

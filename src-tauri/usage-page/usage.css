@@ -411,15 +411,15 @@ button.calendar-cell:active { transform: translateY(1px); }
 .trend-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 620; }
 .trend-time { color: var(--text-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .trend-recent { margin-left: auto; display: grid; grid-auto-flow: column; gap: 3px 14px; color: var(--text-faint); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
-.trend-chart { position: relative; width: 100%; display: block; }
+.trend-chart { position: relative; width: 100%; }
 .trend-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.trend-chart { display: flex; flex-direction: column; gap: 10px; }
-.trend-chart > div:has(> svg) { order: 3; }
-.trend-status { order: 0; display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 12px; min-height: 28px; }
+.trend-chart { display: grid; grid-template-columns: 1fr auto; gap: 10px 20px; }
+.trend-plot { grid-column: 1 / -1; order: 3; }
+.trend-status { order: 0; grid-column: 2; grid-row: 1; justify-self: end; display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 12px; min-height: 28px; }
 .trend-status[data-state="failed"] { color: #ffc4b2; flex-wrap: wrap; }
 .trend-status button { margin-left: auto; }
-.trend-today { order: 1; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.trend-tooltip-slot { order: 2; }
+.trend-today { order: 1; grid-column: 1; grid-row: 1; align-self: center; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.trend-tooltip-slot { order: 2; grid-column: 1 / -1; }
 .trend-tooltip-slot:not([data-active="true"])::before { content: attr(data-hint); color: var(--text-secondary); font-size: 12px; }
 .trend-head::after { content: attr(data-window); color: var(--text-secondary); font-size: 12px; border: 1px solid #76cce140; border-radius: 16px; padding: 4px 10px; }
 @media (max-width: 600px) {
@@ -590,7 +590,7 @@ span.heat-cell { cursor: default; }
   box-shadow: 0 0 8px rgba(160, 240, 220, 0.5);
   pointer-events: none;
 }
-.trend-tooltip-slot { min-height: 112px; margin-bottom: 8px; }
+.trend-tooltip-slot { min-height: 62px; margin-bottom: 0; display: flex; align-items: center; }
 .trend-tooltip {
   position: static;
   z-index: 5;
@@ -605,7 +605,13 @@ span.heat-cell { cursor: default; }
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   word-break: break-word;
+  width: 100%;
 }
+.trend-tooltip:not([hidden]) { display: grid; grid-template-columns: 140px 1fr 1fr auto; gap: 4px 18px; align-items: center; }
+.trend-readout-row { min-width: 0; }
+.trend-readout-date { color: var(--text-secondary); }
+.trend-coverage { order: 5; grid-column: 1 / -1; color: var(--text-faint); font-size: 12px; line-height: 1.6; }
+.trend-insufficient { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-secondary); font-size: 13px; padding: 30px; text-align: center; }
 .trend-chart:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 4px;
@@ -664,7 +670,7 @@ span.heat-cell { cursor: default; }
   .trend-recent { grid-auto-flow: row; grid-template-columns: repeat(3, auto); justify-content: start; text-align: left; }
   .coverage-row button { min-height: 44px; }
   .pill--retry { min-height: 44px; }
-  .trend-tooltip-slot { min-height: 152px; }
+  .trend-tooltip-slot { min-height: 132px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -689,3 +695,11 @@ span.heat-cell { cursor: default; }
 .sync-exclusions,#sync-action-error { color:#ffdaaa;font-size:13px; }
 .sync-actions { display:flex;justify-content:flex-end;gap:12px; }
 @media(max-width:600px) { .sync-strip { align-items:flex-start; }.sync-dialog { padding:22px; }.sync-device-list li { flex-wrap:wrap; }.device-scope { margin-left:0; } }
+
+@media (max-width: 600px) {
+  .trend-chart { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .trend-status { grid-column: 1; grid-row: auto; order: 0; justify-self: start; }
+  .trend-today { grid-column: 1; grid-row: auto; order: 1; }
+  .trend-tooltip:not([hidden]) { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .trend-coverage { font-size: 12px; }
+}

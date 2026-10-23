@@ -298,8 +298,8 @@ export function usageTrend(source, days, today, windowDays) {
     }
     return { day, ...raw, average };
   });
-  // Include isolated raw points and today's cumulative reading in the visible scale.
-  const max = points.reduce((peak, p) => Math.max(peak, p.average ?? p.value ?? 0), 0);
+  // Only averages are plotted. Raw readings remain available in the readout.
+  const max = points.reduce((peak, p) => Math.max(peak, p.average ?? 0), 0);
   return { points, max, hasGap: points.some(p => p.cls === "unknown"), windowDays };
 }
 
