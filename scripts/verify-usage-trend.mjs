@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createUsageFixture, repo } from "./usage-ui-fixture.mjs";
+import { addDays } from "../src-tauri/usage-page/usage-core.js";
 
 const [executable, playwrightPath, chrome, outputArg] = process.argv.slice(2);
 assert.ok(outputArg, "Usage: node scripts/verify-usage-trend.mjs <exe> <playwright/index.mjs> <chrome.exe> <output>");
@@ -42,9 +43,18 @@ try {
   await page.goto(base);
   await page.locator(".trend-chart").waitFor();
   const section = page.locator(".trend-section");
+  await page.locator("#scope-all").click();
+  const lastCompleteDay = addDays(fixture.expected.today, -1);
+  assert.ok(await page.locator(`[data-trend-line="ZCode"][data-trend-kind="daily"][data-end-day="${lastCompleteDay}"]`).count() > 0,
+    "all-devices ZCode daily line reaches yesterday even without an average");
+  if (process.argv.includes("--gaps")) {
+    assert.equal(await page.locator(`[data-trend-line="ZCode"][data-trend-kind="average"][data-end-day="${lastCompleteDay}"]`).count(), 0);
+    report.checks.push("all-devices: recent ZCode actuals remain visible when complete average window is missing");
+  }
   await section.scrollIntoViewIfNeeded();
-  assert.ok(await page.locator("[data-trend-line]").count() >= 2);
-  assert.equal(await page.locator('[data-trend-point="raw"]').count(), 0, "raw values must not form a scatter wall");
+  assert.ok(await page.locator('[data-trend-kind="daily"]').count() >= 2, "daily actual lines render for both sources");
+  assert.equal(await page.locator('[data-trend-point="today"]').count(), 2, "today cumulative remains visible for both sources");
+  assert.equal(await page.locator('[data-trend-point="daily"]').count(), 0, "continuous daily series does not add a scatter wall");
   const idlePlot = await page.locator(".trend-chart svg").boundingBox();
   const cardBounds = await page.locator(".trend-chart").boundingBox();
   assert.ok(idlePlot.y - cardBounds.y < 130, "compact header: no large empty readout slab");
@@ -57,12 +67,12 @@ try {
   assert.ok(Math.abs(plotY.y - idlePlot.y) < 1, "readout must not move the plot on desktop");
   const tipY = await page.locator(".trend-tooltip").boundingBox();
   assert.ok(tipY.y + tipY.height <= plotY.y, "desktop readings outside plot");
-  report.checks.push("no default raw scatter; compact header; desktop readout does not move or cover plot");
+  report.checks.push("daily actual lines plus today markers; no scatter wall; compact stable header");
   await section.screenshot({ path: path.join(output, "desktop-operation.png") });
   await chart.press("Escape");
   assert.ok(await page.locator(".trend-tooltip").isHidden());
   await page.locator('[data-range="7d"]').click();
-  assert.match(await section.innerText(), /3日平均/);
+  assert.match(await page.locator(".trend-head").first().evaluate(node => getComputedStyle(node, "::after").content), /3日平均/);
   await page.locator('[data-view="split"]').click();
   assert.equal(await page.locator(".trend-chart").count(), 2);
   report.checks.push("7/30 day windows, same-axis/split, keyboard readings and Escape");

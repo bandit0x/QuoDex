@@ -1,0 +1,23 @@
+{
+  "nativeMain": "Verified",
+  "installedSha256": "A21013A908E0D3ED727D78B023F56A50B340E96842EF7BFDC34661EF0D4BC7BD",
+  "sourceHashes": [
+    {
+      "sha256": "8409BAB4C7252185F340F9C2CF01DD7004F1A6A328B0B0124A23F68CBF1D69E7",
+      "path": "src-tauri/usage-page/usage-core.js"
+    },
+    {
+      "sha256": "10F7589992BC556D09FEBC716523C9A0977A776F0D1E7D67CE20F7C1B5486F65",
+      "path": "src-tauri/usage-page/usage.js"
+    },
+    {
+      "sha256": "D16BF99A378AB7B6F31AC6796C9EE3DD1BEE10DE2FDDA56759AE8827EE73975C",
+      "path": "src-tauri/usage-page/index.html"
+    }
+  ],
+  "baseCommit": "ead178b",
+  "actualRecordedDaysAllVisible": true,
+  "unknownDaysNotBridged": true,
+  "status": "Acceptance pending",
+  "appDataPreserved": true
+}

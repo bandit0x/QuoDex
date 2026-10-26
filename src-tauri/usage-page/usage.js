@@ -1299,7 +1299,7 @@ function mergedTrendChart(codexSeries, zcodeSeries, days) {
   const card = document.createElement("div");
   const head = document.createElement("div");
   head.className = "trend-head";
-  head.dataset.window = (state.range === "7d" ? 3 : 7) + "日平均";
+  head.dataset.window = "实线：每日用量 · 虚线：" + (state.range === "7d" ? 3 : 7) + "日平均";
   const title = document.createElement("span");
   title.className = "trend-title";
   const codexDot = document.createElement("span");
@@ -1335,7 +1335,7 @@ function trendChart(sourceKey, name, series, sharedMax, days) {
   const card = document.createElement("div");
   const head = document.createElement("div");
   head.className = "trend-head";
-  head.dataset.window = (state.range === "7d" ? 3 : 7) + "日平均";
+  head.dataset.window = "实线：每日用量 · 虚线：" + (state.range === "7d" ? 3 : 7) + "日平均";
   const title = document.createElement("span");
   title.className = "trend-title";
   const dot = document.createElement("span");
@@ -1357,7 +1357,7 @@ function trendChart(sourceKey, name, series, sharedMax, days) {
 }
 
 /**
- * 平均趋势：完整连续窗口才成段，缺失不补零、不跨接。
+ * 每日实线保留已记录用量；固定窗口均值仅为虚线辅助，缺失不跨接。
  * y 轴用 nice 刻度，x 轴约五档日期标签。几何走 viewBox 拉伸，
  * 文本标签用 HTML 定位在与 svg 完全相同的区域内，避免文字变形。
  */
@@ -1472,45 +1472,79 @@ function buildChartSvg(days, layers, maxValue, chartId) {
     gradient.setAttribute("y2", "1");
     gradient.innerHTML = '<stop offset="0" stop-color="' + layer.edge + '" stop-opacity="0.24"/><stop offset="1" stop-color="' + layer.edge + '" stop-opacity="0"/>';
     defs.append(gradient);
-    const circle = (point, index, raw) => {
-      const dot = document.createElement("span");
-      dot.className = "trend-raw-dot";
-      dot.style.left = `${xAt(index) / width * 100}%`;
-      dot.style.top = `${yAt(raw ? point.value : point.average) / height * 100}%`;
-      dot.style.borderColor = layer.edge;
-      dot.style.background = raw ? "#082633" : layer.edge;
-      dot.setAttribute("data-trend-point", raw ? "raw" : "average");
-      body.append(dot);
+    const pointMarker = (point, index, kind) => {
+      const marker = document.createElement("span");
+      marker.className = "trend-raw-dot";
+      marker.style.left = xAt(index) / width * 100 + "%";
+      marker.style.top = yAt(kind === "average" ? point.average : point.dailyValue) / height * 100 + "%";
+      marker.style.borderColor = layer.edge;
+      marker.style.background = kind === "today" ? "#082633" : layer.edge;
+      marker.dataset.trendPoint = kind;
+      marker.dataset.source = layer.name;
+      marker.dataset.day = point.day;
+      marker.title = point.day + " · " + layer.name + (kind === "today" ? " 今日累计" : "");
+      if (kind === "average") marker.style.opacity = "0.55";
+      body.append(marker);
     };
-    let run = [];
-    const flushRun = () => {
-      if (run.length > 1) {
-        const tops = run.map(p => [xAt(p.index), yAt(p.average)]);
-        const lineD = "M " + tops[0].join(" ") + monotoneTopPath(tops);
+    const drawRun = (run, kind, partial = false) => {
+      if (!run.length) return;
+      if (run.length === 1) {
+        pointMarker(run[0], run[0].index, kind);
+        return;
+      }
+      const metric = kind === "daily" ? "dailyValue" : "average";
+      const tops = run.map(point => [xAt(point.index), yAt(point[metric])]);
+      const lineD = "M " + tops[0].join(" ") + monotoneTopPath(tops);
+      if (kind === "daily" && !partial) {
         const area = document.createElementNS(ns, "path");
         area.setAttribute("d", lineD + " L " + tops.at(-1)[0] + " " + height + " L " + tops[0][0] + " " + height + " Z");
         area.setAttribute("fill", "url(#" + gradientId + ")");
         svg.append(area);
-        const line = document.createElementNS(ns, "path");
-        line.setAttribute("d", lineD);
-        line.setAttribute("fill", "none");
-        line.setAttribute("stroke", layer.edge);
-        line.setAttribute("stroke-width", "2");
-        line.setAttribute("stroke-linecap", "round");
-        line.setAttribute("stroke-linejoin", "round");
-        line.setAttribute("vector-effect", "non-scaling-stroke");
-        line.setAttribute("data-trend-line", layer.name);
-        svg.append(line);
-      } else if (run.length === 1) circle(run[0], run[0].index, false);
-      run = [];
-    };
-    layer.series.points.forEach((point, index) => {
-      if (point.average !== null) run.push({ ...point, index });
-      else {
-        flushRun();
       }
-    });
-    flushRun();
+      const line = document.createElementNS(ns, "path");
+      line.setAttribute("d", lineD);
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", layer.edge);
+      line.setAttribute("stroke-width", kind === "daily" ? "2" : "1.3");
+      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("stroke-linejoin", "round");
+      line.setAttribute("vector-effect", "non-scaling-stroke");
+      line.dataset.trendLine = layer.name;
+      line.dataset.trendKind = kind;
+      line.dataset.startDay = run[0].day;
+      line.dataset.endDay = run.at(-1).day;
+      if (kind === "average") {
+        line.setAttribute("stroke-dasharray", "6 5");
+        line.setAttribute("opacity", "0.55");
+      } else if (partial) {
+        line.setAttribute("stroke-dasharray", "2 4");
+        line.dataset.partial = "true";
+      }
+      svg.append(line);
+    };
+    for (const kind of ["daily", "average"]) {
+      const metric = kind === "daily" ? "dailyValue" : "average";
+      let run = [];
+      layer.series.points.forEach((point, index) => {
+        if (kind === "daily" && point.day === todayKey()) {
+          drawRun(run, kind);
+          run = [];
+          if (point.dailyValue !== null) {
+            const previous = layer.series.points[index - 1];
+            if (previous?.dailyValue != null) {
+              drawRun([{ ...previous, index: index - 1 }, { ...point, index }], kind, true);
+            }
+            pointMarker(point, index, "today");
+          }
+        } else if (point[metric] !== null) {
+          run.push({ ...point, index });
+        } else {
+          drawRun(run, kind);
+          run = [];
+        }
+      });
+      drawRun(run, kind);
+    }
   }
 
   body.append(svg);
@@ -1556,7 +1590,7 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   tooltipSlot.append(tooltip);
   let activeIndex = null;
   const windowDays = layers[0].series.windowDays;
-  tooltipSlot.dataset.hint = windowDays + "日平均 · 悬停或聚焦后逐日查看原值";
+  tooltipSlot.dataset.hint = "每日真实用量 · " + windowDays + "日平均为辅助虚线 · 悬停逐日查看";
   const todayNote = document.createElement("div");
   todayNote.className = "trend-today";
   todayNote.textContent = "今日累计 · " + layers.map(layer => {
@@ -1568,13 +1602,13 @@ function buildChartSvg(days, layers, maxValue, chartId) {
   coverage.className = "trend-coverage";
   const partial = layers.filter(layer => layer.series.points.some(p => p.day < todayKey() && p.average === null));
   coverage.textContent = partial.length
-    ? partial.map(layer => layer.name).join(" / ") + `：部分日期不足${windowDays}日连续记录，平均线已断开；原值仍可逐日查看`
-    : "平均趋势 · 原始用量可逐日查看";
+    ? partial.map(layer => layer.name).join(" / ") + `：部分日期不足${windowDays}日连续记录，仅平均虚线断开；实线保留已记录用量`
+    : "实线：每日已记录用量 · 虚线：平均趋势";
   wrapper.append(coverage);
-  if (layers.every(layer => layer.series.points.every(p => p.average === null))) {
+  if (layers.every(layer => layer.series.points.every(p => p.dailyValue === null))) {
     const empty = document.createElement("div");
     empty.className = "trend-insufficient";
-    empty.textContent = `连续完整记录不足${windowDays}天，暂不绘制平均线；原值可逐日查看`;
+    empty.textContent = "此区间暂无可核对的每日用量记录；缺失不按零计算";
     body.append(empty);
   }
 
@@ -1598,9 +1632,10 @@ function buildChartSvg(days, layers, maxValue, chartId) {
       const point = layer.series.points[activeIndex];
       const dot = markers[position];
       if (point.cls === "value" || point.cls === "zero") {
-        dot.hidden = point.average === null;
+        dot.hidden = false;
         dot.style.left = `${fraction * 100}%`;
-        dot.style.top = `${(yAt(point.average ?? point.value) / height) * 100}%`;
+        dot.style.top = `${(yAt(point.dailyValue) / height) * 100}%`;
+        dot.style.background = point.day === todayKey() ? "#082633" : layer.edge;
         rows.push(`${layer.name} ${formatTokens(point.value)}（当日实际${point.day === todayKey() ? " · 今日累计" : ""}） / ${windowDays}日平均 ${point.average === null ? "—（样本不足或今日未结束）" : formatTokens(point.average)}`);
         total += point.value;
         totalKnown = true;

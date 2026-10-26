@@ -296,10 +296,11 @@ export function usageTrend(source, days, today, windowDays) {
         average = samples.reduce((sum, p) => sum + p.value, 0) / windowDays;
       }
     }
-    return { day, ...raw, average };
+    const dailyValue = raw.cls === "value" || raw.cls === "zero" ? raw.value : null;
+    return { day, ...raw, dailyValue, average };
   });
-  // Only averages are plotted. Raw readings remain available in the readout.
-  const max = points.reduce((peak, p) => Math.max(peak, p.average ?? 0), 0);
+  // Daily actuals are primary; a missing average never removes a recorded day.
+  const max = points.reduce((peak, p) => Math.max(peak, p.dailyValue ?? 0, p.average ?? 0), 0);
   return { points, max, hasGap: points.some(p => p.cls === "unknown"), windowDays };
 }
 

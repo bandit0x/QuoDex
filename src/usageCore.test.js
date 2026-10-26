@@ -465,6 +465,19 @@ describe("用量页真实 DOM 交互", () => {
     expect(chart.querySelector(".trend-crosshair").hidden).toBe(true);
   });
 
+  it("ZCode 有近期记录但无完整均值窗口时，主线及今日累计仍可见，缺口不连线", async () => {
+    snapshot = { ...snapshot, zcode: { ...snapshot.zcode, collectionStartDay: null,
+      daily: { "2026-10-01": 50, "2026-10-04": 70, "2026-10-05": 90, "2026-10-06": 30 } } };
+    document.getElementById("refresh-btn").click();
+    await vi.dynamicImportSettled();
+    const paths = [...document.querySelectorAll('[data-trend-line="ZCode"][data-trend-kind="daily"]')];
+    expect(paths.some(path => path.dataset.startDay === "2026-10-04" && path.dataset.endDay === "2026-10-05")).toBe(true);
+    expect(paths.every(path => path.dataset.startDay >= "2026-10-04")).toBe(true);
+    expect(document.querySelector('[data-trend-point="daily"][data-source="ZCode"][data-day="2026-10-01"]')).not.toBeNull();
+    expect(document.querySelector('[data-trend-point="today"][data-source="ZCode"][data-day="2026-10-06"]')).not.toBeNull();
+    expect(document.querySelector('[data-trend-line="ZCode"][data-trend-kind="average"]')).toBeNull();
+  });
+
   it("未知周月预览不补零，已核对覆盖的零与未来保持不同状态", async () => {
     document.querySelector('[data-range="1y"]').click();
     const unknown = document.querySelector('.heat-cell[data-day="2026-09-20"]');

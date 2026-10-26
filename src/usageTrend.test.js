@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest";
 import { usageTrend } from "../src-tauri/usage-page/usage-core.js";
 
 describe("平均趋势与原始账目", () => {
-  it("平均图的刻度只由平均值决定，不被预热期尖峰和今日累计压扁", () => {
+  it("真实用量主图容纳原始尖峰及今日累计，平均辅助值独立保留", () => {
     const source = { collectionStartDay: "2026-10-01", daily: { "2026-10-01": 9000, "2026-10-05": 99999 } };
     const points = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"];
     const result = usageTrend(source, points, "2026-10-05", 3);
-    expect(result.max).toBe(3000);
+    expect(result.max).toBe(99999);
     expect(result.points.at(-1).value).toBe(99999);
+  });
+  it("跨设备缺失日不补零，不足平均窗口仍保留近期每日主线", () => {
+    const result = usageTrend({ daily: { "2026-10-24": 70, "2026-10-25": 90, "2026-10-26": 30 } },
+      ["2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26"], "2026-10-26", 7);
+    expect(result.points.map(p => p.dailyValue)).toEqual([null, 70, 90, 30]);
+    expect(result.points.map(p => p.average)).toEqual([null, null, null, null]);
+    expect(result.max).toBe(90);
   });
   it("预热使用区间前数据，真实零参与，今日只显示累计", () => {
     const source = { collectionStartDay: "2026-10-01", daily: {
