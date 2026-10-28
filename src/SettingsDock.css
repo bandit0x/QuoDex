@@ -180,13 +180,45 @@
 /* The two secondary actions share one compact row. */
 .dock-shortcuts { position:relative; z-index:5; display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:12px; height:48px; flex-shrink:0; border-top:1px solid rgba(205,243,255,.14); }
 .dock-layout, .dock-shortcuts .dock-usage { display:inline-flex; align-items:center; justify-content:flex-start; gap:6px; min-width:0; width:auto; height:48px; margin:0; padding:0 6px; border:0; border-radius:8px; background:transparent; box-shadow:none; color:#eaf8fc; font-size:22px; white-space:nowrap; }
-.dock-layout:hover, .dock-shortcuts .dock-usage:hover { background:rgba(205,243,255,.08); box-shadow:none; transform:none; }
+
 .dock-shortcuts .dock-usage-hint { font-size:16px; overflow:hidden; text-overflow:ellipsis; }
 .dock-footer { position:relative; z-index:5; display:grid; grid-template-columns:auto 1fr auto 36px; align-items:center; gap:12px; height:48px; flex-shrink:0; border-top:1px solid rgba(205,243,255,.14); }
 .dock-details-toggle, .dock-footer .dock-quit, .dock-footer .dock-collapse { height:44px; padding:0 6px; border:0; border-radius:8px; color:#eaf8fc; background:transparent; box-shadow:none; font-size:22px; font-weight:540; }
 .dock-details-toggle:disabled { opacity:.45; }
-.dock-details-toggle:hover:not(:disabled), .dock-footer .dock-quit:hover { background:rgba(205,243,255,.08); transform:none; box-shadow:none; }
+
 .dock-info { align-items:center; }
 .dock-save-state { font-size:20px; }
 .dock-details { position:relative; z-index:5; height:88px; flex-shrink:0; overflow:auto; color:#eaf8fc; font-size:20px; line-height:1.35; }
 .dock-details .detail-strip { position:static; display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+
+/* Redistribute the existing 264px control surface: the lens row needs depth,
+   while the slider and switches do not need separate oversized hit rows. */
+.dock-preferences { height:44px; }
+.dock-opacity { grid-template-rows:44px; }
+.dock-actions, .dock-motion { height:38px; }
+.dock-shortcuts { height:80px; }
+.dock-shortcuts .dock-layout, .dock-shortcuts .dock-usage { height:76px; }
+/* Compact independent liquid lenses within the settings surface. */
+.dock-shortcuts .dock-layout, .dock-shortcuts .dock-usage, .dock-footer .dock-details-toggle, .dock-footer .dock-quit {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:0;
+  border:0; border-radius:24px;
+  color:#f1fcff; background:transparent url("./droplet-surface.svg") center / 100% 100% no-repeat;
+  box-shadow:none;
+  transition:filter 130ms ease, transform 130ms ease;
+}
+.dock-shortcuts .dock-layout:hover:not(:disabled), .dock-shortcuts .dock-usage:hover:not(:disabled), .dock-footer .dock-details-toggle:hover:not(:disabled), .dock-footer .dock-quit:hover { filter:brightness(1.3); transform:translateY(-1px); }
+.dock-shortcuts .dock-layout:active, .dock-shortcuts .dock-usage:active, .dock-footer .dock-details-toggle:active, .dock-footer .dock-quit:active { transform:scaleY(.94); }
+.dock-shortcuts svg, .dock-footer button svg { flex-shrink:0; }
+.dock-footer .dock-details-toggle, .dock-footer .dock-quit { padding:0 9px; font-size:20px; }
+.dock-footer .dock-quit svg { color:#ff8976; }
+.dock-info { flex-direction:row; justify-content:center; gap:8px; white-space:nowrap; }
+.dock-save-state { font-size:18px; }
+.dock-version { font-size:18px; }
+.dock-shortcuts .dock-usage-hint { max-width:32px; }
+@media (prefers-reduced-motion: reduce) { .dock-shortcuts .dock-layout, .dock-shortcuts .dock-usage, .dock-footer .dock-details-toggle, .dock-footer .dock-quit { transition:none; transform:none !important; } }
+
+.dock-controls:not(.dock-controls--simple) .dock-preferences { height:60px; }
+.dock-controls:not(.dock-controls--simple) .dock-shortcuts { height:64px; }
+.dock-controls:not(.dock-controls--simple) .dock-shortcuts button { height:60px; }
+
+.reduce-motion .dock-shortcuts button, .reduce-motion .dock-footer button { transition:none; transform:none !important; }

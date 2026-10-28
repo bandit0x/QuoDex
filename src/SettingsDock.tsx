@@ -71,10 +71,10 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
         </label>
       </div>
       <div className="dock-shortcuts">
-      <button className="dock-layout" type="button" disabled={!onToggleLayout} onClick={onToggleLayout}>{collapsed ? "恢复标准视图" : "收起为窄条"}</button>
+      <button className="dock-layout" type="button" disabled={!onToggleLayout} onClick={onToggleLayout}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l5 5M20 4l-5 5M4 20l5-5M20 20l-5-5M5 9h4V5m10 4h-4V5M5 15h4v4m10-4h-4v4" /></svg>{collapsed ? "恢复标准视图" : "收起为窄条"}</button>
       <button className="dock-usage" type="button" data-entry-state={usageEntryState} aria-busy={usageEntryState === "opening"}
         disabled={usageEntryState === "opening" || !onOpenUsage} onClick={onOpenUsage}>
-        <span className="dock-usage-label">用量统计</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 17v-5m6 5V5m6 12V9" /></svg><span className="dock-usage-label">用量统计</span>
         <span className="dock-usage-hint" role="status">
           {usageEntryState === "opening" ? <><span className="dock-usage-spinner" aria-hidden="true" />正在打开…</>
             : usageEntryState === "requested" ? "已请求浏览器打开"
@@ -83,11 +83,12 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
       </button>
       </div>
       <div className="dock-footer">
-        <button className="dock-details-toggle" type="button" aria-expanded={detailsOpen} disabled={!details || !onToggleDetails} onClick={onToggleDetails}>详情</button>
-        <span className="dock-info" title={`v${version}`}>
+        <button className="dock-details-toggle" type="button" aria-expanded={detailsOpen} disabled={!details || !onToggleDetails} onClick={onToggleDetails}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C9 7 6 10 6 14a6 6 0 0 0 12 0c0-4-3-7-6-11Z" /></svg>详情</button>
+        <span className="dock-info">
           <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
+          <span className="dock-version">v{version}</span>
         </span>
-        <button className="dock-quit" type="button" aria-label="退出应用" onClick={onQuit}>退出</button>
+        <button className="dock-quit" type="button" aria-label="退出应用" onClick={onQuit}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M7 5.5a8 8 0 1 0 10 0" /></svg>退出</button>
         <button className="dock-collapse" type="button" aria-label="关闭设置" title="收起设置 · Esc" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg></button>
       </div>
       {detailsOpen && <div className="dock-details" aria-label="额度详情">{details}</div>}

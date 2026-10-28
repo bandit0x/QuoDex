@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsDock } from "./SettingsDock";
+import { version } from "../package.json";
 import type { DisplayPreferences } from "./capacityTypes";
 
 const basePreferences: DisplayPreferences = { opacity: 0.92, reducedMotion: false, alwaysOnTop: true, x: null, y: null };
@@ -24,6 +25,12 @@ function renderDock(props: Partial<Parameters<typeof SettingsDock>[0]> = {}) {
 }
 
 describe("SettingsDock 用量统计入口", () => {
+  it.each(["idle", "saving", "saved", "failed"] as const)("版本号在 %s 状态始终可见", saveState => {
+    renderDock({ saveState, saveError: saveState === "failed" ? { code: "CRV-302", message: "保存失败", detail: null } : null });
+    expect(screen.getByText(`v${version}`)).toBeVisible();
+    if (saveState === "saved") expect(screen.getByText("已保存")).toBeVisible();
+    if (saveState === "failed") expect(screen.getByRole("alert")).toHaveTextContent("CRV-302");
+  });
   it("提供 0% 到 80% 背景透明度，并即时预览透明度", () => {
     const preview = vi.fn();
     renderDock({ onPreviewOpacity: preview });
