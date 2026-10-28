@@ -62,7 +62,7 @@ $taskForm.ShowInTaskbar = $false
 $taskForm.StartPosition = 'Manual'
 $taskForm.TopMost = $true
 $taskColors = @(@(239,75,67), @(35,180,105), @(44,125,240))
-$taskState = @{index=0; samples=[Collections.Generic.List[object]]::new(); error=$null}
+$taskState = @{index=0; samples=[Collections.Generic.List[object]]::new(); error=$null; geometryDeadline=$null}
 $taskTimer = [System.Windows.Forms.Timer]::new()
 $taskTimer.Interval = 700
 try {
@@ -85,6 +85,18 @@ try {
       }
       $taskWidth = $taskRect.Right-$taskRect.Left
       $taskHeight = $taskRect.Bottom-$taskRect.Top
+      # Window resizing is asynchronous. Do not label a sample as settings or
+      # restored until the native window has actually reached that state.
+      $taskWaitingForSettings = $taskIndex -ge 3 -and $taskIndex -lt 6 -and $taskHeight -le $taskState.samples[0].height
+      $taskWaitingForRestore = $taskIndex -ge 6 -and $taskHeight -ne $taskState.samples[0].height
+      if ($taskWaitingForSettings -or $taskWaitingForRestore) {
+        if ([DateTime]::UtcNow -ge $taskState.geometryDeadline) {
+          $taskFailure = @{executable=$Executable; version=(Get-Item -LiteralPath $Executable).VersionInfo.ProductVersion; samples=$taskState.samples.ToArray(); passed=$false; diagnostic='QTR-104'; waitingFor=$(if ($taskWaitingForSettings) { 'settings' } else { 'restored' }); lastWidth=$taskWidth; lastHeight=$taskHeight}
+          $taskFailure | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputDirectory "$Label-result.json") -Encoding utf8
+          throw 'QTR-104: Settings did not open and restore the native window size'
+        }
+        return
+      }
       $taskRgb = $taskColors[$taskIndex % 3]
       $taskForm.Bounds = [Drawing.Rectangle]::new($taskRect.Left-20,$taskRect.Top-20,$taskWidth+40,$taskHeight+40)
       $taskForm.BackColor = [Drawing.Color]::FromArgb($taskRgb[0],$taskRgb[1],$taskRgb[2])
@@ -105,6 +117,7 @@ try {
         $taskState.samples.Add(@{layout=$taskLayout; expected=$taskRgb; actual=@([int]$taskActual.R,[int]$taskActual.G,[int]$taskActual.B); outside=@([int]$taskOutside.R,[int]$taskOutside.G,[int]$taskOutside.B); transparent=$taskMatches; width=$taskWidth; height=$taskHeight; image=$taskImage})
       } finally { $taskBitmap.Dispose() }
       if ($taskIndex -eq 2 -or $taskIndex -eq 5) {
+        $taskState.geometryDeadline = [DateTime]::UtcNow.AddSeconds(15)
         [void][QuoDexTransparencyProbe]::SetForegroundWindow($taskProcess.MainWindowHandle)
         Start-Sleep -Milliseconds 100
         if ($taskIndex -eq 2) {
