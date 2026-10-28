@@ -9,8 +9,8 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
   expanded: { width: 300, height: 160 },
 };
 
-// 36px 来源按钮、6px 间距、132px 控制区与 6px 外边距。
-export const SETTINGS_WINDOW_EXTRA_HEIGHT = 180;
+// 202px 自由液态外壳（含安全内边距）与 6px 外边距。
+export const SETTINGS_WINDOW_EXTRA_HEIGHT = 208;
 export const SETTINGS_ERROR_EXTRA_HEIGHT = 34;
 export const SETTINGS_DETAILS_EXTRA_HEIGHT = 48;
 

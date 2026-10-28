@@ -222,3 +222,23 @@
 .dock-controls:not(.dock-controls--simple) .dock-shortcuts button { height:60px; }
 
 .reduce-motion .dock-shortcuts button, .reduce-motion .dock-footer button { transition:none; transform:none !important; }
+
+/* One continuous control chamber; source rail is part of the same shell. */
+.settings-dock .dock-controls { margin-top:0; height:404px; padding:54px 36px 26px; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
+.settings-dock .dock-controls--error { height:472px; }
+.settings-dock .dock-controls--two-errors { height:540px; }
+.settings-dock .dock-controls--details { height:500px; }
+.settings-dock .dock-controls--details.dock-controls--error { height:568px; }
+.settings-dock .dock-controls--details.dock-controls--two-errors { height:636px; }
+.dock-controls .dock-sources { position:relative; z-index:5; flex-shrink:0; height:76px; gap:4px; border-bottom:1px solid rgba(114,219,246,.22); }
+.dock-controls .glass-lens { flex-direction:row; border:0; background:transparent; box-shadow:none; gap:8px; }
+.dock-controls .glass-lens::after { content:none; }
+.dock-controls .glass-lens[data-selected="true"] { background:transparent url("./droplet-surface.svg") center / 100% 100% no-repeat; }
+.dock-controls .dock-shortcuts { border-top:0; }
+.dock-controls .dock-preferences { border-top:1px solid rgba(114,219,246,.22); }
+
+/* The silhouette lives in its own non-interactive layer, so expanding diagnostics
+   never clips controls or their focus rings to a rounded rectangle. */
+.dock-liquid-shell { position:absolute; inset:0; z-index:0; pointer-events:none; background:url("./dock-liquid-shell.svg") center / 100% 100% no-repeat; filter:drop-shadow(0 8px 8px rgba(0,5,12,.38)); }
+.settings-dock .dock-controls::before, .settings-dock .dock-controls::after { content:none; }
+.app-frame--collapsed .dock-controls { padding-left:32px; padding-right:32px; }

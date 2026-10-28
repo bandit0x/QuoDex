@@ -25,6 +25,18 @@ function renderDock(props: Partial<Parameters<typeof SettingsDock>[0]> = {}) {
 }
 
 describe("SettingsDock 用量统计入口", () => {
+  it("键盘按来源、常用操作、显示调节的顺序访问", async () => {
+    const user = userEvent.setup();
+    renderDock({ onToggleLayout: () => {}, onOpenUsage: () => {} });
+    for (const name of ["Codex", "ZCode", "轮播", "收起为窄条"]) {
+      await user.tab();
+      expect(screen.getByRole("button", { name })).toHaveFocus();
+    }
+    await user.tab();
+    expect(screen.getByRole("button", { name: /用量统计/ })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("slider", { name: "背景透明度" })).toHaveFocus();
+  });
   it.each(["idle", "saving", "saved", "failed"] as const)("版本号在 %s 状态始终可见", saveState => {
     renderDock({ saveState, saveError: saveState === "failed" ? { code: "CRV-302", message: "保存失败", detail: null } : null });
     expect(screen.getByText(`v${version}`)).toBeVisible();

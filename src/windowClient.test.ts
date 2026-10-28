@@ -17,7 +17,7 @@ describe("half-scale overlay layouts", () => {
       );
       const settingsBudget = presentation.windowSize.height
         - overlayLayoutSizes[presentation.baseLayout].height - TASK_ROW_HEIGHT;
-      expect(settingsBudget).toBe(180); // lenses, controls and gap
+      expect(settingsBudget).toBe(208); // organic shell, safe insets and outer gap
       expect(presentation.placement).toBe("below");
       expect(presentation.baseLayout).toBe(layout);
       expect(presentation.restore).toEqual({ layout, position: { x: 100, y }, taskSpace: TASK_ROW_HEIGHT });
@@ -43,11 +43,11 @@ describe("half-scale overlay layouts", () => {
     expect(presentation.placement).toBe("below");
     expect(presentation.windowPosition).toEqual({
       x: 1480,
-      y: 730,
+      y: 702,
     });
     expect(presentation.windowSize).toEqual({
       width: 300,
-      height: 310,
+      height: 338,
     });
     expect(presentation.restore).toEqual({
       layout: "compact",
@@ -64,7 +64,7 @@ describe("half-scale overlay layouts", () => {
 
     expect(presentation.placement).toBe("below");
     expect(presentation.baseLayout).toBe("collapsed");
-    expect(presentation.windowSize).toEqual({ width: 260, height: 228 });
+    expect(presentation.windowSize).toEqual({ width: 260, height: 256 });
     expect(presentation.windowPosition).toEqual({ x: 32, y: 20 });
     expect(presentation.restore.layout).toBe("collapsed");
   });
