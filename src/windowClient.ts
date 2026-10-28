@@ -9,12 +9,12 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
   expanded: { width: 300, height: 160 },
 };
 
-// Floating dock: 36px lenses + 6px gap + 116px controls (three rows, incl. the
-// usage entry row) + 6px quota gap.
-export const SETTINGS_WINDOW_EXTRA_HEIGHT = 164;
-export const SETTINGS_ERROR_EXTRA_HEIGHT = 24;
+// 36px 来源按钮、6px 间距、132px 控制区与 6px 外边距。
+export const SETTINGS_WINDOW_EXTRA_HEIGHT = 180;
+export const SETTINGS_ERROR_EXTRA_HEIGHT = 34;
+export const SETTINGS_DETAILS_EXTRA_HEIGHT = 48;
 
-/** 设置坞额外高度：基础预算 + 每条可见错误轨 24px（保存失败与用量打开失败各自独立）。 */
+/** 设置坞额外高度：基础预算 + 每条可见错误轨 34px（保存失败与用量打开失败各自独立）。 */
 export function planSettingsExtraHeight(saveErrorVisible: boolean, usageErrorVisible: boolean): number {
   return SETTINGS_WINDOW_EXTRA_HEIGHT
     + (saveErrorVisible ? SETTINGS_ERROR_EXTRA_HEIGHT : 0)

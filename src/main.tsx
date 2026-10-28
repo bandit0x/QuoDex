@@ -177,7 +177,6 @@ const fixtureProps: React.ComponentProps<typeof App> = fixtureEnabled
         source: resolveFixtureSource(fixtureName),
       }),
       savePreferences: async () => undefined,
-      enableClickThrough: async () => undefined,
       setWindowLayout: async () => undefined,
       // 设置面板桩：浏览器里没有 tauri invoke，让 ?fixture= 页面能截图设置状态
       openSettingsWindow: async () => ({

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Diagnostic, DisplayPreferences, SourceSelection } from "./capacityTypes";
 import { OpticalShell } from "./OpticalShell";
 import { GlassLensCanvas } from "./GlassLensCanvas";
@@ -25,9 +25,14 @@ interface SettingsDockProps {
   onClose: () => void;
   onQuit: () => void;
   onOpenUsage?: () => void;
+  collapsed?: boolean;
+  onToggleLayout?: () => void;
+  details?: ReactNode;
+  detailsOpen?: boolean;
+  onToggleDetails?: () => void;
 }
 
-export function SettingsDock({ preferences, source, dragging, saveState, saveError, usageEntryState = "idle", usageError = null, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit, onOpenUsage }: SettingsDockProps) {
+export function SettingsDock({ preferences, source, dragging, saveState, saveError, usageEntryState = "idle", usageError = null, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit, onOpenUsage, collapsed = false, onToggleLayout, details, detailsOpen = false, onToggleDetails }: SettingsDockProps) {
   const shownAlwaysOnTop = saveState === "saving" ? (preferences.alwaysOnTop ?? true) : (appliedAlwaysOnTop ?? preferences.alwaysOnTop ?? true);
   const twoErrors = Boolean(saveError && usageError);
   return <aside className="settings-dock" role="dialog" aria-label="显示设置">
@@ -40,18 +45,18 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
         <span>{label}</span>
       </button>)}
     </div>
-    <div className={`glass-shell dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}`} data-save-state={saveState}>
-      <OpticalShell dragging={dragging} reducedMotion={preferences.reducedMotion} opacity={preferences.opacity} controlSurface />
+    <div className={`glass-shell dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError || usageError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}${detailsOpen ? " dock-controls--details" : ""}`} data-save-state={saveState}>
+      <OpticalShell dragging={dragging} reducedMotion={preferences.reducedMotion} opacity={1} controlSurface />
       <div className={`dock-preferences${source !== "zcode" ? " dock-preferences--simple" : ""}`}>
         {source === "zcode" && <span className="dock-plan">
           <span className="dock-control-label">套餐</span>
           <PlanSegmented value={preferences.zcodePlan ?? "start"} onChange={zcodePlan => onChange({ ...preferences, zcodePlan })} />
         </span>}
         <label className="dock-opacity" htmlFor="dock-opacity">
-          <span>透明度</span><output htmlFor="dock-opacity">{Math.round(preferences.opacity * 100)}%</output>
-          <input id="dock-opacity" aria-label="透明度" type="range" min="0.86" max="1" step="0.02" value={preferences.opacity}
-            style={{ "--range-fill": `${(preferences.opacity - .86) / .14 * 100}%` } as CSSProperties}
-            onChange={event => onPreviewOpacity(Number(event.target.value))}
+          <span>背景透明度</span><output htmlFor="dock-opacity">{Math.round((1 - preferences.opacity) * 100)}%</output>
+          <input id="dock-opacity" aria-label="背景透明度" type="range" min="0" max="0.8" step="0.02" value={Number((1 - preferences.opacity).toFixed(2))}
+            style={{ "--range-fill": `${(1 - preferences.opacity) / .8 * 100}%` } as CSSProperties}
+            onChange={event => onPreviewOpacity(Number((1 - Number(event.target.value)).toFixed(2)))}
             onPointerUp={onCommitOpacity} onPointerCancel={onCommitOpacity} onKeyUp={onCommitOpacity} onBlur={onCommitOpacity} />
         </label>
       </div>
@@ -64,25 +69,28 @@ export function SettingsDock({ preferences, source, dragging, saveState, saveErr
           <span>减少动效</span><input type="checkbox" checked={preferences.reducedMotion} onChange={event => onChange({ ...preferences, reducedMotion: event.target.checked })} />
           <span className="dock-switch" aria-hidden="true" />
         </label>
-        <span className="dock-info">
-          <span className="dock-version">{`v${version}`}</span>
-          <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
-        </span>
-        <button className="dock-quit" type="button" aria-label="退出应用" onClick={onQuit}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6v9.4" /><path d="M17.8 6.2a8.2 8.2 0 1 1-11.6 0" /></svg>
-          <span>退出</span>
-        </button>
-        <button className="dock-collapse" type="button" aria-label="关闭设置" title="收起设置 · Esc" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg></button>
       </div>
+      <div className="dock-shortcuts">
+      <button className="dock-layout" type="button" disabled={!onToggleLayout} onClick={onToggleLayout}>{collapsed ? "恢复标准视图" : "收起为窄条"}</button>
       <button className="dock-usage" type="button" data-entry-state={usageEntryState} aria-busy={usageEntryState === "opening"}
         disabled={usageEntryState === "opening" || !onOpenUsage} onClick={onOpenUsage}>
         <span className="dock-usage-label">用量统计</span>
         <span className="dock-usage-hint" role="status">
           {usageEntryState === "opening" ? <><span className="dock-usage-spinner" aria-hidden="true" />正在打开…</>
             : usageEntryState === "requested" ? "已请求浏览器打开"
-              : <>默认浏览器<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6m0-6-9 9m7 0v7H4V6h7" /></svg></>}
+              : <><span className="dock-sr-only">默认浏览器</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6m0-6-9 9m7 0v7H4V6h7" /></svg></>}
         </span>
       </button>
+      </div>
+      <div className="dock-footer">
+        <button className="dock-details-toggle" type="button" aria-expanded={detailsOpen} disabled={!details || !onToggleDetails} onClick={onToggleDetails}>详情</button>
+        <span className="dock-info" title={`v${version}`}>
+          <span className="dock-save-state" role="status">{saveState === "saved" ? <><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg><span>已保存</span></> : saveState === "saving" ? <span>正在保存</span> : null}</span>
+        </span>
+        <button className="dock-quit" type="button" aria-label="退出应用" onClick={onQuit}>退出</button>
+        <button className="dock-collapse" type="button" aria-label="关闭设置" title="收起设置 · Esc" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg></button>
+      </div>
+      {detailsOpen && <div className="dock-details" aria-label="额度详情">{details}</div>}
       {usageError && <div className="dock-error dock-error--usage" role="alert"><span className="dock-error-message" title={[usageError.message, usageError.detail].filter(Boolean).join("；")}>{usageError.message}</span><span className="dock-error-code"> · {usageError.code}</span><button type="button" aria-label="重试打开用量统计" disabled={usageEntryState === "opening"} onClick={onOpenUsage}>{usageEntryState === "opening" ? "打开中" : "重试"}</button></div>}
       {saveError && <div className="dock-error" role="alert"><span className="dock-error-message" title={[saveError.message, saveError.detail].filter(Boolean).join("；")}>{saveError.message}</span><span className="dock-error-code"> · {saveError.code}</span><button type="button" aria-label="重试保存" disabled={saveState === "saving"} onClick={onRetry}>{saveState === "saving" ? "保存中" : "重试"}</button></div>}
     </div>

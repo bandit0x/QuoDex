@@ -7,7 +7,7 @@ import {
 } from "./windowClient";
 
 describe("half-scale overlay layouts", () => {
-  it.each(["compact", "expanded", "collapsed"] as const)("adds the approved 124px dock below tasks and quota from %s", (layout) => {
+  it.each(["compact", "expanded", "collapsed"] as const)("adds the compact dock below tasks and quota from %s", (layout) => {
     for (const y of [30, 700]) {
       const presentation = planSettingsWindowPresentation(
         layout,
@@ -17,7 +17,7 @@ describe("half-scale overlay layouts", () => {
       );
       const settingsBudget = presentation.windowSize.height
         - overlayLayoutSizes[presentation.baseLayout].height - TASK_ROW_HEIGHT;
-      expect(settingsBudget).toBe(164); // 36px lenses + 6px gap + 116px controls (three rows incl. usage entry) + 6px quota gap
+      expect(settingsBudget).toBe(180); // lenses, controls and gap
       expect(presentation.placement).toBe("below");
       expect(presentation.baseLayout).toBe(layout);
       expect(presentation.restore).toEqual({ layout, position: { x: 100, y }, taskSpace: TASK_ROW_HEIGHT });
@@ -43,11 +43,11 @@ describe("half-scale overlay layouts", () => {
     expect(presentation.placement).toBe("below");
     expect(presentation.windowPosition).toEqual({
       x: 1480,
-      y: 746,
+      y: 730,
     });
     expect(presentation.windowSize).toEqual({
       width: 300,
-      height: 294,
+      height: 310,
     });
     expect(presentation.restore).toEqual({
       layout: "compact",
@@ -64,7 +64,7 @@ describe("half-scale overlay layouts", () => {
 
     expect(presentation.placement).toBe("below");
     expect(presentation.baseLayout).toBe("collapsed");
-    expect(presentation.windowSize).toEqual({ width: 260, height: 212 });
+    expect(presentation.windowSize).toEqual({ width: 260, height: 228 });
     expect(presentation.windowPosition).toEqual({ x: 32, y: 20 });
     expect(presentation.restore.layout).toBe("collapsed");
   });

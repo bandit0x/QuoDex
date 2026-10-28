@@ -297,7 +297,7 @@ input:focus-visible {
   border-radius: 25px 19px 19px 25px;
   background:
     radial-gradient(90% 64% at 50% -8%, rgba(178, 229, 248, 0.16), transparent 56%),
-    linear-gradient(180deg, rgba(12, 31, 45, 0.98), rgba(2, 12, 21, 0.99));
+    linear-gradient(180deg, rgba(12, 31, 45, calc(var(--surface-opacity, .92) * .98)), rgba(2, 12, 21, calc(var(--surface-opacity, .92) * .99)));
   box-shadow:
     0 0 0 4px rgba(11, 54, 70, 0.48),
     0 0 9px rgba(25, 115, 139, 0.2),
@@ -403,6 +403,7 @@ input:focus-visible {
   width: 100%;
   pointer-events: none;
   overflow: hidden;
+  opacity: var(--surface-opacity, .92);
   border-radius: 25px 19px 19px 25px;
 }
 
@@ -410,7 +411,7 @@ input:focus-visible {
 
 .glass-shell--stale .fluid-reservoir {
   /* Keep each chamber's semantic hue visible while marking stale data through dimming. */
-  opacity: 0.72;
+  opacity: calc(var(--surface-opacity, .92) * .72);
 }
 
 .cell-content {

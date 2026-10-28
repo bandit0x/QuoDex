@@ -156,7 +156,7 @@ vec4 controlGlass(vec2 fragment) {
   glass += wallReflection * roll * 0.10;
 
   float alpha = mask * clamp(0.84 + fresnel * 0.14 + roll * 0.06, 0.0, 0.98)
-    * mix(0.9, 1.0, uOpacity);
+    * uOpacity;
   vec3 rgb = pow(max(glass, vec3(0.0)), vec3(0.92));
   // This WebGL context uses premultiplied alpha.
   return vec4(min(rgb, vec3(1.0)) * alpha, alpha);
@@ -248,7 +248,7 @@ void main() {
   glass += vec3(0.78, 0.95, 1.0) * topReflection * 0.42;
   glass += vec3(0.1, 0.53, 0.68) * lowerReflection * 0.22;
 
-  float alpha = mask * mix(0.72, 0.98, uOpacity) * (0.84 + rim * 0.16);
+  float alpha = mask * uOpacity * 0.98 * (0.84 + rim * 0.16);
   outColor = vec4(pow(max(glass, vec3(0.0)), vec3(0.92)), alpha);
 }`;
 

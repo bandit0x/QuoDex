@@ -11,7 +11,6 @@ import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
 import { SettingsDock, type PreferenceSaveState, type UsageEntryState } from "./SettingsDock";
 import {
-  enableTemporaryClickThrough,
   loadDisplayPreferences,
   quitApplication,
   readCapacitySnapshot,
@@ -52,6 +51,7 @@ import {
   TASK_ROW_HEIGHT,
   TASK_POPOVER_HEIGHT,
   planSettingsExtraHeight,
+  SETTINGS_DETAILS_EXTRA_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -76,7 +76,6 @@ interface AppProps {
   loadPinStartupDiagnostic?: () => Promise<Diagnostic | null>;
   readPinState?: () => Promise<boolean>;
   savePreferences?: (preferences: DisplayPreferences) => Promise<void>;
-  enableClickThrough?: (durationMs?: number) => Promise<void>;
   setWindowLayout?: (layout: OverlayLayout) => Promise<void>;
   getWindowPosition?: () => Promise<OverlayPosition>;
   setWindowPosition?: (position: OverlayPosition) => Promise<void>;
@@ -133,7 +132,6 @@ async function readWindowPinState(): Promise<boolean> {
 }
 const REFRESH_INTERVAL_MS = 5_000;
 const CAROUSEL_INTERVAL_MS = 10_000;
-const CLICK_THROUGH_DURATION_MS = 10_000;
 const ROUTE_HEALTHY_INTERVAL_MS = 5_000;
 const ROUTE_BLOCKED_INTERVAL_MS = 1_000;
 const ROUTE_FAILURE_THRESHOLD = 2;
@@ -561,7 +559,6 @@ export function App({
   loadPinStartupDiagnostic = readPinStartupDiagnostic,
   readPinState = readWindowPinState,
   savePreferences = saveDisplayPreferences,
-  enableClickThrough = enableTemporaryClickThrough,
   setWindowLayout = setOverlayWindowLayout,
   getWindowPosition = getOverlayWindowPosition,
   setWindowPosition = setOverlayWindowPosition,
@@ -579,9 +576,9 @@ export function App({
   // 窗口尺寸变化与界面重绘分属两个进程，任何开合缩放都会产生可见的不同步帧。
   const taskSpace = hasTaskArea ? TASK_ROW_HEIGHT + TASK_POPOVER_HEIGHT : 0;
   const codexSlot = useSourceSlot(loadSnapshot, "Codex", codexSnapshotIdentity);
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [layoutMode, setLayoutMode] = useState<OverlayLayout>(initialLayout);
   const [settingsPresentation, setSettingsPresentation] = useState<SettingsWindowPresentation | null>(null);
+  const [settingsDetailsOpen, setSettingsDetailsOpen] = useState(false);
   const settingsNativePresentation = useRef<SettingsWindowPresentation | null>(null);
   useEffect(() => {
     if (taskStatus.snapshot.observedAtMs === 0) return;
@@ -639,7 +636,6 @@ export function App({
   );
   const zcodeSlot = useSourceSlot(loadZcodeSnapshotWithPlan, "ZCode");
   const [carouselSource, setCarouselSource] = useState<MeterSource>("codex");
-  const [clickThroughSeconds, setClickThroughSeconds] = useState(0);
   const [routeConnection, setRouteConnection] = useState<TomatoConnectionSnapshot | null>(null);
   const routeProbeInFlightRef = useRef<Promise<TomatoConnectionSnapshot> | null>(null);
   const routeGateRef = useRef<RouteGateState>({ visible: null, consecutiveFailures: 0 });
@@ -793,15 +789,6 @@ export function App({
     })();
     return () => { cancelled = true; };
   }, [loadPreferences, loadPinStartupDiagnostic, readPinState, acceptPinState]);
-
-  useEffect(() => {
-    if (clickThroughSeconds <= 0) return;
-    const timer = window.setInterval(
-      () => setClickThroughSeconds((value) => Math.max(0, value - 1)),
-      1_000,
-    );
-    return () => window.clearInterval(timer);
-  }, [clickThroughSeconds]);
 
   useEffect(() => () => {
     if (inertiaFrameRef.current !== null) cancelAnimationFrame(inertiaFrameRef.current);
@@ -1072,7 +1059,7 @@ export function App({
       await closeSettingsWindow(presentation);
       settingsNativePresentation.current = null;
       setSettingsPresentation(null);
-      settingsButtonRef.current?.focus({ preventScroll: true });
+      setSettingsDetailsOpen(false);
       return true;
     } catch {
       setControlMessage("设置窗口未能复位 · CRV-302");
@@ -1082,7 +1069,8 @@ export function App({
     }
   }, [closeSettingsWindow, settingsPresentation, commitOpacity]);
 
-  const settingsExtraHeight = planSettingsExtraHeight(Boolean(preferenceSaveError), Boolean(usageOpenError));
+  const settingsExtraHeight = planSettingsExtraHeight(Boolean(preferenceSaveError), Boolean(usageOpenError))
+    + (settingsDetailsOpen ? SETTINGS_DETAILS_EXTRA_HEIGHT : 0);
   useEffect(() => {
     const generation = ++settingsResizeGeneration.current;
     if (!settingsPresentation || settingsTransitionRef.current) return;
@@ -1150,15 +1138,6 @@ export function App({
     changeLayout("compact");
   }, [changeLayout]);
 
-  const startClickThrough = useCallback(async () => {
-    try {
-      await enableClickThrough(CLICK_THROUGH_DURATION_MS);
-      setClickThroughSeconds(CLICK_THROUGH_DURATION_MS / 1_000);
-    } catch {
-      setControlMessage("穿透模式未能开启 · CRV-304");
-    }
-  }, [enableClickThrough]);
-
   const activeSource: MeterSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
   const activeSlot = activeSource === "codex" ? codexSlot : zcodeSlot;
   const activeIsZcode = activeSource === "zcode";
@@ -1193,21 +1172,40 @@ export function App({
       .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
   };
 
-  const detailActions = (
-    <div className="detail-actions">
-      <button type="button" onClick={() => void refreshAll()} disabled={activeSlot.isRefreshing}>
-        {activeSlot.isRefreshing ? "刷新中" : "刷新"}
-      </button>
-      <button type="button" onClick={() => void startClickThrough()}>
-        {clickThroughSeconds > 0 ? `穿透 ${clickThroughSeconds}s` : "穿透 10 秒"}
-      </button>
-      <button type="button" onClick={() => changeLayout("collapsed")}>收起为窄条</button>
-      <button ref={settingsButtonRef} type="button" onClick={() => void toggleSettings()}>
-        <Icon name="settings" />
-        <span>设置</span>
-      </button>
+  const detailContent = activeSnapshot ? (
+    <div className="detail-strip">
+      {activeIsZcode && zcodeSnapshot ? (
+        <>
+          {zcodeIsTrial ? (
+            <>
+              {zcodeSnapshot.planLevel && <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>}
+              <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
+                {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
+              </span>
+            </>
+          ) : zcodeSnapshot.resetCreditsDiagnostic ? (
+            <>
+              <span className="reset-card-detail">5H RESETS — · WEEK RESETS —</span>
+              <span className="reset-card-detail" title={zcodeSnapshot.resetCreditsDiagnostic.message}>
+                {zcodeSnapshot.resetCreditsDiagnostic.code} · {zcodeSnapshot.resetCreditsDiagnostic.message}
+              </span>
+            </>
+          ) : (
+            <>
+              <ZCodeResetDetail label="5H RESETS" credits={zcodeSnapshot.resetCredits?.fiveHour} />
+              <ZCodeResetDetail label="WEEK RESETS" credits={zcodeSnapshot.resetCredits?.weekly} />
+            </>
+          )}
+        </>
+      ) : codexSnapshot ? (
+        <>
+          <span>FULL RESET EXPIRES <b>{formatExpiry(codexSnapshot.fullResetCredits?.nearestExpiryAt)}</b></span>
+          <RouteStatus route={routeConnection} alert={routeBlocked} />
+        </>
+      ) : null}
+      {stale && <span className="stale-warning">STALE · {failureDiagnostic?.code ?? "cached snapshot"}</span>}
     </div>
-  );
+  ) : null;
 
   return (
     <main
@@ -1333,60 +1331,19 @@ export function App({
                   </span>
                 </>
               )}
-              {activeSnapshot && expanded && (
-                <div className="detail-strip">
-                  {activeIsZcode && zcodeSnapshot ? (
-                    <>
-                      {zcodeIsTrial ? (
-                        <>
-                          {zcodeSnapshot.planLevel && <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>}
-                          <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
-                            {activeSlot.isRefreshing ? "正在刷新" : freshnessText(zcodeSnapshot, stale, failureDiagnostic, { poolOnly: zcodeIsTrial })}
-                          </span>
-                        </>
-                      ) : zcodeSnapshot.resetCreditsDiagnostic ? (
-                        <>
-                          <span className="reset-card-detail">5H RESETS — · WEEK RESETS —</span>
-                          <span className="reset-card-detail" title={zcodeSnapshot.resetCreditsDiagnostic.message}>
-                            {zcodeSnapshot.resetCreditsDiagnostic.code} · {zcodeSnapshot.resetCreditsDiagnostic.message}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <ZCodeResetDetail label="5H RESETS" credits={zcodeSnapshot.resetCredits?.fiveHour} />
-                          <ZCodeResetDetail label="WEEK RESETS" credits={zcodeSnapshot.resetCredits?.weekly} />
-                        </>
-                      )}
-                    </>
-                  ) : codexSnapshot ? (
-                    <>
-                      <span>FULL RESET EXPIRES <b>{formatExpiry(codexSnapshot.fullResetCredits?.nearestExpiryAt)}</b></span>
-                      <RouteStatus route={routeConnection} alert={routeBlocked} />
-                    </>
-                  ) : null}
-                  {stale && <span className="stale-warning">STALE · {failureDiagnostic?.code ?? "cached snapshot"}</span>}
-                  {detailActions}
-                </div>
-              )}
-              <button
-                className="expand-button"
-                type="button"
-                aria-label={expanded ? "收起重置详情" : "展开重置详情"}
-                aria-expanded={expanded}
-                title={expanded ? "收起重置详情" : "展开重置详情"}
-                onClick={() => changeLayout(expanded ? "compact" : "expanded")}
-                disabled={!activeSnapshot}
-              >
-                <Icon name="chevron" />
-              </button>
+
             </footer>
           </>
         )}
 
-        {collapsed && <button ref={settingsButtonRef} className="collapsed-settings" type="button" aria-label="设置" onClick={() => void toggleSettings()}><Icon name="settings" /></button>}
       </div>
 
       {settingsOpen && <SettingsDock
+        details={detailContent}
+        detailsOpen={settingsDetailsOpen}
+        onToggleDetails={() => setSettingsDetailsOpen(open => !open)}
+        collapsed={collapsed}
+        onToggleLayout={activeSnapshot ? () => void changeLayout(collapsed ? "compact" : "collapsed") : undefined}
         preferences={preferences}
         appliedAlwaysOnTop={confirmedAlwaysOnTop ?? undefined}
         pinStateUnconfirmed={confirmedAlwaysOnTop === null}

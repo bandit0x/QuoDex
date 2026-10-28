@@ -126,10 +126,10 @@ impl PreferencesStore {
 }
 
 pub(crate) fn validate(preferences: &DisplayPreferences) -> Result<(), Diagnostic> {
-    if !(0.86..=1.0).contains(&preferences.opacity) {
+    if !(0.2..=1.0).contains(&preferences.opacity) {
         return Err(Diagnostic::new(
             "CRV-301",
-            "显示透明度必须在 86% 到 100% 之间",
+            "背景透明度必须在 0% 到 80% 之间",
         ));
     }
     Ok(())
@@ -138,14 +138,15 @@ pub(crate) fn validate(preferences: &DisplayPreferences) -> Result<(), Diagnosti
 fn read_from_disk(path: &Path) -> Option<DisplayPreferences> {
     let bytes = fs::read(path).ok()?;
     let mut preferences: DisplayPreferences = serde_json::from_slice(&bytes).ok()?;
-    preferences.opacity = preferences.opacity.clamp(0.86, 1.0);
+    preferences.opacity = preferences.opacity.clamp(0.2, 1.0);
     Some(preferences)
 }
 
 fn write_to_disk(path: &Path, preferences: &DisplayPreferences) -> Result<(), Diagnostic> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
-            Diagnostic::new("CRV-302", "无法创建本地显示偏好目录").with_detail(error.to_string())
+            Diagnostic::new("CRV-302", "无法创建显示偏好目录；请检查路径与权限")
+                .with_detail(error.to_string())
         })?;
     }
     let bytes = serde_json::to_vec_pretty(preferences).map_err(|error| {
@@ -204,7 +205,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("crv-preferences-{unique}.json"));
         let store = PreferencesStore::from_path(path.clone());
         let expected = DisplayPreferences {
-            opacity: 0.9,
+            opacity: 0.2,
             reduced_motion: true,
             always_on_top: false,
             source: MeterSourceSelection::Carousel,
@@ -219,6 +220,19 @@ mod tests {
         assert!(!raw.contains("token"));
         assert!(!raw.contains("startup"));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn transparency_boundaries_are_validated() {
+        let mut preferences = DisplayPreferences::default();
+        for opacity in [0.2, 1.0] {
+            preferences.opacity = opacity;
+            assert!(validate(&preferences).is_ok());
+        }
+        for opacity in [0.19, 1.01] {
+            preferences.opacity = opacity;
+            assert_eq!(validate(&preferences).unwrap_err().code, "CRV-301");
+        }
     }
 
     #[test]

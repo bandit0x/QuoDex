@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsDock } from "./SettingsDock";
 import type { DisplayPreferences } from "./capacityTypes";
@@ -24,6 +24,31 @@ function renderDock(props: Partial<Parameters<typeof SettingsDock>[0]> = {}) {
 }
 
 describe("SettingsDock 用量统计入口", () => {
+  it("提供 0% 到 80% 背景透明度，并即时预览透明度", () => {
+    const preview = vi.fn();
+    renderDock({ onPreviewOpacity: preview });
+    const slider = screen.getByRole("slider", { name: "背景透明度" });
+    expect(slider).toHaveAttribute("min", "0");
+    expect(slider).toHaveAttribute("max", "0.8");
+    fireEvent.change(slider, { target: { value: "0.8" } });
+    expect(preview).toHaveBeenCalledWith(0.2);
+  });
+  it("在同一行提供窄条切换和用量统计，并独立显示详情", async () => {
+    const toggleLayout = vi.fn();
+    const toggleDetails = vi.fn();
+    const { rerender } = renderDock({ onToggleLayout: toggleLayout, onOpenUsage: () => {}, details: <span>重置详情</span>, onToggleDetails: toggleDetails });
+    const layout = screen.getByRole("button", { name: "收起为窄条" });
+    expect(layout.parentElement).toBe(screen.getByRole("button", { name: /^用量统计/ }).parentElement);
+    await userEvent.click(layout);
+    expect(toggleLayout).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("button", { name: "详情" }));
+    expect(toggleDetails).toHaveBeenCalledOnce();
+    rerender(<SettingsDock preferences={basePreferences} source="codex" dragging={false} saveState="idle" saveError={null}
+      onChange={() => {}} onPreviewOpacity={() => {}} onCommitOpacity={() => {}} onRetry={() => {}} onClose={() => {}} onQuit={() => {}}
+      collapsed onToggleLayout={toggleLayout} detailsOpen details={<span>重置详情</span>} onToggleDetails={toggleDetails} />);
+    expect(screen.getByRole("button", { name: "恢复标准视图" })).toBeEnabled();
+    expect(screen.getByText("重置详情")).toBeVisible();
+  });
   it("默认态展示完整入口行：用量统计 / 默认浏览器 + 外开图标", () => {
     renderDock({ onOpenUsage: () => {} });
     const entry = screen.getByRole("button", { name: /用量统计/ });
@@ -41,7 +66,7 @@ describe("SettingsDock 用量统计入口", () => {
     expect(entry).toHaveTextContent("正在打开…");
     expect(entry.querySelector(".dock-usage-spinner")).not.toBeNull();
     expect(screen.getByRole("button", { name: "退出应用" })).toBeEnabled();
-    expect(screen.getByRole("slider", { name: "透明度" })).toBeEnabled();
+    expect(screen.getByRole("slider", { name: "背景透明度" })).toBeEnabled();
   });
 
   it("系统接受派发后显示已请求浏览器打开，不声称页面已加载", () => {
@@ -91,7 +116,7 @@ describe("SettingsDock 用量统计入口", () => {
 });
 
 describe("planSettingsExtraHeight 配套断言", () => {
-  it("两条错误轨各自增加 24px 预算", async () => {
+  it("两条错误轨各自增加独立高度预算", async () => {
     const { planSettingsExtraHeight, SETTINGS_WINDOW_EXTRA_HEIGHT, SETTINGS_ERROR_EXTRA_HEIGHT } = await import("./windowClient");
     expect(planSettingsExtraHeight(false, false)).toBe(SETTINGS_WINDOW_EXTRA_HEIGHT);
     expect(planSettingsExtraHeight(true, false)).toBe(SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT);

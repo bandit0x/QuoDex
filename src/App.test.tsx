@@ -19,7 +19,6 @@ const inertPreferences = {
   loadPinStartupDiagnostic: async () => null,
   readPinState: async () => true,
   savePreferences: async () => undefined,
-  enableClickThrough: async () => undefined,
   setWindowLayout: async () => undefined,
   openSettingsWindow: async () => ({
     baseLayout: "compact" as const,
@@ -42,6 +41,21 @@ const inertPreferences = {
   }),
 };
 
+// Capture the actual periodic refresh callback without waiting five seconds per case.
+function captureAutomaticRefresh() {
+  const original = window.setInterval.bind(window);
+  let tick: (() => void) | undefined;
+  const spy = vi.spyOn(window, "setInterval").mockImplementation((callback, delay, ...args) => {
+    if (delay === 5000 && typeof callback === "function") tick = () => callback(...args);
+    return original(callback, delay, ...args);
+  });
+  return async () => {
+    spy.mockRestore();
+    if (!tick) throw new Error("Periodic refresh was not registered");
+    await act(async () => { tick!(); });
+  };
+}
+
 describe("window pin preferences", () => {
   it("retries native startup failure without overwriting restored display preferences", async () => {
     const stored: DisplayPreferences = { opacity: .88, reducedMotion: true, alwaysOnTop: false, source: "zcode", zcodePlan: "coding", x: 120, y: 240 };
@@ -55,7 +69,7 @@ describe("window pin preferences", () => {
     fireEvent.contextMenu(screen.getByRole("main"));
     expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
     expect(screen.queryByText("已保存")).not.toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "透明度" })).toHaveValue("0.88");
+    expect(screen.getByRole("slider", { name: "背景透明度" })).toHaveValue("0.12");
     expect(screen.getByRole("checkbox", { name: "减少动效" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "个人套餐" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "置于顶层" })).toBeChecked();
@@ -75,7 +89,7 @@ describe("window pin preferences", () => {
     const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
     fireEvent.click(pin);
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    fireEvent.change(screen.getByRole("slider", { name: "背景透明度" }), { target: { value: "0.1" } });
     expect(pin).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "减少动效" }));
     expect(savePreferences).toHaveBeenCalledTimes(1);
@@ -129,8 +143,8 @@ describe("window pin preferences", () => {
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(3));
     expect(savePreferences.mock.calls[2][0]).toMatchObject({ alwaysOnTop: true, reducedMotion: true, source: "zcode" });
     await waitFor(() => expect(pin).toBeEnabled());
-    const slider = screen.getByRole("slider", { name: "透明度" });
-    fireEvent.change(slider, { target: { value: "0.9" } });
+    const slider = screen.getByRole("slider", { name: "背景透明度" });
+    fireEvent.change(slider, { target: { value: "0.1" } });
     fireEvent.pointerUp(slider);
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(4));
     expect(savePreferences.mock.calls[3][0]).toMatchObject({ alwaysOnTop: true, reducedMotion: true, source: "zcode", opacity: .9 });
@@ -153,8 +167,8 @@ describe("window pin preferences", () => {
     const pin = await screen.findByRole("checkbox", { name: "置于顶层" });
     fireEvent.click(pin);
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
-    const slider = screen.getByRole("slider", { name: "透明度" });
-    fireEvent.change(slider, { target: { value: "0.9" } });
+    const slider = screen.getByRole("slider", { name: "背景透明度" });
+    fireEvent.change(slider, { target: { value: "0.1" } });
     if (opacityEdit === "queued") fireEvent.pointerUp(slider);
     expect(pin).toBeDisabled();
     expect(savePreferences).toHaveBeenCalledTimes(1);
@@ -162,7 +176,7 @@ describe("window pin preferences", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("CRV-307");
     await waitFor(() => expect(pin).toBeEnabled());
     expect(pin).toBeChecked();
-    expect(slider).toHaveValue("0.9");
+    expect(slider).toHaveValue("0.1");
     if (opacityEdit === "queued") {
       expect(savePreferences.mock.calls[1][0]).toMatchObject({ alwaysOnTop: true, opacity: .9 });
     } else {
@@ -183,11 +197,11 @@ describe("window pin preferences", () => {
     fireEvent.contextMenu(screen.getByRole("main"));
     fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
-    const slider = screen.getByRole("slider", { name: "透明度" });
-    fireEvent.change(slider, { target: { value: "0.9" } });
+    const slider = screen.getByRole("slider", { name: "背景透明度" });
+    fireEvent.change(slider, { target: { value: "0.1" } });
     await act(async () => { failSave({ code: "CRV-304", message: "无法保存显示偏好；检查目录权限后重试" }); await pending.catch(() => undefined); });
     expect(await screen.findByRole("alert")).toHaveTextContent("CRV-304");
-    expect(slider).toHaveValue("0.9");
+    expect(slider).toHaveValue("0.1");
     expect(screen.getByRole("checkbox", { name: "减少动效" })).toBeChecked();
     expect(savePreferences).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
@@ -447,27 +461,17 @@ describe("Codex capacity overlay", () => {
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
-  it("reveals refresh, bounded click-through, and settings after expansion", async () => {
-    const user = userEvent.setup();
-    let clickThroughCalls = 0;
-    render(
-      <App
-        {...inertPreferences}
-        loadSnapshot={async () => healthySnapshot}
-        enableClickThrough={async () => { clickThroughCalls += 1; }}
-      />,
-    );
-
+  it("opens the controls by right click without the old expansion or action buttons", async () => {
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} />);
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "穿透 10 秒" }));
-    expect(clickThroughCalls).toBe(1);
-    await user.click(screen.getByRole("button", { name: "设置" }));
-    expect(screen.getByRole("dialog", { name: "显示设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "展开重置详情" })).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const dock = await screen.findByRole("dialog", { name: "显示设置" });
+    expect(within(dock).getByRole("button", { name: "收起为窄条" })).toBeEnabled();
+    for (const name of ["刷新", "穿透 10 秒", "设置"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   });
 
-  it("moves between compact, expanded, and collapsed window layouts", async () => {
+  it("moves between compact and collapsed window layouts", async () => {
     const user = userEvent.setup();
     const layouts: string[] = [];
     render(
@@ -479,10 +483,8 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    expect(layouts[layouts.length - 1]).toBe("expanded");
-
-    await user.click(screen.getByRole("button", { name: "收起为窄条" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await user.click(await screen.findByRole("button", { name: "收起为窄条" }));
     expect(layouts[layouts.length - 1]).toBe("collapsed");
     expect(screen.getByRole("button", { name: "恢复标准视图" })).toBeInTheDocument();
 
@@ -505,8 +507,8 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "收起为窄条" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await user.click(await screen.findByRole("button", { name: "收起为窄条" }));
 
     const frame = container.querySelector(".app-frame") as HTMLElement;
     const collapsedSurface = screen.getByRole("button", { name: "恢复标准视图" });
@@ -591,6 +593,7 @@ describe("Codex capacity overlay", () => {
   });
 
   it("keeps the last successful snapshot visibly stale after a refresh failure", async () => {
+    const refresh = captureAutomaticRefresh();
     const user = userEvent.setup();
     let attempt = 0;
     render(
@@ -605,13 +608,15 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "刷新" }));
-    expect(await screen.findByText("STALE · CRV-111")).toBeInTheDocument();
+    await refresh();
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await user.click(await screen.findByRole("button", { name: "详情" }));
+    expect(await within(screen.getByLabelText("额度详情")).findByText("STALE · CRV-111")).toBeInTheDocument();
     expect(screen.getByText("76%", { exact: false })).toBeInTheDocument();
   });
 
   it("preserves both Codex fluid hues through a TomatoCloud failure and recovery", async () => {
+    const refresh = captureAutomaticRefresh();
     const user = userEvent.setup();
     let snapshotAttempt = 0;
     let routeAttempt = 0;
@@ -634,12 +639,13 @@ describe("Codex capacity overlay", () => {
 
     await screen.findByText("76%", { exact: false });
     await screen.findByText("TomatoCloud route is unavailable", undefined, { timeout: 4_000 });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "刷新" }));
-    await screen.findByText("STALE · CRV-111");
+    await refresh();
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await user.click(await screen.findByRole("button", { name: "详情" }));
+    await within(screen.getByLabelText("额度详情")).findByText("STALE · CRV-111");
 
     await waitFor(
-      () => expect(screen.getByText("UK · 42 ms")).toBeInTheDocument(),
+      () => expect(within(screen.getByLabelText("额度详情")).getByText("UK · 42 ms")).toBeInTheDocument(),
       { timeout: 4_000 },
     );
     const reservoirs = Array.from(container.querySelectorAll<HTMLCanvasElement>(".fluid-reservoir"))
@@ -692,8 +698,8 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
     await user.click(screen.getByRole("checkbox", { name: "减少动效" }));
     expect(saves[saves.length - 1]).toEqual({ opacity: 0.92, reducedMotion: true });
   });
@@ -705,9 +711,9 @@ describe("Codex capacity overlay", () => {
     render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={savePreferences} />);
     await screen.findByText("76%", { exact: false });
     fireEvent.contextMenu(screen.getByRole("main"));
-    const slider = await screen.findByRole("slider", { name: "透明度" });
-    fireEvent.change(slider, { target: { value: "0.9" } });
-    expect(slider).toHaveValue("0.9");
+    const slider = await screen.findByRole("slider", { name: "背景透明度" });
+    fireEvent.change(slider, { target: { value: "0.1" } });
+    expect(slider).toHaveValue("0.1");
     expect(savePreferences).not.toHaveBeenCalled();
     fireEvent.pointerUp(slider);
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
@@ -724,8 +730,8 @@ describe("Codex capacity overlay", () => {
     render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} />);
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
     expect(screen.getByRole("dialog", { name: "显示设置" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "显示设置" })).not.toBeInTheDocument();
@@ -739,16 +745,17 @@ describe("Codex capacity overlay", () => {
     render(<App {...inertPreferences} initialLayout="collapsed" loadSnapshot={async () => healthySnapshot}
       openSettingsWindow={async () => ({ baseLayout: "collapsed", placement: "below", windowPosition: { x: 0, y: 0 }, windowSize: { width: 260, height: 48 + SETTINGS_WINDOW_EXTRA_HEIGHT }, restore: { layout: "collapsed", position: { x: 0, y: 0 } } })}
       savePreferences={savePreferences} resizeSettingsWindow={resizeSettingsWindow} />);
-    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
-    const slider = await screen.findByRole("slider", { name: "透明度" });
-    fireEvent.change(slider, { target: { value: "0.9" } });
+    await screen.findByRole("button", { name: "恢复标准视图" });
+    fireEvent.contextMenu(screen.getByRole("main"));
+    const slider = await screen.findByRole("slider", { name: "背景透明度" });
+    fireEvent.change(slider, { target: { value: "0.1" } });
     fireEvent.pointerUp(slider);
     expect(await screen.findByRole("alert")).toHaveTextContent("本地写入失败 · CRV-303");
     await waitFor(() => expect(resizeSettingsWindow).toHaveBeenLastCalledWith(expect.anything(), SETTINGS_WINDOW_EXTRA_HEIGHT + SETTINGS_ERROR_EXTRA_HEIGHT));
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
     expect(screen.getByRole("alert")).toHaveTextContent("CRV-303");
     expect(screen.getByRole("button", { name: "重试保存" })).toBeDisabled();
-    expect(slider).toHaveValue("0.9");
+    expect(slider).toHaveValue("0.1");
     await act(async () => { finishRetry(); await retry; });
     expect(await screen.findByText("已保存")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -861,8 +868,8 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
     await user.click(screen.getByRole("button", { name: "退出应用" }));
     await waitFor(() => expect(quitApp).toHaveBeenCalledTimes(1));
   });
@@ -877,7 +884,7 @@ describe("Codex capacity overlay", () => {
     fireEvent.contextMenu(screen.getByRole("main"));
     fireEvent.click(await screen.findByRole("checkbox", { name: "减少动效" }));
     await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    fireEvent.change(screen.getByRole("slider", { name: "背景透明度" }), { target: { value: "0.1" } });
     fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
     expect(quitApp).not.toHaveBeenCalled();
     await act(async () => { finishSave(); await pending; });
@@ -891,7 +898,7 @@ describe("Codex capacity overlay", () => {
       savePreferences={vi.fn().mockRejectedValue(new Error("fixture write failed"))} quitApp={quitApp} />);
     await screen.findByText("76%", { exact: false });
     fireEvent.contextMenu(screen.getByRole("main"));
-    fireEvent.change(await screen.findByRole("slider", { name: "透明度" }), { target: { value: "0.9" } });
+    fireEvent.change(await screen.findByRole("slider", { name: "背景透明度" }), { target: { value: "0.1" } });
     fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("CRV-303");
     expect(quitApp).not.toHaveBeenCalled();
@@ -933,8 +940,8 @@ describe("Codex capacity overlay", () => {
     expect(screen.getByRole("button", { name: "恢复标准视图" })).toBeInTheDocument();
   });
 
-  it("prevents a second manual refresh while the first refresh is pending", async () => {
-    const user = userEvent.setup();
+  it("deduplicates periodic refreshes while a request is pending", async () => {
+    const refresh = captureAutomaticRefresh();
     let attempt = 0;
     render(
       <App
@@ -948,11 +955,8 @@ describe("Codex capacity overlay", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "刷新" }));
-    const refreshButton = screen.getByRole("button", { name: "刷新中" });
-    expect(refreshButton).toBeDisabled();
-    await user.click(refreshButton);
+    await refresh();
+    await refresh();
     expect(attempt).toBe(2);
   });
 });
@@ -1008,7 +1012,8 @@ describe("dual quota sources", () => {
     expect(await screen.findByLabelText("ZCode 可用重置卡")).toHaveTextContent("5H 6");
     expect(screen.getByLabelText("ZCode 可用重置卡")).toHaveTextContent("W 5");
     expect(screen.queryByText("FULL RESETS")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "展开重置详情" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await userEvent.click(await screen.findByRole("button", { name: "详情" }));
     expect(screen.getByText(/5H RESETS/)).toHaveTextContent("6");
     expect(screen.getByText(/WEEK RESETS/)).toHaveTextContent("5");
   });
@@ -1028,9 +1033,10 @@ describe("dual quota sources", () => {
     const counts = await screen.findByLabelText("ZCode 可用重置卡");
     expect(counts).toHaveTextContent(zero ? "5H 0 · W 0" : "5H — · W —");
     if (!zero) expect(screen.getByText("CRV-521")).toHaveAttribute("title", "请在 ZCode 重新登录后刷新");
-    await userEvent.click(screen.getByRole("button", { name: "展开重置详情" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await userEvent.click(await screen.findByRole("button", { name: "详情" }));
     expect(screen.getByText(/5H RESETS/)).toHaveTextContent(zero ? "无可用卡" : "5H RESETS — · WEEK RESETS —");
-    if (!zero) expect(screen.getByText(/CRV-521/)).toHaveTextContent("请在 ZCode 重新登录后刷新");
+    if (!zero) expect(within(screen.getByLabelText("额度详情")).getByText(/CRV-521/)).toHaveTextContent("请在 ZCode 重新登录后刷新");
   });
 
   it("publishes a slow ZCode response without restarting it on every polling tick", async () => {
@@ -1188,8 +1194,8 @@ describe("dual quota sources", () => {
     await screen.findByRole("group", { name: "5 HOUR quota" });
     expect(zcodeCalls).toEqual(["start"]);
 
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
     expect(screen.getByRole("radio", { name: "体验套餐" })).toBeChecked();
 
     // 万一用户不想盯体验套餐的消耗：切到个人套餐后立即按新偏好重探
@@ -1301,8 +1307,8 @@ describe("dual quota sources", () => {
     );
 
     await screen.findByText("76%", { exact: false });
-    await user.click(screen.getByRole("button", { name: "展开重置详情" }));
-    await user.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.contextMenu(screen.getByRole("main"));
+    await screen.findByRole("dialog", { name: "显示设置" });
     await user.click(screen.getByRole("button", { name: "ZCode" }));
     expect(savedSources[savedSources.length - 1]).toBe("zcode");
 
@@ -1359,11 +1365,12 @@ describe("Pro weekly presentation", () => {
     expect(screen.queryByText("5 HOUR")).not.toBeInTheDocument();
   });
   it("retains weekly data on refresh failure and retries through the visible recovery action", async () => {
+    const refresh = captureAutomaticRefresh();
     const user=userEvent.setup();
     const loader=vi.fn().mockResolvedValueOnce(proSnapshot).mockRejectedValueOnce({code:"TEST-01",message:"连接中断",detail:null}).mockResolvedValue(proSnapshot);
     render(<App {...inertPreferences} initialLayout="expanded" codexPresentation={{mode:"pro-weekly"}} loadSnapshot={loader}/>);
     await screen.findByText("42%");
-    await user.click(screen.getByRole("button",{name:"刷新"}));
+    await refresh();
     expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
     expect(screen.getByText("42%")).toBeInTheDocument();
     expect(screen.getByText("连接中断 · TEST-01")).toBeInTheDocument();
@@ -1414,13 +1421,13 @@ describe("Codex plan derivation and cache ownership", () => {
   });
 
   it("drops cached Pro data when a failure reports a different signed-in account", async () => {
-    const user = userEvent.setup();
+    const refresh = captureAutomaticRefresh();
     const loader = vi.fn()
       .mockResolvedValueOnce(proSnapshot)
       .mockRejectedValueOnce({ code: "CRV-108", message: "app-server 拒绝了配额请求", detail: null, accountId: "acct-next" });
     render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
     expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await refresh();
     expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
     expect(screen.queryByText("PRO")).not.toBeInTheDocument();
     expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
@@ -1428,33 +1435,33 @@ describe("Codex plan derivation and cache ownership", () => {
   });
 
   it("drops cached Pro data when the account is signed out before a failing refresh", async () => {
-    const user = userEvent.setup();
+    const refresh = captureAutomaticRefresh();
     const loader = vi.fn()
       .mockResolvedValueOnce(proSnapshot)
       .mockRejectedValueOnce({ code: "CRV-202", message: "Codex 尚未登录", detail: null, accountId: null });
     render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
     expect(await screen.findByRole("group", { name: "WEEK quota" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await refresh();
     expect(await screen.findByText("无法读取 Codex 配额")).toBeInTheDocument();
     expect(screen.queryByText("上次有效数据")).not.toBeInTheDocument();
     expect(screen.queryByText("42%")).not.toBeInTheDocument();
   });
 
   it("keeps cached data visibly stale when a same-account refresh fails", async () => {
-    const user = userEvent.setup();
+    const refresh = captureAutomaticRefresh();
     const loader = vi.fn()
       .mockResolvedValueOnce(proSnapshot)
       .mockRejectedValueOnce({ code: "TEST-01", message: "连接中断", detail: null, accountId: "acct-pro" });
     render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
     expect(await screen.findByText("42%")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await refresh();
     expect(await screen.findByText("上次有效数据")).toBeInTheDocument();
     expect(screen.getByText("42%")).toBeInTheDocument();
     expect(screen.getByText("PRO")).toBeInTheDocument();
   });
 
   it("replaces the presentation as soon as a new account delivers its own snapshot", async () => {
-    const user = userEvent.setup();
+    const refresh = captureAutomaticRefresh();
     const dualSnapshotForNextAccount = {
       ...healthySnapshot,
       planType: "plus",
@@ -1465,7 +1472,7 @@ describe("Codex plan derivation and cache ownership", () => {
       .mockResolvedValue(dualSnapshotForNextAccount);
     render(<App {...inertPreferences} initialLayout="expanded" loadSnapshot={loader} />);
     expect(await screen.findByText("PRO")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await refresh();
     expect(await screen.findByText("76%")).toBeInTheDocument();
     expect(screen.getByText("5 HOUR")).toBeInTheDocument();
     expect(screen.queryByText("PRO")).not.toBeInTheDocument();

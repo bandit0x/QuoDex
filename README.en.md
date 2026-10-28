@@ -21,7 +21,7 @@ QuoDex lives in a corner of your desktop: check how much Codex / ZCode quota rem
 
 - **Quota & resets** — 5-hour, weekly or single-pool plans, Codex / ZCode switching and auto-rotation, available reset counts at a glance.
 - **Two task groups** — Codex and ZCode side by side with 5 items each, color-coded as running / waiting / succeeded / errored; completion alerts dismiss in one click.
-- **Liquid glass** — the fluid level follows your remaining balance and sloshes naturally while dragging; compact, expanded and narrow-strip views with adjustable opacity.
+- **Liquid glass** — the fluid level follows your remaining balance and sloshes naturally while dragging; standard and narrow-strip views with adjustable background transparency.
 - **Token usage** — one click in Settings opens a local web page: six ranges from 7 days to 1 year, combined or split views, monthly heat walls and trend charts; the local ledger is kept long-term.
 - **Cross-PC ledger** — connect your own Baidu Netdisk app to view recorded token usage across devices, with automatic sync every six hours, request deduplication and explicit conflict reporting. Live transfer has been verified on one Windows PC; two-PC and macOS sync validation remain pending. [Setup and verification](docs/research/remote-record/README.md)
 
@@ -70,7 +70,7 @@ Floating-window screenshots come from the v0.3.0 native macOS app with anonymous
 
 1. Download the installer for your platform from [Releases](https://github.com/bandit0x/QuoDex/releases/latest): use the `.exe` on Windows, or the `.dmg` on macOS and drag the app into Applications.
 2. Make sure the Codex / ZCode you need is signed in, then launch QuoDex and pick the quota source.
-3. Drag the window to reposition it, click the arrow in the bottom-right corner to expand, and right-click the main reservoir to open Settings.
+3. Drag the window to reposition it. Right-click to open the control panel, adjust background transparency, view details, or switch to the narrow strip. Click the strip to restore the standard view.
 
 Closing the window hides it to the tray or menu bar; use **Quit** to exit completely.
 
