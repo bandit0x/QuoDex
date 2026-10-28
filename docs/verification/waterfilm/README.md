@@ -23,8 +23,8 @@
 
 ## 可复现步骤与结果
 
-1. `npm test`：15 个文件、188 项通过，见 [tests.log](tests.log)。后续只补充 CSS 装饰动效与 SVG，没有修改行为代码。
-2. `npm run tauri:build -- --no-bundle`：最终构建通过，见 [build.log](build.log)。链接器仅打印创建导入库的信息警告。
+1. `npm test`：15 个文件、188 项通过，见 [tests.txt](tests.txt)。后续只补充 CSS 装饰动效与 SVG，没有修改行为代码。
+2. `npm run tauri:build -- --no-bundle`：最终构建通过，见 [build.txt](build.txt)。链接器仅打印创建导入库的信息警告。
 3. 用独立 `CODEX_CREDITS_CONFIG_DIR`、`WEBVIEW2_USER_DATA_FOLDER` 和 `fixtures/app-server-fixture.mjs` 启动上述原生产物。右键展开设置，依次放在彩色、浅色、深色背景前，通过 CUA 截图。
 4. 点击收起为窄条，再右键展开；开启减少动效；点击详情；切换 ZCode。截图和原生可访问性树均确认内容保留。
 

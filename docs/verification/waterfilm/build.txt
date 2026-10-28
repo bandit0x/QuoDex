@@ -1,0 +1,27 @@
+
+> quodex@0.4.8 tauri:build
+> tauri build --no-bundle
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> quodex@0.4.8 build
+> tsc && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 59 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:  0.27 kB
+dist/assets/index-CA86lcSH.css   59.94 kB │ gzip: 13.64 kB
+dist/assets/index-BdQqVJQT.js   312.96 kB │ gzip: 98.44 kB
+✓ built in 619ms
+   Compiling codex-credits-view v0.4.8 (D:\bandit\projects\QuoDex\QuoDex\src-tauri)
+warning: linker stdout: 正在创建库 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\release\deps\codex_credits_view_lib.dll.lib 和对象 D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\release\deps\codex_credits_view_lib.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `codex-credits-view` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 31.05s
+       Built application at: D:\bandit\projects\QuoDex\QuoDex\src-tauri\target\release\codex-credits-view.exe

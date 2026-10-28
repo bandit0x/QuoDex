@@ -1,0 +1,13 @@
+
+> quodex@0.4.8 test
+> vitest run
+
+
+ RUN  v4.1.10 D:/bandit/projects/QuoDex/QuoDex
+
+
+ Test Files  15 passed (15)
+      Tests  188 passed (188)
+   Start at  15:21:11
+   Duration  29.92s (transform 3.68s, setup 39.94s, import 9.33s, tests 17.54s, environment 202.45s)
+
