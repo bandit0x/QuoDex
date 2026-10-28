@@ -240,5 +240,17 @@
 /* The silhouette lives in its own non-interactive layer, so expanding diagnostics
    never clips controls or their focus rings to a rounded rectangle. */
 .dock-liquid-shell { position:absolute; inset:0; z-index:0; pointer-events:none; background:url("./dock-liquid-shell.svg") center / 100% 100% no-repeat; filter:drop-shadow(0 8px 8px rgba(0,5,12,.38)); }
+.dock-liquid-shell::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:url("./dock-water-caustics.svg") center / 100% 100% no-repeat;
+  opacity:.65; animation:dock-water-reflection 9s ease-in-out infinite alternate;
+}
+@keyframes dock-water-reflection {
+  from { opacity:.25; transform:translateY(-2px); }
+  to { opacity:.85; transform:translateY(2px); }
+}
+.reduce-motion .dock-liquid-shell::after { animation:none; }
+@media (prefers-reduced-motion: reduce) { .dock-liquid-shell::after { animation:none; } }
+.settings-dock .dock-version { color:#e7faff; }
 .settings-dock .dock-controls::before, .settings-dock .dock-controls::after { content:none; }
 .app-frame--collapsed .dock-controls { padding-left:32px; padding-right:32px; }

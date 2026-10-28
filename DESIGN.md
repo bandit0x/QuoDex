@@ -97,6 +97,8 @@ components:
 
 **Creative North Star: "透明额度驾驶舱"**
 
+设置面板采用已批准的 B「流光水膜」：保留不对称自由外框和全部水滴控件；低不透明度底材透出真实桌面，内暗外亮的边缘形成厚度，上下局部水纹以 9 秒节奏缓慢反光。减少动效时保留静态反光。版本文字使用明亮冰白色。此材质模拟反射，不对桌面像素做位移折射；[原生对照与验收状态](docs/verification/waterfilm/README.md) 单独维护。
+
 保留现有常驻浮窗的液态玻璃语言：桌面透景、曲面反射与厚壁吸收。原额度仓保留深蓝与青绿光学响应；设置控制仓采用同一中性玻璃材质，以内外壁和明暗体现厚度，按用户最新修正取消左右蓝绿分色。中心冠面和卷边壁面作为同一光学表面，来源入口保持已认可的独立凸面透镜。
 
 本文件只提取浮窗共享样式和本次设置组件中可复用的规则，未建立新的产品身份。B 的具体构图、目标图来源与设置尺度合同放在[设置控制仓契约](docs/design/settings-control-chamber/README.md)。tokens 来自 [App.css](src/App.css)、[SettingsDock.css](src/SettingsDock.css)、[SettingsDock.tsx](src/SettingsDock.tsx) 和 [OpticalShell.tsx](src/OpticalShell.tsx)；光学、阴影、动效及组件示例由 [.impeccable/design.json](.impeccable/design.json) 扩展。它们记录代码与已确认方向，不能代替视觉判定；原生证据与验收只见[唯一入口](docs/verification/settings-dock/README.md)。
