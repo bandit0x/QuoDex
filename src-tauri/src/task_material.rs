@@ -186,6 +186,22 @@ fn apply(_: &WebviewWindow, _: &[MaterialRegion], _: &[MaterialRegion]) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_js_rounded_capsule_geometry_from_press_transition() {
+        // Representative JSON.stringify output for a WebView transition frame:
+        // radius is exactly half the height before IPC serialization.
+        let payload: serde_json::Value = serde_json::from_str(
+            r#"{"x":111.328125,"y":360.0,"width":77.3359375,"height":36.029022216796875,"radius":18.014511108398438}"#,
+        )
+        .unwrap();
+        let region: MaterialRegion = serde_json::from_value(payload).unwrap();
+        assert!(
+            validate(&[region]).is_ok(),
+            "QDT-630 must not reject a valid capsule"
+        );
+    }
+
     #[test]
     fn rejects_invalid_or_unbounded_material_geometry() {
         let mut r = MaterialRegion {

@@ -21,7 +21,8 @@ tauri-build = { version = "2", features = [] }
 # macos-private-api 只在 macOS 生效，透明窗口（macOSPrivateApi）必需
 tauri = { version = "2", features = ["image-png", "tray-icon", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Preserve JavaScript geometry numbers exactly when decoding Tauri IPC payloads.
+serde_json = { version = "1", features = ["float_roundtrip"] }
 regex = "1"
 aes-gcm = "0.10.3"
 base64 = "0.22.1"
