@@ -19,6 +19,7 @@ public class QuoDexTransparencyProbe {
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr handle,IntPtr after,int x,int y,int width,int height,uint flags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr handle);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
   [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
   public static void MovePointer(int x,int y) {
     uint nx=(uint)Math.Clamp((x-GetSystemMetrics(76)+0.5)*65536/GetSystemMetrics(78),0,65535);
@@ -104,15 +105,16 @@ try {
         $taskState.samples.Add(@{layout=$taskLayout; expected=$taskRgb; actual=@([int]$taskActual.R,[int]$taskActual.G,[int]$taskActual.B); outside=@([int]$taskOutside.R,[int]$taskOutside.G,[int]$taskOutside.B); transparent=$taskMatches; width=$taskWidth; height=$taskHeight; image=$taskImage})
       } finally { $taskBitmap.Dispose() }
       if ($taskIndex -eq 2 -or $taskIndex -eq 5) {
-        $taskClickY = if ($taskIndex -eq 2) { $taskRect.Bottom-64 } else { $taskRect.Bottom-228 }
         [void][QuoDexTransparencyProbe]::SetForegroundWindow($taskProcess.MainWindowHandle)
-        [QuoDexTransparencyProbe]::MovePointer($taskRect.Left+100,$taskClickY)
-        # This probe measures rendered colors and settings geometry. Settle the
-        # foreground/hover handoff; zero-delay input is checked separately by
-        # verify-task-status.mjs --input-only against a native click receiver.
         Start-Sleep -Milliseconds 100
-        [QuoDexTransparencyProbe]::mouse_event(8,0,0,0,[UIntPtr]::Zero)
-        [QuoDexTransparencyProbe]::mouse_event(16,0,0,0,[UIntPtr]::Zero)
+        if ($taskIndex -eq 2) {
+          [QuoDexTransparencyProbe]::MovePointer($taskRect.Left+100,$taskRect.Bottom-64)
+          [QuoDexTransparencyProbe]::mouse_event(8,0,0,0,[UIntPtr]::Zero)
+          [QuoDexTransparencyProbe]::mouse_event(16,0,0,0,[UIntPtr]::Zero)
+        } else {
+          [QuoDexTransparencyProbe]::keybd_event(27,0,0,[UIntPtr]::Zero)
+          [QuoDexTransparencyProbe]::keybd_event(27,0,2,[UIntPtr]::Zero)
+        }
       }
       $taskState.index++
     } catch { $taskState.error=$_; $taskTimer.Stop(); $taskForm.Close() }

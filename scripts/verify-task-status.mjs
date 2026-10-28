@@ -123,7 +123,7 @@ async function start(scenario = "healthy") {
   } });
   nativePid = nativeProcess.pid; nativeProcess.stderr.on("data", () => {});
   await pause(1800);
-  await waitFor(data => data.buttons.includes("展开重置详情"), "production window startup");
+  await waitFor(data => data.names.includes("5 HOUR quota") || data.names.includes("WEEK quota"), "production window startup");
   if (!ciSmoke) bridge("position");
 }
 async function stop() {
@@ -319,7 +319,7 @@ try {
     await start();setChats(["waiting"]);await setZcodeChats(["waiting"]);
     await waitFor(data=>data.buttons.includes("整理项目文档 · 等待你操作")&&data.buttons.includes("示例 项目 1：项目任务 1 · 等待你操作"),"QWS-104: running transitions to waiting");
     await capture("waiting");setChats(["cancelled"]);await setZcodeChats(["cancelled"]);
-    await waitFor(data=>data.buttons.includes("展开重置详情")&&!data.buttons.some(name=>name?.includes("整理项目文档 ·")||name?.includes("项目任务 1 ·")),"cancelled turns disappear");
+    await waitFor(data=>(data.names.includes("5 HOUR quota") || data.names.includes("WEEK quota"))&&!data.buttons.some(name=>name?.includes("整理项目文档 ·")||name?.includes("项目任务 1 ·")),"cancelled turns disappear");
     await capture("cancelled");await quitNormally();
     checks.push("both sources transition to waiting and remove cancelled turns through real backend polling");
   } else if(process.argv.includes("--repair-only")) {
