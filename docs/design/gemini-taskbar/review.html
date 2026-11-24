@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuoDex · 三来源任务栏设计</title>
+<link rel="stylesheet" href="review.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>三来源任务栏</h1>
+    <p>同一批示例聊天，搭配 C 版液体仓实机截图。</p>
+  </header>
+  <div class="controls">
+    <div role="group" aria-label="浮窗宽度" data-setting="width">
+      <button value="standard" aria-pressed="true">300 px</button><button value="narrow" aria-pressed="false">260 px</button>
+    </div>
+    <div role="group" aria-label="任务场景" data-setting="scene">
+      <button value="normal" aria-pressed="true">常态</button><button value="busy" aria-pressed="false">拥挤</button><button value="partial" aria-pressed="false">网页未连接</button><button value="offline" aria-pressed="false">Gemini 离线</button><button value="empty" aria-pressed="false">全部空闲</button>
+    </div>
+  </div>
+  <div id="concepts"></div>
+  <footer class="key" aria-label="任务状态图例"></footer>
+</main>
+<script src="review.js"></script>
+</body>
+</html>
