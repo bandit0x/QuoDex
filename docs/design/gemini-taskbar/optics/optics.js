@@ -24,19 +24,40 @@ const unknown = source => source === "Gemini" && (scene === "partial" || scene =
 const issue = t => t.state === "fail" || t.state === "wait";
 const mark = state => `<span class="sign ${state}" aria-hidden="true">${states[state][1]}</span>`;
 const label = t => `${t.source} · ${t.origin===t.source?"":t.origin+" · "}${t.title} · ${states[t.state][0]}`;
-function glassLines(rows){
+function glassLines(rows, key) {
   const bands = [
-    ["M3 4 H99 C148 4 167 10 196 17 S232 23 255 23 L255 26 C223 27 206 24 183 20 S136 17 101 17 H10 Z","M5 5 H99 C162 5 188 24 248 24"],
-    ["M3 21 H120 C174 21 193 25 255 26 L255 30 C193 31 163 34 121 34 H10 Z","M5 22 H120 C177 22 203 27 249 27"],
-    ["M3 38 H99 C148 38 163 36 190 32 S230 29 255 30 L255 32 C227 34 204 39 183 43 S138 51 102 51 H10 Z","M5 39 H99 C156 39 211 31 249 31"]
+    ["M21 16 C40 16 43 1 65 1 H185 L181 11 H65 C48 11 42 17 21 18 Z","M21 16 C41 16 43 2 65 2 H183"],
+    ["M21 17 C39 17 45 13 65 13 H185 L181 23 H65 C46 23 39 19 21 19 Z","M21 17 C43 17 46 14 65 14 H183"],
+    ["M21 18 C40 18 47 25 65 25 H185 L181 35 H65 C44 35 41 21 21 20 Z","M21 19 C41 19 49 26 65 26 H183"]
   ];
-  return `<svg class="fibers" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"><defs>${colors.map((c,i)=>`<linearGradient id="fiber${i}" x2=".91" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#0a1c29"/><stop offset=".28" stop-color="#183843"/><stop offset=".57" stop-color="${c}"/><stop offset=".68" stop-color="#223048"/><stop offset=".94" stop-color="${c}"/></linearGradient>`).join("")}</defs>${bands.map(([band,shine],i)=>`<path d="${band}" fill="url(#fiber${i})" stroke="#465967" stroke-width=".5"/><path d="${shine}" fill="none" stroke="${colors[i]}" stroke-width="1.4"/><path class="${rows.some(t=>t.source===sources[i]&&t.state==='run')?`pulse p${i}`:'dormant'}" d="${shine}" fill="none" stroke="#f6ffff" stroke-width="1" />`).join("")}</svg>`;
+  const gradients = colors.map((color, i) => `
+    <linearGradient id="${key}-fiber-${i}" x1="0" y1="0" x2=".12" y2="1">
+      <stop stop-color="${color}"/><stop offset=".18" stop-color="#405563"/>
+      <stop offset=".45" stop-color="#182c39"/><stop offset=".76" stop-color="#172d38"/>
+      <stop offset="1" stop-color="${color}"/>
+    </linearGradient>`).join("");
+  const paths = bands.map(([body, edge], i) => {
+    const active = rows.some(task => task.source === sources[i] && task.state === "run");
+    return `<path d="${body}" fill="url(#${key}-fiber-${i})" stroke="#43525b" stroke-width=".45"/>
+      <path d="${edge}" fill="none" stroke="${colors[i]}" stroke-width=".75"/>
+      ${active ? `<path class="pulse p${i}" d="${edge}" pathLength="100" fill="none" stroke="#fff" stroke-width=".95"/>` : ""}`;
+  }).join("");
+  return `<svg class="fibers" viewBox="0 0 186 36" preserveAspectRatio="none" aria-hidden="true"><defs>${gradients}</defs>${paths}</svg>`;
 }
-function prism(rows){
-  return `${glassLines(rows)}${sources.map((s,i)=>{
-    const group=rows.filter(t=>t.source===s), cap=width===260?3:4;
-    return `<button class="strand s${i}" data-list="${s}" title="查看 ${s} 的聊天"><span class="engraved">${s}</span><span class="points">${group.slice(0,cap).map(t=>mark(t.state)).join("")}${group.length>cap?`<small>+${group.length-cap}</small>`:""}${unknown(s)?"<small>?</small>":""}</span></button>`;
-  }).join("")}<button class="prism-tip" data-list="attention" aria-label="查看全部报错和等待" title="报错和等待"><img src="assets/prism.webp" alt=""><span class="prism-lens">${rows.filter(issue).length}</span></button>`;
+function prism(rows, previewWidth, key) {
+  const issues = rows.filter(issue).length;
+  const tip = `<button class="prism-tip" data-list="attention" aria-label="查看 ${issues} 项已知报错和等待" title="报错和等待"><img src="assets/prism.webp" alt=""><span class="prism-lens">${issues}</span></button>`;
+  const cap = previewWidth === 260 ? 3 : 4;
+  const strands = sources.map((source, index) => {
+    const group = rows.filter(task => task.source === source);
+    const excess = group.length - cap;
+    const unavailable = unknown(source);
+    const title = `${source} · ${group.length} 项已知聊天${unavailable ? "，部分或全部来源未连接" : ""}`;
+    return `<button class="strand s${index}" data-list="${source}" title="${title}" aria-label="${title}">
+      <span class="engraved">${source}</span><span class="points">${group.slice(0, cap).map(task => mark(task.state)).join("")}
+      ${excess > 0 ? `<small>+${excess}</small>` : ""}${unavailable ? "<small>?</small>" : ""}</span></button>`;
+  }).join("");
+  return glassLines(rows, key) + tip + strands;
 }
 function polar(radius,angle){
   const a=(angle-90)*Math.PI/180;
@@ -67,13 +88,16 @@ function pendants(rows){
   }).join("")}</div>`;
 }
 const designs={prism,dial,drop:pendants};
-function render(){
-  const rows=taskRows();
-  for(const [id,paint] of Object.entries(designs)){
-    const stage=document.querySelector(`#${id} .stage`);
-    stage.style.width=`${width}px`;
-    stage.classList.toggle("compact",width===260);
-    stage.innerHTML=`${rows.length||unknown("Gemini")?`<div class="instrument ${id}">${paint(rows)}</div>`:""}<div class="quota"><img src="../../../verification/gemini-live/${width===260?"narrow":"standard"}.png" alt="已通过的 Gemini 三仓浮窗，示例额度"></div>`;
+function render() {
+  const rows = taskRows();
+  for (const stage of document.querySelectorAll(".stage")) {
+    const id = stage.dataset.design || stage.closest("article").id;
+    const size = Number(stage.dataset.previewWidth) || width;
+    const hasTasks = rows.length > 0 || unknown("Gemini");
+    stage.style.width = `${size}px`;
+    stage.classList.toggle("compact", size === 260);
+    stage.innerHTML = `${hasTasks ? `<div class="instrument ${id}">${designs[id](rows, size, stage.id || id)}</div>` : ""}
+      <div class="quota"><img src="../../../verification/gemini-live/${size === 260 ? "narrow" : "standard"}.png" alt="已通过的 Gemini 三仓浮窗，示例额度"></div>`;
   }
 }
 function openDetails(button){
@@ -107,7 +131,7 @@ document.querySelector("nav").addEventListener("click",e=>{
   render();
 });
 document.querySelector("#scene").addEventListener("change",e=>{scene=e.target.value;render();});
-document.querySelector("#large").addEventListener("change",e=>document.body.classList.toggle("actual",!e.target.checked));
+document.querySelector("#large")?.addEventListener("change",e=>document.body.classList.toggle("actual",!e.target.checked));
 document.querySelector("#close").addEventListener("click",()=>dialog.close());
 dialog.addEventListener("click",e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
 render();

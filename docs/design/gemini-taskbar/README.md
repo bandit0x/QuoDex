@@ -1,10 +1,14 @@
 # Gemini 任务栏选型
 
-## 本轮设计
+## D 汇流棱镜 · 左置紧凑版
+
+任务栏左缘与第一个额度仓对齐。标准浮窗的任务区为 186 × 36 px，窄条为 164 × 33 px。棱镜排在键盘焦点首位，点开显示跨来源报错和等待。三条光纤向右展开，整行可点。任务拥挤时将同组溢出的任务数收在行内。[两种尺寸的交互稿](optics/prism.html) · [同屏预览](optics/prism-compact.png)
+
+## 三款方向对照
 
 [三款放在一起看](optics/selection.png) · [任务栏动效实录](optics/motion.webp)
 
-三款任务栏共用七段示例聊天和已批准的 C 三仓截图。300 px 标准视图中，D 汇流棱镜、E 偏心星盘、F 悬滴分别占高 56、64、59 px，260 px 窄视图均占高 44 px。展开 Gemini 可以同时看到 Web 和 Antigravity。[交互稿](optics/index.html) · [标准宽度对照](optics/concepts.png) · [窄屏拥挤状态](optics/compact.png) · [来源详情](optics/gemini-detail.png)
+三款任务栏共用七段示例聊天和已批准的 C 三仓截图。E 偏心星盘和 F 悬滴在标准视图分别占高 64、59 px，在窄条视图均占高 44 px。展开 Gemini 可以同时看到 Web 和 Antigravity。[交互稿](optics/index.html) · [标准宽度对照](optics/concepts.png) · [窄屏拥挤状态](optics/compact.png) · [来源详情](optics/gemini-detail.png)
 
 | 方向 | 造型参考 | 如何看任务 |
 | --- | --- | --- |

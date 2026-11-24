@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuoDex · D 汇流棱镜</title>
+  <link rel="stylesheet" href="optics.css">
+  <script defer src="optics.js"></script>
+</head>
+<body class="prism-review actual">
+  <main>
+    <header>
+      <div class="mast"><span class="brand">QuoDex</span><span class="slash">/</span><h1>D · 汇流棱镜</h1></div>
+      <p>原尺寸预览 · 示例聊天</p>
+    </header>
+    <nav aria-label="场景设置">
+      <label>场景
+        <select id="scene">
+          <option value="normal">七项聊天</option>
+          <option value="busy">任务拥挤</option>
+          <option value="partial">网页未连接</option>
+          <option value="offline">Gemini 离线</option>
+          <option value="empty">全部空闲</option>
+        </select>
+      </label>
+    </nav>
+    <div class="gallery">
+      <article>
+        <div class="paper"><div class="stage" id="standard-prism" data-design="prism" data-preview-width="300"></div></div>
+        <div class="caption"><h2>标准浮窗 · 300 px</h2><p>任务区 186 × 36 px</p></div>
+      </article>
+      <article>
+        <div class="paper"><div class="stage" id="narrow-prism" data-design="prism" data-preview-width="260"></div></div>
+        <div class="caption"><h2>窄条浮窗 · 260 px</h2><p>任务区 164 × 33 px</p></div>
+      </article>
+    </div>
+    <footer>点左侧棱镜查看报错和等待。点任一条光纤查看该来源的聊天。</footer>
+  </main>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="detail-head"><h2 id="detail-title"></h2><button type="button" id="close" aria-label="关闭详情">×</button></div>
+    <div class="entries"></div>
+  </dialog>
+</body>
+</html>
