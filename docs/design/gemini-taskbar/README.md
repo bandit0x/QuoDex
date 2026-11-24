@@ -1,5 +1,21 @@
 # Gemini 任务栏选型
 
+## 本轮设计
+
+[三款放在一起看](optics/selection.png) · [任务栏动效实录](optics/motion.webp)
+
+三款任务栏共用七段示例聊天和已批准的 C 三仓截图。300 px 标准视图中，D 汇流棱镜、E 偏心星盘、F 悬滴分别占高 56、64、59 px，260 px 窄视图均占高 44 px。展开 Gemini 可以同时看到 Web 和 Antigravity。[交互稿](optics/index.html) · [标准宽度对照](optics/concepts.png) · [窄屏拥挤状态](optics/compact.png) · [来源详情](optics/gemini-detail.png)
+
+| 方向 | 造型参考 | 如何看任务 |
+| --- | --- | --- |
+| D 汇流棱镜 | [切面分光棱镜](optics/assets/prism.webp)与[项目青、绿、紫材质](../../../src/gemini-glass.webp) | 单条光纤对应一个来源。运行中有亮线流过，点棱镜查看跨来源的报错和等待。 |
+| E 偏心星盘 | [机械星盘与金属同心刻圈](optics/assets/dial.webp)和液仓上的暖金字 | 三段色弧对应三个来源。星位数表示聊天数，切换来源后铭牌显示优先任务，点右侧刻数看全组。 |
+| F 悬滴 | [悬挂式切面水晶](optics/assets/drop.webp)和液仓的边缘反射 | 一个挂点对应一段聊天。运行时光斑随水滴轻摆，拥挤时带加号的水滴打开整组。 |
+
+三个材质部件由 ImageGen 生成后压缩为带透明通道的 WebP。光纤、刻圈、吊丝、字标和动效均由交互稿绘制。打开本地 HTML，切换场景和宽度，点击各组及任务即可复现。网页未连接时仍可查看已知的 Antigravity 聊天，全部空闲时任务栏收起。Edge 的减少动效设置会固定刻圈、流光与悬滴。当前是选型稿。
+
+## 首轮设计存档
+
 打开 [交互设计稿](review.html) 可以切换宽度和示例场景。上方任务区占用 44 个逻辑像素，下方配的是现有 Windows 主浮窗的截图。图中聊天名称、状态与额度均为演示数据。[300 px 常态](comparison.png) · [260 px 拥挤态](narrow.png)
 
 ## 已确认的任务范围
