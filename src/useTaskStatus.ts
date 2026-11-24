@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Diagnostic } from "./capacityTypes";
-import { readyTaskSources, type TaskStatusSnapshot } from "./taskStatusTypes";
+import { readyTaskSources, taskSourceNames, type TaskSource, type TaskStatusSnapshot } from "./taskStatusTypes";
 
 // Codex publishes on a 2 s heartbeat and gives owner replies 3 s; allow the
 // heartbeat, reply deadline, frontend poll and a 2 s margin independently per source.
@@ -9,7 +9,7 @@ const SOURCE_HEARTBEAT_LIMIT_MS = 8000;
 function withFreshSources(snapshot: TaskStatusSnapshot, now: number): TaskStatusSnapshot {
   const stale = new Set(snapshot.sources.filter(source => source.health === "ready" && source.observedAtMs > 0 && now - source.observedAtMs > SOURCE_HEARTBEAT_LIMIT_MS).map(source => source.source));
   if (stale.size === 0) return snapshot;
-  const diagnostic = (source: string): Diagnostic => ({ code: "QDT-632", message: `${source === "codex" ? "Codex" : "ZCode"} 任务状态超过 8 秒未更新；等待通道自动恢复`, detail: null });
+  const diagnostic = (source: TaskSource): Diagnostic => ({ code: "QDT-632", message: `${taskSourceNames[source]} 任务状态超过 8 秒未更新；等待通道自动恢复`, detail: null });
   return {
     ...snapshot,
     sources: snapshot.sources.map(source => stale.has(source.source) ? { ...source, health: "unavailable", diagnostic: diagnostic(source.source) } : source),

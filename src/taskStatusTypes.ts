@@ -1,7 +1,11 @@
 import type { Diagnostic } from "./capacityTypes";
 
 export type ChatTaskState = "running" | "waiting" | "completed" | "failed" | "unknown";
-export type TaskSource = "codex" | "zcode";
+export type TaskSource = "codex" | "zcode" | "geminiWeb" | "antigravity";
+
+export const taskSourceNames: Record<TaskSource, string> = {
+  codex: "Codex", zcode: "ZCode", geminiWeb: "Gemini / Web", antigravity: "Gemini / Antigravity",
+};
 
 export interface TaskSourceStatus {
   source: TaskSource;

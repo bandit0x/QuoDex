@@ -16,7 +16,7 @@ it("adds the approved task strip to the cockpit and removes its native space whe
     loadTaskStatus, setTaskSpace,
   };
   render(<App {...props} />);
-  expect(await screen.findByText("10m")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "查看 Codex 全部 1 个任务" })).toBeInTheDocument();
   // 任务行 44 + 常驻预留的浮层区 160
   await waitFor(() => expect(setTaskSpace).toHaveBeenCalledWith("compact", 204));
   tasks = [];

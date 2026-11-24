@@ -1240,7 +1240,7 @@ export function App({
       onPointerUp={handleDragEnd}
       onPointerCancel={handleDragEnd}
     >
-      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
+      <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} compact={collapsed} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       <div className={`glass-shell glass-shell--${visibleLayout} ${activeIsGemini ? "gemini-live" : stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}

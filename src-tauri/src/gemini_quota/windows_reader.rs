@@ -275,7 +275,9 @@ fn insert(target: &mut Pool, pool: Option<Pool>) {
     }
 }
 
-pub(super) fn read() -> Result<[Pool; 3]> {
+fn visit_documents(
+    mut visit: impl FnMut(&IUIAutomation, &IUIAutomationElement, &tauri::Url, bool, bool),
+) -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
         let _apartment = Apartment;
@@ -287,8 +289,6 @@ pub(super) fn read() -> Result<[Pool; 3]> {
             UIA_ControlTypePropertyId,
             &VARIANT::from(UIA_DocumentControlTypeId.0),
         )?;
-        let mut pools = std::array::from_fn(|_| Pool::unavailable("absent"));
-        let mut saw_ag_panel = false;
         let mut previous = None;
         while let Ok(hwnd) = FindWindowExW(None, previous, None, None) {
             previous = Some(hwnd);
@@ -328,28 +328,121 @@ pub(super) fn read() -> Result<[Pool; 3]> {
                 if browser && (url.scheme() != "https" || url.port().is_some()) {
                     continue;
                 }
-                match url.host_str() {
-                    Some("gemini.google.com") if browser => {
-                        insert(&mut pools[0], web_panel(&ui, &doc, &url));
-                    }
-                    Some("antigravity.google.com") | Some("127.0.0.1" | "localhost")
-                        if desktop || url.host_str() == Some("antigravity.google.com") =>
-                    {
-                        if let Some(panel) = ag_panel(&ui, &doc, Some(&url)) {
-                            for (i, names) in GROUPS.iter().enumerate() {
-                                if saw_ag_panel {
-                                    pools[i + 1] = Pool::unavailable("ambiguous");
-                                } else {
-                                    insert(&mut pools[i + 1], ag_group(&ui, &panel, names));
-                                }
-                            }
-                            saw_ag_panel = true;
-                        }
-                    }
-                    _ => {}
-                }
+                visit(&ui, &doc, &url, browser, desktop);
             }
         }
-        Ok(pools)
+        Ok(())
     }
+}
+
+pub(super) fn read() -> Result<[Pool; 3]> {
+    let mut pools = std::array::from_fn(|_| Pool::unavailable("absent"));
+    let mut saw_ag_panel = false;
+    visit_documents(|ui, doc, url, browser, desktop| unsafe {
+        match url.host_str() {
+            Some("gemini.google.com") if browser => {
+                insert(&mut pools[0], web_panel(ui, doc, url));
+            }
+            Some("antigravity.google.com") | Some("127.0.0.1" | "localhost")
+                if desktop || url.host_str() == Some("antigravity.google.com") =>
+            {
+                if let Some(panel) = ag_panel(ui, doc, Some(url)) {
+                    for (i, names) in GROUPS.iter().enumerate() {
+                        if saw_ag_panel {
+                            pools[i + 1] = Pool::unavailable("ambiguous");
+                        } else {
+                            insert(&mut pools[i + 1], ag_group(ui, &panel, names));
+                        }
+                    }
+                    saw_ag_panel = true;
+                }
+            }
+            _ => {}
+        }
+    })?;
+    Ok(pools)
+}
+
+pub(crate) fn web_chats() -> Result<crate::task_status::SourceTaskSnapshot> {
+    use crate::task_status::{now_ms, ChatTask, SourceTaskSnapshot, TaskSource, TaskState};
+    let observed_at_ms = now_ms();
+    let mut tasks = std::collections::BTreeMap::new();
+    let mut readable = false;
+    visit_documents(|ui, doc, url, browser, _| unsafe {
+        if !browser
+            || url.host_str() != Some("gemini.google.com")
+            || doc.CurrentIsOffscreen().unwrap_or_default().as_bool()
+        {
+            return;
+        }
+        let Some(chat_url) = crate::gemini_tasks::web_chat_url(url.path()) else {
+            // The home page has no stable chat identity.
+            readable |= url.path() == "/app"
+                && by_name(ui, doc, &["Send message", "发送消息", "傳送訊息"]).is_some();
+            return;
+        };
+        if by_name(ui, doc, WEB_TITLES).is_some() {
+            return;
+        }
+        let state = if by_name(
+            ui,
+            doc,
+            &[
+                "Stop response",
+                "Stop generating",
+                "停止回答",
+                "停止生成",
+                "停止回覆",
+            ],
+        )
+        .is_some_and(|element| {
+            element
+                .CurrentControlType()
+                .is_ok_and(|kind| kind == UIA_ButtonControlTypeId)
+        }) {
+            Some(TaskState::Running)
+        } else if by_name(ui, doc, &["Send message", "发送消息", "傳送訊息"]).is_some() {
+            None
+        } else {
+            Some(TaskState::Unknown)
+        };
+        readable = true;
+        let Some(state) = state else {
+            return;
+        };
+        let id = format!("gemini-web:{}", chat_url.path());
+        let name = doc.CurrentName().unwrap_or_default().to_string();
+        let title = if name.is_empty() {
+            "Gemini 网页聊天".into()
+        } else {
+            name.chars().take(160).collect()
+        };
+        tasks
+            .entry(id.clone())
+            .and_modify(|task: &mut ChatTask| {
+                if state == TaskState::Running {
+                    task.state = state;
+                    task.detail = None;
+                }
+            })
+            .or_insert_with(|| ChatTask {
+                source: TaskSource::GeminiWeb,
+                id,
+                title,
+                state,
+                turn_id: String::new(),
+                completed_at_ms: None,
+                expires_at_ms: None,
+                project_path: None,
+                project_name: None,
+                detail: (state == TaskState::Unknown)
+                    .then(|| "无法从网页确认当前执行状态 · QDT-641".into()),
+            });
+    })?;
+    Ok(SourceTaskSnapshot {
+        tasks: tasks.into_values().collect(),
+        observed_at_ms,
+        diagnostic: (!readable)
+            .then(|| crate::capacity::Diagnostic::new("QDT-641", "打开 Gemini 网页聊天后读取状态")),
+    })
 }

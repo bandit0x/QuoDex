@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::sync::LazyLock;
 
 #[cfg(windows)]
-mod windows_reader;
+pub(crate) mod windows_reader;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -273,10 +273,9 @@ describe("mixed task row", () => {
       ] })}
     />);
     const strip = await screen.findByRole("region", { name: "聊天任务" });
-    expect(within(strip).getByRole("button", { name: "整理文档 · 运行中" })).toBeInTheDocument();
-    const project = within(strip).getByRole("button", { name: "修复项目 · 已完成 · 10 分钟前" });
-    fireEvent.mouseEnter(project);
-    expect(await screen.findByText("点击圆圈打开 ZCode 项目")).toBeInTheDocument();
+    expect(within(strip).getByRole("button", { name: "查看 Codex 全部 1 个任务" })).toBeInTheDocument();
+    fireEvent.click(within(strip).getByRole("button", { name: "查看 ZCode 全部 1 个任务" }));
+    const project = within(await screen.findByRole("dialog", { name: "ZCode 任务列表" })).getByRole("button", { name: "修复项目 · 已完成 · 10 分钟前" });
     expect(screen.getByText("D:/example")).toBeInTheDocument();
     fireEvent.click(project);
     expect(openChat).toHaveBeenCalledWith("zcode:example:ses-example");

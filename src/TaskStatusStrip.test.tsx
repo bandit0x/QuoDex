@@ -5,23 +5,18 @@ import { TaskStatusStrip } from "./TaskStatusStrip";
 const now = 1_800_000_000_000;
 const success = { source: "codex" as const, id: "chat-1", turnId: "turn-1", title: "整理文档", state: "completed" as const, completedAtMs: now - 600_000, detail: null };
 
-describe("approved chat task indicators", () => {
-  it("qualifies hover and overflow titles without changing circle content or chat identity", () => {
-    const tasks = Array.from({ length: 6 }, (_, i) => ({ ...success, id: `project-chat-${i}`, projectName: "QuoDex-v0.2.1", title: `任务状态显示 ${i}` }));
+const openCodex = () => fireEvent.click(screen.getByRole("button", { name: /^查看 Codex 全部/ }));
+
+describe("chat task fibers and details", () => {
+  it("opens a source list for the whole strand and preserves the project-qualified chat identity", () => {
+    const task = { ...success, projectName: "QuoDex", title: "任务状态显示" };
     const onOpen = vi.fn();
-    render(<TaskStatusStrip tasks={tasks} now={now} onOpen={onOpen} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    const circle = screen.getByRole("button", { name: "QuoDex-v0.2.1：任务状态显示 0 · 已完成 · 10 分钟前" });
-    expect(within(circle).getByText("10m")).toBeInTheDocument();
-    expect(within(circle).queryByText(/QuoDex/)).toBeNull();
-    fireEvent.mouseEnter(circle);
-    const details = screen.getByRole("dialog", { name: "聊天详情" });
-    expect(within(details).getByText("QuoDex-v0.2.1：任务状态显示 0")).toBeInTheDocument();
-    expect(within(details).getByText("已完成 · 10 分钟前")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 1 个任务" }));
-    const overflow = screen.getByRole("dialog", { name: "Codex 任务列表" });
-    expect(within(overflow).getByText("QuoDex-v0.2.1：任务状态显示 5")).toBeInTheDocument();
-    fireEvent.click(within(overflow).getByRole("button", { name: "QuoDex-v0.2.1：任务状态显示 5 · 已完成 · 10 分钟前" }));
-    expect(onOpen).toHaveBeenCalledWith(tasks[5]);
+    render(<TaskStatusStrip tasks={[task]} now={now} onOpen={onOpen} onDismiss={vi.fn()} />);
+    openCodex();
+    const list = screen.getByRole("dialog", { name: "Codex 任务列表" });
+    expect(within(list).getByText("10m")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "QuoDex：任务状态显示 · 已完成 · 10 分钟前" }));
+    expect(onOpen).toHaveBeenCalledWith(task);
   });
   it("paints changing water pixels while running and freezes spatial motion for reduced motion", () => {
     const frames: Uint8ClampedArray[] = [];
@@ -39,6 +34,7 @@ describe("approved chat task indicators", () => {
     const running = { ...success, state: "running" as const, completedAtMs: null };
     const { rerender, unmount } = render(<TaskStatusStrip {...props} tasks={[running]} />);
     try {
+      openCodex();
       expect(frames).toHaveLength(1);
       expect(callbacks.size).toBe(1);
       const initial = frames[0];
@@ -75,10 +71,13 @@ describe("approved chat task indicators", () => {
     const running = { ...success, state: "running" as const, completedAtMs: null };
     const props = { now, onOpen: vi.fn(), onDismiss: vi.fn(), onPopoverChange: vi.fn() };
     const { rerender } = render(<TaskStatusStrip {...props} tasks={[running]} />);
+    expect(document.querySelector(".task-fiber-pulse")).not.toBeNull();
+    openCodex();
     const button = screen.getByRole("button", { name: "整理文档 · 运行中" });
     expect(button.querySelector("canvas")).not.toBeNull();
     expect(within(button).queryByText("10m")).toBeNull();
     rerender(<TaskStatusStrip {...props} tasks={[success]} />);
+    expect(document.querySelector(".task-fiber-pulse")).toBeNull();
     const completed = screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" });
     expect(completed.querySelector("canvas")).toBeNull();
     expect(within(completed).getByText("10m")).toBeInTheDocument();
@@ -95,10 +94,10 @@ describe("approved chat task indicators", () => {
     vi.useFakeTimers();
     const isPointerInside = vi.fn().mockResolvedValue(true);
     render(<TaskStatusStrip tasks={[success]} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} isPointerInside={isPointerInside} />);
-    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" }));
+    openCodex();
     fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(170); });
-    expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Codex 任务列表" })).toBeInTheDocument();
     isPointerInside.mockResolvedValue(false);
     fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
     // 400ms 的主动仲裁轮询可能在两段确认链中途重置计时；放宽推进量直到链走完。
@@ -110,17 +109,18 @@ describe("approved chat task indicators", () => {
     vi.useFakeTimers();
     const isPointerInside = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
     render(<TaskStatusStrip tasks={[success]} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} isPointerInside={isPointerInside} />);
-    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" }));
+    openCodex();
     fireEvent.mouseLeave(screen.getByRole("region", { name: "聊天任务" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(170); });
     expect(isPointerInside).toHaveBeenCalledTimes(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(160); });
-    expect(screen.getByRole("dialog", { name: "聊天详情" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Codex 任务列表" })).toBeInTheDocument();
     expect(isPointerInside).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
   it("shows unknown when the completion time is missing or in the future", () => {
     render(<TaskStatusStrip tasks={[{ ...success, completedAtMs: null }, { ...success, id: "future", title: "异常时间", completedAtMs: now + 1 }]} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
+    openCodex();
     expect(screen.getByRole("button", { name: "整理文档 · 状态未知" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "异常时间 · 状态未知" })).toBeInTheDocument();
     expect(screen.queryByText("0m")).not.toBeInTheDocument();
@@ -128,50 +128,31 @@ describe("approved chat task indicators", () => {
   });
   it("shows the green check and elapsed minutes inside the same completed circle", () => {
     render(<TaskStatusStrip tasks={[success]} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
+    openCodex();
     const circle = screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" });
     expect(within(circle).getByText("10m")).toBeInTheDocument();
     expect(circle.querySelector("svg[data-check]")).not.toBeNull();
     fireEvent.click(circle);
   });
 
-  it("keeps five source tasks visible and opens overflow without sacrificing a task slot", () => {
+  it("folds overflow within the strand and retains all entries in the list", () => {
     const tasks = Array.from({ length: 13 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
     const onOpen = vi.fn();
-    render(<TaskStatusStrip tasks={tasks} now={now} onOpen={onOpen} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    const strip = screen.getByRole("region", { name: "聊天任务" });
-    expect(within(strip).getAllByRole("button")).toHaveLength(8);
-    expect(within(screen.getByRole("group", { name: "Codex 任务" })).getAllByRole("button", { name: /已完成/ })).toHaveLength(5);
-    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 8 个任务" }));
+    const props = { tasks, now, onOpen, onDismiss: vi.fn() };
+    const { rerender } = render(<TaskStatusStrip {...props} />);
+    expect(screen.getByText("+9")).toBeInTheDocument();
+    rerender(<TaskStatusStrip {...props} compact />);
+    expect(screen.getByText("+10")).toBeInTheDocument();
+    openCodex();
     const popup = screen.getByRole("dialog", { name: "Codex 任务列表" });
     expect(within(popup).getAllByText("10m")).toHaveLength(13);
     fireEvent.click(within(popup).getByRole("button", { name: "聊天 12 · 已完成 · 10 分钟前" }));
     expect(onOpen).toHaveBeenCalledWith(tasks[12]);
   });
 
-  it("shows all five tasks independently for both agents", () => {
-    const tasks = (["codex", "zcode"] as const).flatMap(source => Array.from({ length: 5 }, (_, i) => ({ ...success, source, id: `${source}-${i}` })));
-    render(<TaskStatusStrip tasks={tasks} now={now} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
-    for (const name of ["Codex", "ZCode"]) {
-      const group = screen.getByRole("group", { name: `${name} 任务` });
-      expect(within(group).getAllByRole("button", { name: /已完成/ })).toHaveLength(5);
-      expect(within(group).queryByRole("button", { name: /其余/ })).toBeNull();
-    }
-  });
-
-  it("moves each agent's name independently as its own task count changes", () => {
-    const codex = Array.from({ length: 3 }, (_, i) => ({ ...success, id: `codex-${i}` }));
-    const zcode = Array.from({ length: 3 }, (_, i) => ({ ...success, source: "zcode" as const, id: `zcode-${i}` }));
-    const props = { now, onOpen: vi.fn(), onDismiss: vi.fn(), onPopoverChange: vi.fn() };
-    const { rerender } = render(<TaskStatusStrip {...props} tasks={[...codex.slice(0, 2), ...zcode]} />);
-    expect(screen.getByRole("group", { name: "Codex 任务" })).not.toHaveClass("task-source-capsule--dense");
-    expect(screen.getByRole("group", { name: "ZCode 任务" })).toHaveClass("task-source-capsule--dense");
-    rerender(<TaskStatusStrip {...props} tasks={[...codex, ...zcode.slice(0, 1)]} />);
-    expect(screen.getByRole("group", { name: "Codex 任务" })).toHaveClass("task-source-capsule--dense");
-    expect(screen.getByRole("group", { name: "ZCode 任务" })).not.toHaveClass("task-source-capsule--dense");
-  });
-
   it("removes completed chats at thirty minutes and collapses the empty task area", () => {
     const { rerender } = render(<TaskStatusStrip tasks={[success]} now={now + 1_199_999} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
+    openCodex();
     expect(screen.getByText("29m")).toBeInTheDocument();
     rerender(<TaskStatusStrip tasks={[success]} now={now + 1_200_000} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
     expect(screen.queryByRole("region", { name: "聊天任务" })).not.toBeInTheDocument();
@@ -181,18 +162,18 @@ describe("approved chat task indicators", () => {
     const failed = { ...success, state: "failed" as const, detail: "连接超时 · QDT-103" };
     const onDismiss = vi.fn();
     render(<TaskStatusStrip tasks={[failed]} now={now + 3_600_000} onOpen={vi.fn()} onDismiss={onDismiss} onPopoverChange={vi.fn()} />);
-    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 执行报错" }));
+    openCodex();
     expect(screen.getByText("连接超时 · QDT-103")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "移除提醒" }));
+    fireEvent.click(screen.getByRole("button", { name: /^移除 整理文档/ }));
     expect(onDismiss).toHaveBeenCalledWith(failed);
   });
 
   it("lets the user dismiss a completed reminder from its details like a failure", () => {
     const onDismiss = vi.fn();
     render(<TaskStatusStrip tasks={[success]} now={now + 120_000} onOpen={vi.fn()} onDismiss={onDismiss} onPopoverChange={vi.fn()} />);
-    fireEvent.mouseEnter(screen.getByRole("button", { name: "整理文档 · 已完成 · 12 分钟前" }));
-    expect(screen.getByText("已完成 · 12 分钟前")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "移除提醒" }));
+    openCodex();
+    expect(screen.getByText(/已完成 · 12 分钟前/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^移除 整理文档/ }));
     expect(onDismiss).toHaveBeenCalledWith(success);
   });
 
@@ -200,7 +181,7 @@ describe("approved chat task indicators", () => {
     const tasks = Array.from({ length: 6 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
     const onDismiss = vi.fn();
     render(<TaskStatusStrip tasks={tasks} now={now} onOpen={vi.fn()} onDismiss={onDismiss} onPopoverChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Codex：其余 1 个任务" }));
+    openCodex();
     const list = screen.getByRole("dialog", { name: "Codex 任务列表" });
     fireEvent.click(within(list).getByRole("button", { name: "移除 聊天 5 的完成提醒" }));
     expect(onDismiss).toHaveBeenCalledWith(tasks[5]);

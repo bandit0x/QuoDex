@@ -26,6 +26,9 @@ pub struct SourceTaskSnapshot {
 pub enum TaskSource {
     Codex,
     Zcode,
+    #[serde(rename = "geminiWeb")]
+    GeminiWeb,
+    Antigravity,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -65,13 +68,14 @@ pub struct TaskStatusSnapshot {
 
 pub struct TaskStatusService {
     zcode: Option<crate::zcode_tasks::ZCodeTaskService>,
+    gemini: Option<Arc<Mutex<[SourceTaskSnapshot; 2]>>>,
     snapshot: Arc<Mutex<SourceTaskSnapshot>>,
     reminders: Mutex<Result<HashMap<String, String>, Diagnostic>>,
     reminders_path: PathBuf,
     stop: Option<oneshot::Sender<()>>,
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -157,6 +161,7 @@ impl TaskStatusService {
             std::env::var("QUODEX_TASK_IPC_ENDPOINT").unwrap_or_else(|_| desktop_endpoint(&home));
         let mut service = Self::from_paths(home, config.join("task-reminders.json"), endpoint);
         service.zcode = Some(crate::zcode_tasks::ZCodeTaskService::from_environment());
+        service.gemini = Some(crate::gemini_tasks::start());
         service
     }
     pub fn from_paths(home: PathBuf, reminders_path: PathBuf, endpoint: String) -> Self {
@@ -214,6 +219,7 @@ impl TaskStatusService {
         Self {
             zcode: None,
             snapshot,
+            gemini: None,
             reminders: Mutex::new(reminders),
             reminders_path,
             stop: Some(stop),
@@ -238,6 +244,14 @@ impl TaskStatusService {
         sources.push(TaskSourceStatus::from_snapshot(TaskSource::Zcode, &extra));
         snapshot.tasks.extend(extra.tasks);
         snapshot.observed_at_ms = snapshot.observed_at_ms.max(extra.observed_at_ms);
+        if let Some(gemini) = &self.gemini {
+            let entries = gemini.lock().expect("Gemini task snapshot lock");
+            for (source, entry) in [TaskSource::GeminiWeb, TaskSource::Antigravity].into_iter().zip(entries.iter()) {
+                sources.push(TaskSourceStatus::from_snapshot(source, entry));
+                snapshot.tasks.extend(entry.tasks.iter().cloned());
+                snapshot.observed_at_ms = snapshot.observed_at_ms.max(entry.observed_at_ms);
+            }
+        }
         snapshot.diagnostic = None;
         let reminders = self.reminders.lock().expect("task reminders lock");
         snapshot.tasks.retain(|task| {
@@ -1935,6 +1949,7 @@ mod source_isolation_tests {
     #[test]
     fn collector_diagnostics_and_timestamps_are_independent_of_the_other_source() {
         let service = TaskStatusService {
+            gemini: None,
             zcode: Some(crate::zcode_tasks::ZCodeTaskService::from_path(
                 std::env::temp_dir().join(format!("quodex-no-zcode-{}", uuid::Uuid::new_v4())),
             )),
@@ -1972,6 +1987,7 @@ mod reminder_dismissal_tests {
         reminders_path: PathBuf,
     ) -> TaskStatusService {
         TaskStatusService {
+            gemini: None,
             zcode: None,
             snapshot: Arc::new(Mutex::new(SourceTaskSnapshot {
                 tasks: vec![ChatTask {

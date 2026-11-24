@@ -1,5 +1,6 @@
 mod capacity;
 mod gemini_quota;
+mod gemini_tasks;
 #[cfg(all(target_os = "windows", any(not(debug_assertions), test)))]
 mod desktop_shortcut;
 mod platform;
@@ -165,7 +166,13 @@ fn open_codex_chat(id: String) -> Result<(), Diagnostic> {
 
 #[tauri::command]
 fn open_task_chat(service: State<'_, TaskStatusService>, id: String) -> Result<(), Diagnostic> {
-    if id.starts_with("zcode:") {
+    if let Some(route) = id.strip_prefix("gemini-web:") {
+        let url = gemini_tasks::web_chat_url(route)
+            .ok_or_else(|| Diagnostic::new("QDT-641", "Gemini 网页聊天链接无效；请打开聊天后刷新任务"))?;
+        open::that(url.as_str()).map_err(|_| Diagnostic::new("QDT-641", "无法打开 Gemini 网页聊天；请检查默认浏览器"))
+    } else if id.starts_with("antigravity:") {
+        Err(Diagnostic::new("QDT-642", "请在 Antigravity 历史记录中按标题打开这段聊天"))
+    } else if id.starts_with("zcode:") {
         let url = service.zcode_project_url(&id)?;
         open::that(url.as_str()).map_err(|_| {
             Diagnostic::new(
