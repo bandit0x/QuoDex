@@ -1,5 +1,5 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Double-clicking a desktop release or standalone preview should open only its window.
+#![cfg_attr(any(not(debug_assertions), feature = "gemini-material-preview"), windows_subsystem = "windows")]
 
 fn main() {
     codex_credits_view_lib::run()

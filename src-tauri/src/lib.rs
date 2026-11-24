@@ -334,12 +334,23 @@ pub fn run() {
     configure_bundled_webview2_runtime();
 
     let mut context = tauri::generate_context!();
-    if std::env::args_os().any(|arg| arg == "--gemini-material") {
+    if cfg!(feature = "gemini-material-preview")
+        || std::env::args_os().any(|arg| arg == "--gemini-material")
+    {
         let window = context.config_mut().app.windows.iter_mut()
             .find(|window| window.label == "main")
             .expect("QGM-100: 材质预览需要 main 窗口配置");
         window.url = tauri::WebviewUrl::App("index.html?view=gemini-material".into());
         window.title = "QuoDex · Gemini 材质预览".into();
+        // Select the preview's profile before WebView2 creates its browser process.
+        // The installed overlay can already own its profile with a different runtime.
+        #[cfg(target_os = "windows")]
+        if std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
+            let local = std::env::var_os("LOCALAPPDATA")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir);
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", local.join("QuoDex/GeminiMaterial/WebView2"));
+        }
         window.skip_taskbar = false;
         window.resizable = true;
         window.min_height = Some(window.height);

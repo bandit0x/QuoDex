@@ -1,6 +1,6 @@
 # Gemini 三仓材质预览
 
-QuoDex 0.4.12 的 C「暖金表盘」。在 Windows 11 build 26200 上构建并启动嵌入前端资源的 Tauri 调试产物。预览入口只使用样例液位，可通过 Alt+F4 退出。
+QuoDex 0.4.12 的 C「暖金表盘」。在 Windows 11 build 26200 上通过资源管理器的打开方式启动独立 GUI 发布产物。双击 `QuoDex-Gemini.exe` 即可查看样例液位，按 Alt+F4 退出。
 
 ## 复现
 
@@ -9,9 +9,9 @@ QuoDex 0.4.12 的 C「暖金表盘」。在 Windows 11 build 26200 上构建并�
 ```powershell
 npm.cmd run build
 npm.cmd test
-cargo build --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol
-cargo test --manifest-path src-tauri/Cargo.toml --lib webview2_tests
-& ./src-tauri/target/debug/codex-credits-view.exe --gemini-material
+cargo build --release --manifest-path src-tauri/Cargo.toml --features gemini-material-preview
+cargo test --manifest-path src-tauri/Cargo.toml --features gemini-material-preview --lib webview2_tests
+Invoke-Item ./src-tauri/target/release/codex-credits-view.exe
 ```
 
 截图采集使用独立的应用数据目录和 WebView2 配置目录，在浅灰桌面背景上按窗口实际像素截取。初始为 300 × 130。点击「切换样例」可循环检查读数，拖动窗口边缘可缩至 260 px 宽。
@@ -26,4 +26,6 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib webview2_tests
 
 前端构建通过，Vitest 的 189 项测试通过，原生窗口配置与运行时发现的两项 Rust 测试通过。Gemini 仓在 Canvas 2D 中按液位和波动分层绘制材质图集。Edge 在 WebGL2 可用与禁用时均渲染该材质并通过三组样例切换。字体与原生截图的验证环境为 Windows。
 
-本机验收产物的 SHA-256 为 `23332B8CAFE7739F2519F21BE48E41FC3A21610345D942A17B66B80189E22CB9`。
+启动回归复现时，旧快捷方式启动的调试程序附带控制台；主程序常驻时，沿用默认 WebView2 数据目录还会导致预览窗口无法出现。旧截图脚本隐藏控制台并指定了空白数据目录，绕过了这两个条件。修正后预览使用 GUI 子系统，在当前用户的 `%LOCALAPPDATA%\QuoDex\GeminiMaterial\WebView2` 下保存自己的 WebView2 数据。保留已安装的主程序运行，分别用 Windows Shell 打开旧快捷方式与无参数 EXE，均出现 300 × 130 的三仓浮窗，进程无控制台。点击「切换样例」后，中仓从 46% 变为 100%。另在全新数据目录中复测了 EXE。
+
+本次独立发布产物 SHA-256 为 `ED1E1B30B17EFEC010F35DBFB96D175ECE40385F51085851C5D743B594DE4472`。

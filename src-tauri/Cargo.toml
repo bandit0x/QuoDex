@@ -17,6 +17,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+gemini-material-preview = ["tauri/custom-protocol"]
+
 [dependencies]
 # macos-private-api 只在 macOS 生效，透明窗口（macOSPrivateApi）必需
 tauri = { version = "2", features = ["image-png", "tray-icon", "macos-private-api"] }
