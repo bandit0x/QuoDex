@@ -8,11 +8,12 @@ import {
   type FluidMotionSample,
   linearLiquidLevel,
 } from "./fluidPhysics";
-import { OpticalFluidRenderer, isGeminiFluid, type FluidAccent } from "./opticalFluidRenderer";
+import { OpticalFluidRenderer, type FluidAccent } from "./opticalFluidRenderer";
+import { drawGeminiGlass, isGeminiAccent, loadGeminiGlass, type GeminiAccent } from "./geminiGlass";
 
 interface FluidReservoirProps {
   remainingPercent: number;
-  accent: FluidAccent;
+  accent: FluidAccent | GeminiAccent;
   motion: FluidMotionSample;
   motionSeed: number;
   reducedMotion: boolean;
@@ -349,21 +350,18 @@ export function FluidReservoir({
     const bodyMomentum = bodyMomentumRef.current;
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
-    let fallbackEnabled = false;
+    let atlas: HTMLImageElement | undefined;
+    let mounted = true;
 
     try {
-      opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
-      webglCanvas.dataset.renderer = "webgl";
-      webglCanvas.style.display = "block";
-      fallbackCanvas.style.display = "none";
+      if (!isGeminiAccent(accent)) opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
     } catch (error) {
       console.warn("WebGL optical reservoir unavailable; using Canvas 2D fallback", error);
-      fallbackEnabled = true;
-      webglCanvas.dataset.renderer = "unavailable";
-      fallbackCanvas.dataset.renderer = "canvas2d";
-      webglCanvas.style.display = "none";
-      fallbackCanvas.style.display = "block";
     }
+    webglCanvas.dataset.renderer = opticalRenderer ? "webgl" : "inactive";
+    fallbackCanvas.dataset.renderer = "canvas2d";
+    webglCanvas.style.display = opticalRenderer ? "block" : "none";
+    fallbackCanvas.style.display = opticalRenderer ? "none" : "block";
 
     const render = (time = performance.now()) => {
       if (opticalRenderer) {
@@ -380,7 +378,6 @@ export function FluidReservoir({
         });
         return;
       }
-      if (!fallbackEnabled) return;
       const logicalWidth = fallbackCanvas.clientWidth;
       const logicalHeight = fallbackCanvas.clientHeight;
       if (logicalWidth <= 0 || logicalHeight <= 0) return;
@@ -394,6 +391,11 @@ export function FluidReservoir({
       const context = fallbackCanvas.getContext("2d");
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      if (atlas && isGeminiAccent(accent)) {
+        drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, remainingPercent,
+          surface.heights, time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset);
+        return;
+      }
       drawReservoir(
         context,
         logicalWidth,
@@ -407,11 +409,19 @@ export function FluidReservoir({
         !reducedMotion,
         dynamics.phaseOffset,
         dynamics.flowScale,
-        isGeminiFluid(accent),
+        isGeminiAccent(accent),
       );
     };
     drawRef.current = () => render();
     render();
+    if (isGeminiAccent(accent)) {
+      loadGeminiGlass().then(image => {
+        if (!mounted) return;
+        atlas = image;
+        fallbackCanvas.dataset.renderer = "gemini-glass";
+        render();
+      }).catch(error => console.warn("QGM-103: 无法解码玻璃材质，使用基础液体绘制", error));
+    }
 
     let ambientFrame: number | null = null;
     let lastAmbientTime = 0;
@@ -429,6 +439,7 @@ export function FluidReservoir({
       : new ResizeObserver(() => render());
     resizeObserver?.observe(opticalRenderer ? webglCanvas : fallbackCanvas);
     return () => {
+      mounted = false;
       resizeObserver?.disconnect();
       if (ambientFrame !== null) cancelAnimationFrame(ambientFrame);
       opticalRenderer?.destroy();

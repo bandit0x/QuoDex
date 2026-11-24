@@ -10,12 +10,12 @@
   --fluid-tail-extension: 0px;
   --center-wall-depth: inset 0 -2px 4px #080f24;
   overflow: hidden;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #1e2d41, #0a1021 72%);
-  box-shadow: 0 1px 3px #010611, 0 0 0 1px #526076;
+  border-radius: 16% / 16%;
+  background: #071e2b url("./gemini-glass.webp") left top / 400% 100% no-repeat;
+  box-shadow: 0 2px 4px #010611;
 }
 .gemini-chamber .fluid-reservoir { border-radius: inherit; }
-.gemini-chamber::after { box-shadow: inset 0 2px 4px #c2cee818; }
+.gemini-chamber::before, .gemini-chamber::after { content: none; }
 .gemini-study-footer {
   padding: 0 12px;
   margin: 0 8px 4px;

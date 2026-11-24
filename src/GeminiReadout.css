@@ -1,59 +1,51 @@
 .gemini-readout {
-  --readout-ink: #e2d7fb;
-  --readout-reflection: #d0b5fa;
   position: absolute;
-  z-index: 5;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: clamp(6px, 13%, 23px) 5px 0;
+  z-index: 5;
+  font-synthesis: none;
   pointer-events: none;
-  color: var(--readout-ink);
-}
-
-.gemini-readout--gemini {
-  --readout-ink: #d6e6ff;
-  --readout-reflection: #aecdfb;
-}
-
-.gemini-readout--partner {
-  --readout-ink: #f4ddec;
-  --readout-reflection: #ebbdde;
 }
 
 .gemini-readout__legend {
-  display: block;
-  flex: none;
-  max-width: 100%;
-  overflow: visible;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.65;
-  stroke-linecap: square;
-  stroke-linejoin: bevel;
-  filter: drop-shadow(0 1px 1px #101021);
+  position: absolute;
+  top: 19%;
+  left: 11%;
+  right: 6%;
+  min-height: 29px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 1px;
+  white-space: nowrap;
+  color: #eddbbf;
+  font: 600 17px/.94 Georgia, serif;
+  letter-spacing: .01em;
+  text-shadow: 0 2px 3px #201729, 0 0 3px #0a1522;
 }
 
 .gemini-readout__source {
-  stroke: var(--readout-reflection);
-  stroke-width: 1.9;
+  color: #d2b894;
+  font: 600 12px/1 Bahnschrift, sans-serif;
+  letter-spacing: .15em;
 }
 
 .gemini-readout__value {
-  font-size: 31px;
-  line-height: 1;
-  font-weight: 590;
-  letter-spacing: -0.025em;
-  font-variant-numeric: tabular-nums lining-nums;
+  position: absolute;
+  top: 54%;
+  right: 15%;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
   white-space: nowrap;
-  text-shadow: 0 -1px 0 #172031, 0 1px 0 var(--readout-reflection), 0 2px 4px #141125;
+  color: #ecd3af;
+  font: italic 30px/1 Georgia, serif;
+  text-shadow: 0 -1px 0 #fff2ce, 0 2px 1px #503338, 0 2px 4px #090b17;
 }
 
 .gemini-readout__unit {
-  margin-inline-start: 2px;
-  font-size: 0.55em;
-  font-weight: 600;
+  align-self: flex-start;
+  margin-top: 4px;
+  font: normal 16px/1 Georgia, serif;
   letter-spacing: 0;
 }
