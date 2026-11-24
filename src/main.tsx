@@ -3,6 +3,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import SyncSettings from "./SyncSettings";
+import { GeminiMaterialPreview } from "./GeminiMaterialPreview";
 import type {
   CapacitySnapshot,
   SourceSelection,
@@ -199,8 +200,12 @@ if (fixtureEnabled) {
   rootElement.style.height = `${fixtureSize.height}px`;
 }
 
+const view = query.get("view");
+let page = <App {...fixtureProps} />;
+if (view === "gemini-material") page = <GeminiMaterialPreview />;
+if (view === "sync") page = <SyncSettings />;
 createRoot(rootElement).render(
   <React.StrictMode>
-    {new URLSearchParams(window.location.search).get("view") === "sync" ? <SyncSettings /> : <App {...fixtureProps} />}
+    {page}
   </React.StrictMode>,
 );

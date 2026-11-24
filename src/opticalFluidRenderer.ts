@@ -1,4 +1,5 @@
 import { AMBIENT_BREEZE, FLUID_TAIL_EXTENSION } from "./fluidPhysics";
+import geminiLiquidShader from "./geminiLiquid.glsl?raw";
 
 export const OPTICAL_SURFACE_NODE_COUNT = 56;
 
@@ -14,7 +15,12 @@ export interface OpticalFluidFrame {
   flowScale: number;
 }
 
-export type FluidAccent = "cyan" | "mint" | "moonlight" | "emerald";
+export type GeminiFluidAccent = "iris" | "indigo" | "orchid";
+export type FluidAccent = "cyan" | "mint" | "moonlight" | "emerald" | GeminiFluidAccent;
+
+export function isGeminiFluid(accent: FluidAccent): accent is GeminiFluidAccent {
+  return accent === "iris" || accent === "indigo" || accent === "orchid";
+}
 
 interface OpticalPalette {
   top: [number, number, number];
@@ -25,6 +31,18 @@ interface OpticalPalette {
 }
 
 const PALETTES: Record<FluidAccent, OpticalPalette> = {
+  iris: {
+    top: [0.91, 0.78, 1], middle: [0.32, 0.19, 0.59], deep: [0.16, 0.09, 0.32],
+    absorption: [0.72, 1.4, 0.32], accent: [0.69, 0.44, 1],
+  },
+  indigo: {
+    top: [0.66, 0.81, 1], middle: [0.12, 0.28, 0.65], deep: [0.06, 0.11, 0.35],
+    absorption: [1.3, 0.74, 0.29], accent: [0.32, 0.57, 1],
+  },
+  orchid: {
+    top: [1, 0.81, 0.97], middle: [0.50, 0.21, 0.49], deep: [0.26, 0.10, 0.30],
+    absorption: [0.55, 1.31, 0.62], accent: [0.92, 0.50, 0.90],
+  },
   cyan: {
     top: [0.48, 0.94, 1.0],
     middle: [0.018, 0.52, 0.76],
@@ -71,6 +89,7 @@ out vec4 outColor;
 uniform vec2 uResolution;
 uniform float uPixelRatio;
 uniform float uRemaining;
+uniform bool uGemini;
 uniform float uTime;
 uniform float uActive;
 uniform float uAmbientMotion;
@@ -176,8 +195,14 @@ float fresnelSchlick(float cosine, float f0) {
   return f0 + (1.0 - f0) * pow(1.0 - saturate(cosine), 5.0);
 }
 
+${geminiLiquidShader}
+
 void main() {
   vec2 fragment = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y);
+  if (uGemini) {
+    outColor = geminiLiquid(fragment);
+    return;
+  }
   vec2 uv = fragment / uResolution;
   float ratio = uPixelRatio;
   float extension = ${FLUID_TAIL_EXTENSION.toFixed(1)} * ratio;
@@ -451,6 +476,8 @@ export class OpticalFluidRenderer {
       absorption: requireUniform(gl, program, "uAbsorption"),
       accent: requireUniform(gl, program, "uAccent"),
     };
+    gl.useProgram(program);
+    gl.uniform1i(requireUniform(gl, program, "uGemini"), Number(isGeminiFluid(accent)));
   }
 
   render(frame: OpticalFluidFrame): void {

@@ -333,6 +333,22 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     configure_bundled_webview2_runtime();
 
+    let mut context = tauri::generate_context!();
+    if std::env::args_os().any(|arg| arg == "--gemini-material") {
+        let window = context.config_mut().app.windows.iter_mut()
+            .find(|window| window.label == "main")
+            .expect("QGM-100: 材质预览需要 main 窗口配置");
+        window.url = tauri::WebviewUrl::App("index.html?view=gemini-material".into());
+        window.title = "QuoDex · Gemini 材质预览".into();
+        window.skip_taskbar = false;
+        window.resizable = true;
+        window.min_height = Some(window.height);
+        window.max_height = Some(window.height);
+        // A material study has no account, tray or background collection lifecycle.
+        tauri::Builder::default().run(context).expect("QGM-101: 无法打开 Gemini 材质预览窗口");
+        return;
+    }
+
     let app = tauri::Builder::default()
         .manage(CapacityService::from_environment())
         .manage(TomatoCloudService::new())
@@ -440,7 +456,7 @@ pub fn run() {
             sync_authorize_open,
             quit_app
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build QuoDex");
 
     app.run(|_, event| {

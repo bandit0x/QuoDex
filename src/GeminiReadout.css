@@ -1,0 +1,59 @@
+.gemini-readout {
+  --readout-ink: #e2d7fb;
+  --readout-reflection: #d0b5fa;
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: clamp(6px, 13%, 23px) 5px 0;
+  pointer-events: none;
+  color: var(--readout-ink);
+}
+
+.gemini-readout--gemini {
+  --readout-ink: #d6e6ff;
+  --readout-reflection: #aecdfb;
+}
+
+.gemini-readout--partner {
+  --readout-ink: #f4ddec;
+  --readout-reflection: #ebbdde;
+}
+
+.gemini-readout__legend {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: square;
+  stroke-linejoin: bevel;
+  filter: drop-shadow(0 1px 1px #101021);
+}
+
+.gemini-readout__source {
+  stroke: var(--readout-reflection);
+  stroke-width: 1.9;
+}
+
+.gemini-readout__value {
+  font-size: 31px;
+  line-height: 1;
+  font-weight: 590;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+  text-shadow: 0 -1px 0 #172031, 0 1px 0 var(--readout-reflection), 0 2px 4px #141125;
+}
+
+.gemini-readout__unit {
+  margin-inline-start: 2px;
+  font-size: 0.55em;
+  font-weight: 600;
+  letter-spacing: 0;
+}

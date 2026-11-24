@@ -1,0 +1,31 @@
+.gemini-study { cursor: default; }
+.gemini-study .glass-shell { grid-template-rows: minmax(0, 1fr) 36px; }
+.gemini-chambers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px 13px 2px;
+  gap: 4px;
+}
+.gemini-chamber {
+  --surface-opacity: 1;
+  --fluid-tail-extension: 0px;
+  --center-wall-depth: inset 0 -2px 4px #080f24;
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #1e2d41, #0a1021 72%);
+  box-shadow: 0 1px 3px #010611, 0 0 0 1px #526076;
+}
+.gemini-chamber .fluid-reservoir { border-radius: inherit; }
+.gemini-chamber::after { box-shadow: inset 0 2px 4px #c2cee818; }
+.gemini-study-footer {
+  padding: 0 12px;
+  margin: 0 8px 4px;
+  font-size: 17px;
+}
+.gemini-study-footer b { color: #dbc9f4; letter-spacing: .12em; }
+.gemini-study-footer button {
+  color: #e5d9f8;
+  border: 0;
+  padding: 3px 5px;
+  background: transparent;
+  font-weight: 550;
+}

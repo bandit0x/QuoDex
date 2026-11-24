@@ -8,7 +8,7 @@ import {
   type FluidMotionSample,
   linearLiquidLevel,
 } from "./fluidPhysics";
-import { OpticalFluidRenderer, type FluidAccent } from "./opticalFluidRenderer";
+import { OpticalFluidRenderer, isGeminiFluid, type FluidAccent } from "./opticalFluidRenderer";
 
 interface FluidReservoirProps {
   remainingPercent: number;
@@ -28,6 +28,18 @@ interface Palette {
 }
 
 const palettes: Record<FluidReservoirProps["accent"], Palette> = {
+  iris: {
+    top: "#957cda", middle: "#6545a2", bottom: "#39205f", deep: "#251638",
+    edge: "#ead8ff", caustic: "rgba(176, 114, 255, .28)",
+  },
+  indigo: {
+    top: "#708de2", middle: "#365cad", bottom: "#23376b", deep: "#181e43",
+    edge: "#cadfff", caustic: "rgba(90, 148, 255, .28)",
+  },
+  orchid: {
+    top: "#bf84be", middle: "#904f91", bottom: "#592f61", deep: "#371d40",
+    edge: "#fbd7fa", caustic: "rgba(238, 132, 227, .28)",
+  },
   cyan: {
     top: "rgba(116, 236, 255, .98)",
     middle: "rgba(8, 156, 208, .94)",
@@ -119,6 +131,7 @@ function drawReservoir(
   ambientMotion: boolean,
   phaseOffset: number,
   flowScale: number,
+  gemini: boolean,
 ) {
   context.clearRect(0, 0, width, height);
   const insetX = 5;
@@ -126,7 +139,7 @@ function drawReservoir(
   const insetBottom = 5;
   const innerWidth = width - insetX * 2;
   const clipHeight = height - insetTop - insetBottom;
-  const chamberHeight = Math.max(clipHeight - FLUID_TAIL_EXTENSION, 1);
+  const chamberHeight = Math.max(clipHeight - (gemini ? 0 : FLUID_TAIL_EXTENSION), 1);
   const liquidBottom = insetTop + clipHeight + 2;
   const baseY = linearLiquidLevel(percent, insetTop, chamberHeight);
   const liquidDepth = liquidBottom - baseY;
@@ -142,6 +155,10 @@ function drawReservoir(
   chamberLight.addColorStop(1, "rgba(0, 4, 10, .22)");
   context.fillStyle = chamberLight;
   context.fillRect(insetX, insetTop, innerWidth, clipHeight);
+  if (gemini && percent <= 0) {
+    context.restore();
+    return;
+  }
 
   context.beginPath();
   traceSurface(
@@ -390,6 +407,7 @@ export function FluidReservoir({
         !reducedMotion,
         dynamics.phaseOffset,
         dynamics.flowScale,
+        isGeminiFluid(accent),
       );
     };
     drawRef.current = () => render();
