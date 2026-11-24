@@ -28,12 +28,13 @@ export interface ZCodeQuotaWindow {
   remainingPercent: number;
   windowDurationMins: number;
   resetsAt: number | null;
-  quotaTotal: number;
-  quotaUsed: number;
-  quotaRemaining: number;
+  quotaTotal: number | null;
+  quotaUsed: number | null;
+  quotaRemaining: number | null;
 }
 
 export interface ZCodeQuotaSnapshot {
+  explicitKey?: boolean;
   sourceState: "healthy";
   fiveHour: ZCodeQuotaWindow | null;
   weekly: ZCodeQuotaWindow | null;

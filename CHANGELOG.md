@@ -1,5 +1,9 @@
 # 更新日志
 
+## 0.4.12 · 2026-11-24
+
+- ZCode 个人套餐支持以指定密钥查询。Windows 用户环境变量 ZCODE_BIGMODEL_USAGE_API_KEY 用于设置 Coding Plan 密钥，ZCODE_QUOTA_REGION 默认 cn，国际区使用 global。更改后重启应用生效。
+
 ## 0.4.11 · 2026-11-24
 
 - 修复 Windows 暂时无法读取鼠标坐标时提示重启 QuoDex 的问题。浮窗会保留当前鼠标穿透状态，并在取得有效坐标后自动恢复判断。

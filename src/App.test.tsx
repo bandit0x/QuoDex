@@ -1039,6 +1039,23 @@ describe("dual quota sources", () => {
     if (!zero) expect(within(screen.getByLabelText("额度详情")).getByText(/CRV-521/)).toHaveTextContent("请在 ZCode 重新登录后刷新");
   });
 
+  it("pauses rejected ZCode credentials until manual retry and labels the recovered key", async () => {
+    const tick = captureAutomaticRefresh();
+    const loadZcode = vi.fn().mockRejectedValueOnce({ code: "CRV-509", message: "套餐密钥被拒绝" })
+      .mockResolvedValue({ ...healthyZcodeSnapshot, explicitKey: true });
+    render(<App {...inertPreferences}
+      loadPreferences={async () => ({ ...basePreferences, source: "zcode" })}
+      loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={loadZcode}
+    />);
+    const retry = await screen.findByRole("button", { name: "重试" });
+    await tick();
+    expect(loadZcode).toHaveBeenCalledTimes(1);
+    fireEvent.click(retry);
+    expect(await screen.findByText("指定密钥的套餐")).toBeInTheDocument();
+    expect(screen.queryByLabelText("ZCode 可用重置卡")).not.toBeInTheDocument();
+  });
+
   it("publishes a slow ZCode response without restarting it on every polling tick", async () => {
     vi.useFakeTimers();
     try {

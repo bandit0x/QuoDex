@@ -50,6 +50,7 @@ pub struct ZCodeQuotaSnapshot {
     pub source_state: SourceState,
     pub five_hour: Option<ZCodeQuotaWindow>,
     pub weekly: Option<ZCodeQuotaWindow>,
+    pub explicit_key: bool,
     pub plan_level: Option<String>,
     pub plan_kind: Option<String>,
     pub reset_credits: Option<ZCodeResetCredits>,
@@ -65,9 +66,9 @@ pub struct ZCodeQuotaWindow {
     pub window_duration_mins: u64,
     // bigmodel 端点对 0 用量窗口不返回 nextResetTime
     pub resets_at: Option<u64>,
-    pub quota_total: u64,
-    pub quota_used: u64,
-    pub quota_remaining: u64,
+    pub quota_total: Option<u64>,
+    pub quota_used: Option<u64>,
+    pub quota_remaining: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,6 +320,10 @@ where
     let quota_api_key = request.api_key.clone();
     let body = fetch(request).await?;
     let mut snapshot = parse_quota_payload(&body)?;
+    if env_override {
+        snapshot.explicit_key = true;
+        return Ok(snapshot);
+    }
     attach_reset_credits(
         &mut snapshot,
         read_reset_credits(&lookup, &quota_api_key, now_ms()).await,
@@ -337,7 +342,8 @@ fn attach_reset_credits(
 }
 
 fn has_env_override(lookup: &dyn Fn(&str) -> Option<String>) -> bool {
-    ENV_API_KEY_KEYS.iter().any(|key| lookup(key).is_some())
+    lookup("ZCODE_QUOTA_REGION").is_some()
+        || ENV_API_KEY_KEYS.iter().any(|key| lookup(key).is_some())
         || ENV_QUOTA_URL_KEYS.iter().any(|key| lookup(key).is_some())
 }
 
@@ -351,48 +357,42 @@ fn env_lookup(name: &str) -> Option<String> {
 fn resolve_quota_request(
     lookup: &dyn Fn(&str) -> Option<String>,
 ) -> Result<QuotaRequest, Diagnostic> {
-    let config = read_config_request(lookup);
-    let api_key = ENV_API_KEY_KEYS
-        .iter()
-        .find_map(|key| lookup(key))
-        .or_else(|| {
-            config
-                .as_ref()
-                .ok()
-                .map(|request| request.api_key.clone())
-                .filter(|key| !key.is_empty())
-        });
-    let url = ENV_QUOTA_URL_KEYS
-        .iter()
-        .find_map(|key| lookup(key))
-        .or_else(|| {
-            config
-                .as_ref()
-                .ok()
-                .map(|request| request.url.clone())
-                .filter(|url| !url.is_empty())
-        });
-
-    if let (Some(api_key), Some(url)) = (&api_key, &url) {
-        if !curl_config_safe(api_key) {
+    let key = ENV_API_KEY_KEYS.iter().find_map(|name| lookup(name));
+    let endpoint = ENV_QUOTA_URL_KEYS.iter().find_map(|name| lookup(name));
+    let Some(api_key) = key else {
+        if endpoint.is_some() || lookup("ZCODE_QUOTA_REGION").is_some() {
             return Err(Diagnostic::new(
                 "CRV-503",
-                "ZCode API Key 含有无法安全传递的字符",
+                "请为指定区域配置 ZCODE_BIGMODEL_USAGE_API_KEY",
             ));
         }
-        return Ok(QuotaRequest {
-            kind: PlanKind::Coding,
-            url: url.clone(),
-            api_key: api_key.clone(),
-            device_mid: None,
-        });
+        return read_config_request(lookup);
+    };
+    if !curl_config_safe(&api_key) {
+        return Err(Diagnostic::new(
+            "CRV-503",
+            "ZCode API Key 含有无法安全传递的字符",
+        ));
     }
-
-    Err(match &config {
-        Err(diagnostic) => diagnostic.clone(),
-        Ok(_) if api_key.is_none() => Diagnostic::new("CRV-503", "ZCode 编程包未配置 API Key"),
-        Ok(_) => Diagnostic::new("CRV-501", "未检测到 ZCode 配额端点")
-            .with_detail("缺少 BIGMODEL_USAGE_QUOTA_URL 环境变量或可用的 ZCode 配置"),
+    let cn = format!("https://open.bigmodel.cn{QUOTA_PATH}");
+    let global = format!("https://api.z.ai{QUOTA_PATH}");
+    let url = match (lookup("ZCODE_QUOTA_REGION").as_deref(), endpoint.as_deref()) {
+        (None | Some("cn"), None) => cn,
+        (Some("global"), None) => global,
+        (None | Some("cn"), Some(url)) if url == cn => cn,
+        (None | Some("global"), Some(url)) if url == global => global,
+        _ => {
+            return Err(Diagnostic::new(
+                "CRV-503",
+                "请使用 cn 或 global 区域及对应的官方配额地址",
+            ))
+        }
+    };
+    Ok(QuotaRequest {
+        kind: PlanKind::Coding,
+        url,
+        api_key,
+        device_mid: None,
     })
 }
 
@@ -564,6 +564,13 @@ fn quota_url_from_base_url(base_url: &str) -> Option<String> {
     Some(format!("{scheme}://{authority}{QUOTA_PATH}"))
 }
 
+fn quota_auth_failure() -> Diagnostic {
+    Diagnostic::new(
+        "CRV-509",
+        "套餐密钥被拒绝，请配置有效的 ZCODE_BIGMODEL_USAGE_API_KEY 并重启 QuoDex",
+    )
+}
+
 fn zcode_network_failure(detail: impl Into<String>) -> Diagnostic {
     Diagnostic::new("CRV-504", "ZCode 配额服务不可达").with_detail(detail)
 }
@@ -591,6 +598,8 @@ pub(crate) async fn fetch_read_only_body(
     }
     let mut command = Command::new(crate::platform::curl_executable());
     command.args([
+        "--disable",
+        "--no-location",
         "--request",
         "GET",
         "--silent",
@@ -598,7 +607,7 @@ pub(crate) async fn fetch_read_only_body(
         "--output",
         "-",
         "--write-out",
-        "\n%{http_code}",
+        "\n%{http_code} %header{retry-after}",
         "--connect-timeout",
         "5",
         "--max-time",
@@ -656,14 +665,21 @@ fn parse_curl_output(
     let (body, status_line) = text
         .rsplit_once('\n')
         .ok_or_else(|| zcode_network_failure("curl 未返回 HTTP 状态行"))?;
+    let (status_line, retry_after) = status_line.split_once(' ').unwrap_or((status_line, ""));
     let status: u16 = status_line
         .trim()
         .parse()
         .map_err(|_| zcode_network_failure(format!("无法解析 HTTP 状态: {status_line}")))?;
+    if matches!(status, 401 | 403) {
+        return Err(quota_auth_failure());
+    }
+    if status == 429 {
+        return Err(Diagnostic::new("CRV-510", "配额查询过于频繁，请稍后重试")
+            .with_detail(retry_after.trim().to_owned()));
+    }
     if status != 200 {
-        let detail: String = body.trim().chars().take(200).collect();
         return Err(Diagnostic::new("CRV-505", "ZCode 配额服务返回异常状态")
-            .with_detail(format!("HTTP {status}: {detail}")));
+            .with_detail(format!("HTTP {status}")));
     }
     Ok(body.to_owned())
 }
@@ -672,6 +688,9 @@ fn parse_quota_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     let payload: QuotaResponse = serde_json::from_str(raw).map_err(|error| {
         Diagnostic::new("CRV-506", "ZCode 配额响应无法解析").with_detail(error.to_string())
     })?;
+    if payload.code == Some(1000) {
+        return Err(quota_auth_failure());
+    }
     if payload.success != Some(true) && payload.code != Some(200) {
         let message = payload
             .msg
@@ -685,11 +704,11 @@ fn parse_quota_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     let mut limits = data
         .limits
         .into_iter()
-        .filter(|limit| limit.kind == "CREDIT_LIMIT")
+        .filter(|limit| matches!(limit.kind.as_str(), "CREDIT_LIMIT" | "TOKENS_LIMIT"))
         .collect::<Vec<_>>();
     if limits.is_empty() {
         return Err(Diagnostic::new("CRV-508", "ZCode 配额窗口数据缺失")
-            .with_detail("响应中没有 CREDIT_LIMIT 窗口"));
+            .with_detail("响应中没有可识别的配额窗口"));
     }
     limits.sort_by_key(|limit| limit.next_reset_time.unwrap_or(0));
 
@@ -698,20 +717,23 @@ fn parse_quota_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     let five_hour_limit = limits
         .iter()
         .find(|limit| is_five_hour_window(limit))
-        .unwrap_or_else(|| limits.first().expect("limits is not empty"));
-    let five_hour = to_window(five_hour_limit)?;
+        .or_else(|| limits.iter().find(|limit| !is_weekly_window(limit)));
     let weekly_limit = limits
         .iter()
         .find(|limit| is_weekly_window(limit))
-        .or_else(|| (limits.len() > 1).then(|| limits.last().expect("limits is not empty")));
-    let weekly = match weekly_limit {
-        Some(limit) => Some(to_window(limit)?),
-        None => None,
-    };
+        .or_else(|| {
+            limits.iter().rev().find(|limit| {
+                !is_five_hour_window(limit)
+                    && five_hour_limit.is_some_and(|five| !std::ptr::eq(five, *limit))
+            })
+        });
+    let five_hour = five_hour_limit.map(to_window).transpose()?;
+    let weekly = weekly_limit.map(to_window).transpose()?;
 
     Ok(ZCodeQuotaSnapshot {
+        explicit_key: false,
         source_state: SourceState::Healthy,
-        five_hour: Some(five_hour),
+        five_hour,
         weekly,
         plan_level: data
             .level
@@ -821,6 +843,7 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
     };
 
     Ok(ZCodeQuotaSnapshot {
+        explicit_key: false,
         source_state: SourceState::Healthy,
         five_hour: Some(ZCodeQuotaWindow {
             used_percent,
@@ -828,9 +851,9 @@ fn parse_balance_payload(raw: &str) -> Result<ZCodeQuotaSnapshot, Diagnostic> {
             // 体验套餐没有固定窗口长度
             window_duration_mins: 0,
             resets_at: earliest_expiry.map(|value| value as u64),
-            quota_total: total as u64,
-            quota_used: used as u64,
-            quota_remaining: remaining as u64,
+            quota_total: Some(total as u64),
+            quota_used: Some(used as u64),
+            quota_remaining: Some(remaining as u64),
         }),
         weekly: None,
         plan_level: Some("Start".to_owned()),
@@ -858,23 +881,14 @@ fn to_window(limit: &QuotaLimit) -> Result<ZCodeQuotaWindow, Diagnostic> {
     if !percentage.is_finite() || !(0.0..=100.0).contains(&percentage) {
         return Err(invalid("percentage 超出 0-100 范围"));
     }
-    let Some(quota_total) = limit.usage else {
-        return Err(invalid("配额窗口缺少 usage"));
-    };
-    let Some(quota_used) = limit.current_value else {
-        return Err(invalid("配额窗口缺少 currentValue"));
-    };
-    let Some(quota_remaining) = limit.remaining else {
-        return Err(invalid("配额窗口缺少 remaining"));
-    };
     Ok(ZCodeQuotaWindow {
         used_percent: percentage,
         remaining_percent: 100.0 - percentage,
         window_duration_mins: window_duration_mins(limit.unit, limit.number),
         resets_at: limit.next_reset_time.map(|value| value / 1000),
-        quota_total,
-        quota_used,
-        quota_remaining,
+        quota_total: limit.usage,
+        quota_used: limit.current_value,
+        quota_remaining: limit.remaining,
     })
 }
 
@@ -918,9 +932,9 @@ mod tests {
         assert!((five_hour.remaining_percent - 76.0).abs() < f64::EPSILON);
         assert_eq!(five_hour.window_duration_mins, 300);
         assert_eq!(five_hour.resets_at, Some(1_787_810_092));
-        assert_eq!(five_hour.quota_total, 2000);
-        assert_eq!(five_hour.quota_used, 480);
-        assert_eq!(five_hour.quota_remaining, 1520);
+        assert_eq!(five_hour.quota_total, Some(2000));
+        assert_eq!(five_hour.quota_used, Some(480));
+        assert_eq!(five_hour.quota_remaining, Some(1520));
 
         let weekly = snapshot.weekly.expect("weekly window");
         assert!((weekly.used_percent - 58.0).abs() < f64::EPSILON);
@@ -992,7 +1006,7 @@ mod tests {
         ],"level":"lite"}}"#;
         let snapshot = parse_quota_payload(raw).expect("parse live payload");
         let five_hour = snapshot.five_hour.expect("five hour window");
-        assert_eq!(five_hour.quota_total, 2000);
+        assert_eq!(five_hour.quota_total, Some(2000));
         assert!(five_hour.resets_at.is_none());
         let weekly = snapshot.weekly.expect("weekly window");
         assert_eq!(weekly.resets_at, Some(1_788_395_128));
@@ -1006,17 +1020,17 @@ mod tests {
         ]}}"#;
         let snapshot = parse_quota_payload(raw).expect("parse payload");
         let five_hour = snapshot.five_hour.expect("five hour window");
-        assert_eq!(five_hour.quota_total, 2000);
+        assert_eq!(five_hour.quota_total, Some(2000));
         let weekly = snapshot.weekly.expect("weekly window");
-        assert_eq!(weekly.quota_total, 10000);
+        assert_eq!(weekly.quota_total, Some(10000));
     }
 
     #[test]
-    fn missing_quota_count_maps_to_crv_508() {
+    fn missing_counts_preserve_reported_percentage() {
         let raw = r#"{"code":200,"success":true,"data":{"limits":[{"type":"CREDIT_LIMIT","usage":120,"remaining":90,"percentage":25,"nextResetTime":1787810092514}]}}"#;
-        let error = parse_quota_payload(raw).expect_err("expect failure");
-        assert_eq!(error.code, "CRV-508");
-        assert!(error.detail.expect("detail").contains("currentValue"));
+        let window = parse_quota_payload(raw).unwrap().five_hour.unwrap();
+        assert_eq!(window.quota_used, None);
+        assert_eq!(window.remaining_percent, 75.0);
     }
 
     #[test]
@@ -1027,11 +1041,10 @@ mod tests {
     }
 
     #[test]
-    fn curl_http_failure_maps_to_crv_505() {
+    fn curl_auth_failure_maps_to_crv_509() {
         let error = parse_curl_output(true, Some(0), "{\"error\":\"unauthorized\"}\n401")
             .expect_err("expect failure");
-        assert_eq!(error.code, "CRV-505");
-        assert!(error.detail.expect("detail").contains("HTTP 401"));
+        assert_eq!(error.code, "CRV-509");
     }
 
     #[test]
@@ -1071,11 +1084,42 @@ mod tests {
     fn resolve_quota_request_prefers_environment_overrides() {
         let lookup = lookup_from(&[
             ("ZCODE_BIGMODEL_USAGE_API_KEY", "test-key"),
-            ("BIGMODEL_USAGE_QUOTA_URL", "https://example.test/quota"),
+            (
+                "BIGMODEL_USAGE_QUOTA_URL",
+                "https://api.z.ai/api/monitor/usage/quota/limit",
+            ),
         ]);
         let request = resolve_quota_request(&lookup).expect("resolve from env");
         assert_eq!(request.api_key, "test-key");
-        assert_eq!(request.url, "https://example.test/quota");
+        assert_eq!(
+            request.url,
+            "https://api.z.ai/api/monitor/usage/quota/limit"
+        );
+    }
+
+    #[test]
+    fn explicit_region_validates_destination_and_auth_failure() {
+        for (region, host) in [("cn", "open.bigmodel.cn"), ("global", "api.z.ai")] {
+            let settings = [
+                ("ZCODE_BIGMODEL_USAGE_API_KEY", "fixture"),
+                ("ZCODE_QUOTA_REGION", region),
+            ];
+            assert_eq!(
+                resolve_quota_request(&lookup_from(&settings)).unwrap().url,
+                format!("https://{host}{QUOTA_PATH}")
+            );
+        }
+        let settings = [
+            ("ZCODE_BIGMODEL_USAGE_API_KEY", "fixture"),
+            ("BIGMODEL_USAGE_QUOTA_URL", "https://example.invalid/"),
+        ];
+        assert!(resolve_quota_request(&lookup_from(&settings)).is_err());
+        assert_eq!(
+            parse_quota_payload(r#"{"code":1000,"success":false}"#)
+                .unwrap_err()
+                .code,
+            "CRV-509"
+        );
     }
 
     #[test]
@@ -1098,7 +1142,10 @@ mod tests {
     fn resolve_quota_request_rejects_keys_unsafe_for_curl_config() {
         let lookup = lookup_from(&[
             ("ZCODE_BIGMODEL_USAGE_API_KEY", "bad\"key"),
-            ("BIGMODEL_USAGE_QUOTA_URL", "https://example.test/quota"),
+            (
+                "BIGMODEL_USAGE_QUOTA_URL",
+                "https://api.z.ai/api/monitor/usage/quota/limit",
+            ),
         ]);
         let error = resolve_quota_request(&lookup).expect_err("expect failure");
         assert_eq!(error.code, "CRV-503");
@@ -1476,6 +1523,8 @@ mod tests {
             .await
             .expect("snapshot");
         assert_eq!(snapshot.plan_kind.as_deref(), Some("coding_plan"));
+        assert!(snapshot.explicit_key);
+        assert!(snapshot.reset_credits_diagnostic.is_none());
         // 显式 env 覆盖是个人套餐调试语义，不应产生体验套餐网关探测
         assert_eq!(*seen.borrow(), vec![PlanKind::Coding]);
         let _ = fs::remove_dir_all(&dir);
@@ -1541,9 +1590,9 @@ mod tests {
     fn balance_payload_aggregates_active_buckets_and_drops_expired_plans() {
         let snapshot = parse_balance_payload(START_BALANCE_OK).expect("parse balance");
         let pool = snapshot.five_hour.expect("trial pool");
-        assert_eq!(pool.quota_total, 1500);
-        assert_eq!(pool.quota_used, 350);
-        assert_eq!(pool.quota_remaining, 1150);
+        assert_eq!(pool.quota_total, Some(1500));
+        assert_eq!(pool.quota_used, Some(350));
+        assert_eq!(pool.quota_remaining, Some(1150));
         assert!((pool.used_percent - 350.0 / 1500.0 * 100.0).abs() < 1e-9);
         assert!((pool.remaining_percent - (100.0 - 350.0 / 1500.0 * 100.0)).abs() < 1e-9);
         // 已到期套餐（p-old）的额度桶被丢弃，剩余桶中最早的 expires_at 胜出
@@ -1563,7 +1612,7 @@ mod tests {
         ]}}"#;
         let snapshot = parse_balance_payload(raw).expect("parse orphan balance");
         let pool = snapshot.five_hour.expect("orphan pool");
-        assert_eq!(pool.quota_remaining, 90);
+        assert_eq!(pool.quota_remaining, Some(90));
     }
 
     #[test]
@@ -1577,8 +1626,8 @@ mod tests {
         ]}}"#;
         let snapshot = parse_balance_payload(raw).expect("parse expired balance");
         let pool = snapshot.five_hour.expect("pool");
-        assert_eq!(pool.quota_total, 100);
-        assert_eq!(pool.quota_used, 10);
+        assert_eq!(pool.quota_total, Some(100));
+        assert_eq!(pool.quota_used, Some(10));
     }
 
     #[test]
@@ -1588,7 +1637,7 @@ mod tests {
             {"bucket_id":"b1","plan_id":"p-start","total_units":100,"used_units":10,"remaining_units":90,"expires_at":1789600000}
         ]}}"#;
         let snapshot = parse_balance_payload(raw).expect("parse balance");
-        assert_eq!(snapshot.five_hour.expect("pool").quota_total, 100);
+        assert_eq!(snapshot.five_hour.expect("pool").quota_total, Some(100));
     }
 
     #[test]

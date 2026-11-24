@@ -140,7 +140,8 @@ function formatPercent(value: number): string {
   return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
-function formatCredits(window: { quotaRemaining: number; quotaTotal: number }): string {
+function formatCredits(window: { quotaRemaining: number | null; quotaTotal: number | null }): string | undefined {
+  if (window.quotaRemaining == null || window.quotaTotal == null) return undefined;
   return `${window.quotaRemaining} / ${window.quotaTotal}`;
 }
 
@@ -260,10 +261,12 @@ function useSourceSlot<S>(
   const [lastSnapshot, setLastSnapshot] = useState<S | null>(null);
   const lastSnapshotRef = useRef<S | null>(null);
   const generationRef = useRef(0);
+  const rateLimitRef = useRef<{ loader: () => Promise<S>; until: number } | null>(null);
   const inFlightRef = useRef<{ loader: () => Promise<S>; promise: Promise<void> } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const load = useCallback((): Promise<void> => {
+    if (rateLimitRef.current?.loader === loader && Date.now() < rateLimitRef.current.until) return Promise.resolve();
     if (inFlightRef.current?.loader === loader) return inFlightRef.current.promise;
     const generation = ++generationRef.current;
     if (lastSnapshotRef.current !== null) setIsRefreshing(true);
@@ -279,6 +282,15 @@ function useSourceSlot<S>(
       } catch (error) {
         if (generation !== generationRef.current) return;
         const diagnostic = normalizeDiagnostic(error, sourceLabel);
+        if (diagnostic.code === "CRV-510") {
+          const header = diagnostic.detail ?? "";
+          const deadline = /^\d+$/.test(header) ? Date.now() + Number(header) * 1000 : Date.parse(header);
+          rateLimitRef.current = { loader, until: Number.isFinite(deadline) ? deadline : Date.now() + 60_000 };
+        }
+        if (sourceLabel === "ZCode" && diagnostic.code === "CRV-509") {
+          lastSnapshotRef.current = null;
+          setLastSnapshot(null);
+        }
         const cached = lastSnapshotRef.current;
         if (cached && identityOf) {
           const cachedIdentity = identityOf(cached);
@@ -703,13 +715,14 @@ export function App({
     return probe;
   }, [loadTomatoConnection]);
 
+  const zcodeAuthRejected = zcodeSlot.view.kind === "failed" && zcodeSlot.view.diagnostic.code === "CRV-509";
   useEffect(() => {
     const timer = window.setInterval(() => {
       void codexSlot.load();
-      void zcodeSlot.load();
+      if (!zcodeAuthRejected) void zcodeSlot.load();
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [codexSlot.load, zcodeSlot.load]);
+  }, [codexSlot.load, zcodeSlot.load, zcodeAuthRejected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1176,7 +1189,7 @@ export function App({
     <div className="detail-strip">
       {activeIsZcode && zcodeSnapshot ? (
         <>
-          {zcodeIsTrial ? (
+          {zcodeSnapshot.explicitKey ? <span className="plan-chip">指定密钥的套餐</span> : zcodeIsTrial ? (
             <>
               {zcodeSnapshot.planLevel && <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>}
               <span className={activeSlot.isRefreshing ? "freshness freshness--refreshing" : "freshness"}>
@@ -1315,10 +1328,10 @@ export function App({
               )}
               {activeSnapshot && !expanded && activeIsZcode && zcodeSnapshot && (
                 <>
-                  {zcodeSnapshot.planLevel && (
+                  {zcodeSnapshot.explicitKey ? <span className="plan-chip">指定密钥的套餐</span> : zcodeSnapshot.planLevel && (
                     <span className="plan-chip">{zcodeSnapshot.planLevel.toUpperCase()}</span>
                   )}
-                  {!zcodeIsTrial && (
+                  {!zcodeIsTrial && !zcodeSnapshot.explicitKey && (
                     <span className="reset-card-counts" aria-label="ZCode 可用重置卡" title="可用的 5 小时重置卡 / 周重置卡">
                       5H <b>{zcodeSnapshot.resetCredits?.fiveHour.availableCount ?? "—"}</b>
                       {" · "}W <b>{zcodeSnapshot.resetCredits?.weekly.availableCount ?? "—"}</b>
