@@ -1,21 +1,5 @@
 .gemini-study { cursor: default; }
 .gemini-study .glass-shell { grid-template-rows: minmax(0, 1fr) 36px; }
-.gemini-chambers {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 12px 13px 2px;
-  gap: 4px;
-}
-.gemini-chamber {
-  --surface-opacity: 1;
-  --fluid-tail-extension: 0px;
-  --center-wall-depth: inset 0 -2px 4px #080f24;
-  overflow: hidden;
-  border-radius: 16% / 16%;
-  background: #071e2b url("./gemini-glass.webp") left top / 400% 100% no-repeat;
-  box-shadow: 0 2px 4px #010611;
-}
-.gemini-chamber .fluid-reservoir { border-radius: inherit; }
-.gemini-chamber::before, .gemini-chamber::after { content: none; }
 .gemini-study-footer {
   padding: 0 12px;
   margin: 0 8px 4px;

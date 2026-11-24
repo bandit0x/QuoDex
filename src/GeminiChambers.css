@@ -1,0 +1,67 @@
+.quota-grid.gemini-chambers, .gemini-live .gemini-chambers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px 13px 2px;
+  gap: 4px;
+}
+
+.glass-shell.gemini-live:not(.glass-shell--expanded) {
+  grid-template-rows: minmax(0, 1fr) 36px;
+}
+
+.quota-cell.gemini-chamber {
+  --surface-opacity: 1;
+  --fluid-tail-extension: 0px;
+  --center-wall-depth: inset 0 -2px 4px #080f24;
+  overflow: hidden;
+  border-radius: 16% / 16%;
+  background: #071e2b url("./gemini-glass.webp") left top / 400% 100% no-repeat;
+  box-shadow: 0 2px 4px #010611;
+}
+
+.gemini-chamber .fluid-reservoir { border-radius: inherit; }
+.gemini-chamber[data-stale] .gemini-readout__value {
+  text-decoration: underline dotted #d7ae77;
+  text-underline-offset: 3px;
+}
+.gemini-live-footer { padding: 0 12px; margin: 0 8px 4px; font-size: 17px; }
+.gemini-live-footer b { color: #dbc9f4; letter-spacing: .12em; }
+.gemini-live-footer button { color: #e5d9f8; border: 0; padding: 3px 5px; background: transparent; font-weight: 550; }
+.gemini-live-footer .gemini-details-link { color: inherit; padding-inline: 0; font-weight: inherit; }
+.gemini-chamber::before, .gemini-chamber::after { content: none; }
+
+.gemini-restore {
+  position: relative;
+  z-index: 5;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.gemini-live .gemini-chambers--collapsed {
+  height: 100%;
+  padding: 7px 10px;
+}
+
+.gemini-chambers--collapsed .gemini-readout__legend {
+  top: 9%;
+  left: 7%;
+  right: 5%;
+  min-height: 0;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: 16px;
+}
+
+.gemini-chambers--collapsed .gemini-readout__value {
+  top: auto;
+  right: 10%;
+  bottom: 9%;
+  font-size: 26px;
+}

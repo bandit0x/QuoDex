@@ -331,6 +331,8 @@ export function FluidReservoir({
   const bodyMomentumRef = useRef(new FluidBodyMomentum());
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(0);
+  const visibleLevelRef = useRef(remainingPercent);
+  const geminiAtlasRef = useRef<HTMLImageElement | undefined>(undefined);
   const drawRef = useRef<() => void>(() => undefined);
   const dynamics = useMemo(
     () => deriveFluidDynamics(remainingPercent, motionSeed),
@@ -350,8 +352,10 @@ export function FluidReservoir({
     const bodyMomentum = bodyMomentumRef.current;
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
-    let atlas: HTMLImageElement | undefined;
+    let atlas = geminiAtlasRef.current;
     let mounted = true;
+    const initialLevel = visibleLevelRef.current;
+    const transitionStart = performance.now();
 
     try {
       if (!isGeminiAccent(accent)) opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
@@ -392,8 +396,12 @@ export function FluidReservoir({
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       if (atlas && isGeminiAccent(accent)) {
-        drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, remainingPercent,
-          surface.heights, time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset);
+        const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / 600));
+        const level = remainingPercent + (initialLevel - remainingPercent) * (1 - progress) ** 3;
+        visibleLevelRef.current = level;
+        drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, level,
+          surface.heights, time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset,
+          bodyMomentum.offset, bodyMomentum.agitation);
         return;
       }
       drawReservoir(
@@ -418,6 +426,7 @@ export function FluidReservoir({
       loadGeminiGlass().then(image => {
         if (!mounted) return;
         atlas = image;
+        geminiAtlasRef.current = image;
         fallbackCanvas.dataset.renderer = "gemini-glass";
         render();
       }).catch(error => console.warn("QGM-103: 无法解码玻璃材质，使用基础液体绘制", error));
@@ -426,7 +435,7 @@ export function FluidReservoir({
     let ambientFrame: number | null = null;
     let lastAmbientTime = 0;
     const animateAmbient = (time: number) => {
-      if (time - lastAmbientTime >= 32) {
+      if (frameRef.current === null && time - lastAmbientTime >= 32) {
         lastAmbientTime = time;
         render(time);
       }

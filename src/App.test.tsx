@@ -961,6 +961,33 @@ describe("Codex capacity overlay", () => {
   });
 });
 
+describe("Gemini quota source", () => {
+  it("keeps each pool independent through a partial refresh", async () => {
+    const available = (weekly: number, fiveHour: number) => ({ state: "available", windows: [
+      { period: "weekly", remainingPercent: weekly, reset: "Resets Tuesday" },
+      { period: "fiveHour", remainingPercent: fiveHour, reset: null },
+    ] });
+    const load = vi.fn()
+      .mockResolvedValueOnce({ observedAtMs: 1800000000000,
+        pools: [available(75, 42), available(0, 12), { state: "absent", windows: [] }] })
+      .mockResolvedValueOnce({ observedAtMs: 1800000015000,
+        pools: [{ state: "absent", windows: [] }, { state: "ambiguous", windows: [] }, available(90, 100)] });
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadGeminiSnapshot={load}
+      loadPreferences={async () => ({ opacity: .92, reducedMotion: true, x: null, y: null, source: "gemini" })} />);
+    await screen.findByRole("img", { name: "Web，剩余 42%" });
+    expect(screen.getByRole("img", { name: "AG Gemini，剩余 0%" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Claude/GPT，额度未知" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await screen.findByRole("img", { name: "Web，上次剩余 42%" });
+    expect(screen.getByRole("img", { name: "AG Gemini，额度未知" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Claude/GPT，剩余 90%" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "查看 Gemini 额度详情" }));
+    expect(await screen.findByLabelText("额度详情")).toHaveTextContent("Resets Tuesday");
+    expect(screen.getByLabelText("额度详情")).toHaveTextContent("QGM-205");
+  });
+});
+
 describe("dual quota sources", () => {
   it("defaults to a carousel that starts on Codex when the source preference is absent", async () => {
     render(

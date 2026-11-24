@@ -28,7 +28,7 @@ describe("SettingsDock 用量统计入口", () => {
   it("键盘按来源、常用操作、显示调节的顺序访问", async () => {
     const user = userEvent.setup();
     renderDock({ onToggleLayout: () => {}, onOpenUsage: () => {} });
-    for (const name of ["Codex", "ZCode", "轮播", "收起为窄条"]) {
+    for (const name of ["Codex", "ZCode", "Gemini", "轮播", "收起为窄条"]) {
       await user.tab();
       expect(screen.getByRole("button", { name })).toHaveFocus();
     }

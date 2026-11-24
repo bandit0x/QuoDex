@@ -27,6 +27,7 @@ export function drawGeminiGlass(
   context: CanvasRenderingContext2D, atlas: HTMLImageElement, accent: GeminiAccent,
   width: number, height: number, percent: number, nodes: Float32Array,
   time: number, ambientMotion: boolean, phase: number,
+  flow: readonly [number, number], agitation: number,
 ) {
   const tile = atlas.naturalHeight;
   context.drawImage(atlas, 0, 0, tile, tile, 0, 0, width, height);
@@ -39,7 +40,15 @@ export function drawGeminiGlass(
   // Integer device-pixel columns share an edge without resampling seams.
   const pixels = context.canvas.width;
   const disturbed = nodes.some(offset => Math.abs(offset) > 0.05);
-  const strips = Math.min(disturbed ? nodes.length - 1 : ambientMotion ? 12 : 1, pixels);
+  const strips = Math.min(disturbed ? nodes.length - 1 : ambientMotion ? 32 : 1, pixels);
+  const tilt = (nodes[0] - nodes[nodes.length - 1]) / height;
+  const swell = ambientMotion ? Math.sin(time * 0.00085 + phase) : 0;
+  // Refract the photographed highlights through the moving surface normal.
+  // Anchor both side walls: the lens and its bevel belong to the stationary glass.
+  const refraction = ambientMotion
+    ? Math.max(-0.075, Math.min(0.075, tilt * 0.52 + swell * 0.012 + Math.sin(flow[0]) * agitation * 0.035))
+    : 0;
+  const refract = (x: number, strength: number) => x + Math.sin(Math.PI * x) * refraction * strength;
   context.save();
   context.globalAlpha = Math.min(1, level / 0.045);
   for (let i = 0; i < strips; i++) {
@@ -52,13 +61,15 @@ export function drawGeminiGlass(
     const back = surfaceY - halfDepth + displacement;
     const front = surfaceY + halfDepth + displacement;
     const foot = Math.max(height * 0.79, front + 0.20 * (height - front));
-    const paint = (from: number, to: number, top: number, bottom: number) => {
-      context.drawImage(atlas, tileX + left * tile, from * tile, (right - left) * tile,
+    const paint = (from: number, to: number, top: number, bottom: number, strength: number) => {
+      const start = refract(left, strength);
+      const end = refract(right, strength);
+      context.drawImage(atlas, tileX + start * tile, from * tile, (end - start) * tile,
         (to - from) * tile, left * width, top, (right - left) * width, bottom - top);
     };
-    paint(0.35, 0.54, back, front);
-    paint(0.54, 0.79, front, foot);
-    paint(0.79, 1, foot, height);
+    paint(0.35, 0.54, back, front, 1);
+    paint(0.54, 0.79, front, foot, 0.65);
+    paint(0.79, 1, foot, height, -0.32);
   }
   context.restore();
 }

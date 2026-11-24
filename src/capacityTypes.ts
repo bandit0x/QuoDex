@@ -47,7 +47,7 @@ export interface ZCodeQuotaSnapshot {
 }
 
 export type MeterSource = "codex" | "zcode";
-export type SourceSelection = MeterSource | "carousel";
+export type SourceSelection = MeterSource | "gemini" | "carousel";
 /** ZCode 来源下展示哪个套餐：start = 体验套餐优先（不可用回落个人），coding = 仅个人套餐。 */
 export type ZCodePlanPreference = "start" | "coding";
 
@@ -59,6 +59,7 @@ export interface DisplayPreferences {
   x: number | null;
   y: number | null;
   source?: SourceSelection;
+  geminiInCarousel?: boolean;
   zcodePlan?: ZCodePlanPreference;
 }
 

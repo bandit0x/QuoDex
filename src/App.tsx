@@ -7,6 +7,8 @@ import { useTaskStatus } from "./useTaskStatus";
 import { readTaskStatus, openTaskChat, dismissTaskFailure } from "./taskStatusClient";
 import type { ChatTask, TaskStatusSnapshot } from "./taskStatusTypes";
 import { FluidReservoir } from "./FluidReservoir";
+import { GeminiQuotaDetails, GeminiQuotaSurface } from "./GeminiQuotaSurface";
+import { readGeminiQuota, useGeminiQuota, type GeminiSnapshot } from "./geminiQuota";
 import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
 import { SettingsDock, type PreferenceSaveState, type UsageEntryState } from "./SettingsDock";
@@ -63,6 +65,7 @@ export type ZcodeSnapshotLoader = (preferredPlan: ZCodePlanPreference) => Promis
 export type TomatoConnectionLoader = () => Promise<TomatoConnectionSnapshot>;
 
 interface AppProps {
+  loadGeminiSnapshot?: () => Promise<GeminiSnapshot>;
   loadTaskStatus?: () => Promise<TaskStatusSnapshot>;
   openChat?: (id: string) => Promise<void>;
   dismissFailure?: (id: string, turnId: string) => Promise<void>;
@@ -109,7 +112,7 @@ const sourceFailureHints: Record<MeterSource, string> = {
 };
 
 function normalizeSourceSelection(value: SourceSelection | undefined): SourceSelection {
-  return value === "zcode" || value === "codex" ? value : "carousel";
+  return value === "zcode" || value === "codex" || value === "gemini" ? value : "carousel";
 }
 
 const defaultPreferences: DisplayPreferences = {
@@ -558,6 +561,7 @@ function freshnessText(
 }
 
 export function App({
+  loadGeminiSnapshot = readGeminiQuota,
   loadTaskStatus = readTaskStatus,
   openChat = openTaskChat,
   dismissFailure = dismissTaskFailure,
@@ -647,7 +651,7 @@ export function App({
     [loadZcodeSnapshot, zcodePlanPreference],
   );
   const zcodeSlot = useSourceSlot(loadZcodeSnapshotWithPlan, "ZCode");
-  const [carouselSource, setCarouselSource] = useState<MeterSource>("codex");
+  const [carouselSource, setCarouselSource] = useState<MeterSource | "gemini">("codex");
   const [routeConnection, setRouteConnection] = useState<TomatoConnectionSnapshot | null>(null);
   const routeProbeInFlightRef = useRef<Promise<TomatoConnectionSnapshot> | null>(null);
   const routeGateRef = useRef<RouteGateState>({ visible: null, consecutiveFailures: 0 });
@@ -745,13 +749,15 @@ export function App({
   }, [probeRoute]);
 
   const sourceSelection = normalizeSourceSelection(preferences.source);
+  const geminiEnabled = sourceSelection === "gemini" || (sourceSelection === "carousel" && preferences.geminiInCarousel === true);
+  const gemini = useGeminiQuota(geminiEnabled, loadGeminiSnapshot);
 
   useEffect(() => {
     if (sourceSelection !== "carousel") return;
     let timer: number | null = null;
     const scheduleToggle = () => {
       timer = window.setTimeout(() => {
-        setCarouselSource((value) => (value === "codex" ? "zcode" : "codex"));
+        setCarouselSource(value => value === "codex" ? "zcode" : value === "zcode" && geminiEnabled ? "gemini" : "codex");
         scheduleToggle();
       }, CAROUSEL_INTERVAL_MS);
     };
@@ -759,7 +765,7 @@ export function App({
     return () => {
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [sourceSelection]);
+  }, [sourceSelection, geminiEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1151,7 +1157,8 @@ export function App({
     changeLayout("compact");
   }, [changeLayout]);
 
-  const activeSource: MeterSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
+  const activeSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
+  const activeIsGemini = activeSource === "gemini";
   const activeSlot = activeSource === "codex" ? codexSlot : zcodeSlot;
   const activeIsZcode = activeSource === "zcode";
   const codexSnapshot = codexSlot.view.kind === "healthy" ? codexSlot.view.snapshot : codexSlot.lastSnapshot;
@@ -1170,7 +1177,7 @@ export function App({
   const routeBlocked = routeConnection?.state === "blocked";
   const visibleLayout = settingsPresentation?.baseLayout ?? layoutMode;
   const settingsOpen = settingsPresentation !== null;
-  const collapsed = visibleLayout === "collapsed" && activeSnapshot !== null;
+  const collapsed = visibleLayout === "collapsed" && (activeIsGemini || activeSnapshot !== null);
   const expanded = visibleLayout === "expanded";
   useTaskMaterial(`${visibleLayout}:${hasTaskArea}:${settingsPresentation?.placement ?? "closed"}:${controlMessage !== null}`, setControlMessage);
 
@@ -1185,7 +1192,7 @@ export function App({
       .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
   };
 
-  const detailContent = activeSnapshot ? (
+  const detailContent = activeIsGemini ? <GeminiQuotaDetails pools={gemini.pools} /> : activeSnapshot ? (
     <div className="detail-strip">
       {activeIsZcode && zcodeSnapshot ? (
         <>
@@ -1234,13 +1241,15 @@ export function App({
       onPointerCancel={handleDragEnd}
     >
       <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
-      <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && !activeIsZcode ? "glass-shell--route-blocked" : ""}`}>
+      <div className={`glass-shell glass-shell--${visibleLayout} ${activeIsGemini ? "gemini-live" : stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
           reducedMotion={preferences.reducedMotion}
           opacity={preferences.opacity}
         />
-        {/* TomatoCloud 只承载 Codex 路由，ZCode 直连 bigmodel 不受路由阻断影响 */}
+        {activeIsGemini ? <GeminiQuotaSurface {...gemini} motion={fluidMotion} reducedMotion={preferences.reducedMotion}
+          collapsed={collapsed} onRestore={restoreCollapsedLayout}
+          onDetails={() => { setSettingsDetailsOpen(true); void openSettings(); }} /> : <>
         {routeBlocked && !activeIsZcode && <span className="route-alert-halo" aria-hidden="true" />}
         <div className="drag-rail" aria-hidden="true" />
         {!collapsed && <SourceBadge source={activeSource} pro={activeIsPro} />}
@@ -1347,7 +1356,7 @@ export function App({
 
             </footer>
           </>
-        )}
+        )}</>}
 
       </div>
 
@@ -1356,7 +1365,7 @@ export function App({
         detailsOpen={settingsDetailsOpen}
         onToggleDetails={() => setSettingsDetailsOpen(open => !open)}
         collapsed={collapsed}
-        onToggleLayout={activeSnapshot ? () => void changeLayout(collapsed ? "compact" : "collapsed") : undefined}
+        onToggleLayout={activeIsGemini || activeSnapshot ? () => void changeLayout(collapsed ? "compact" : "collapsed") : undefined}
         preferences={preferences}
         appliedAlwaysOnTop={confirmedAlwaysOnTop ?? undefined}
         pinStateUnconfirmed={confirmedAlwaysOnTop === null}

@@ -16,6 +16,7 @@ pub enum MeterSourceSelection {
     Carousel,
     Codex,
     Zcode,
+    Gemini,
 }
 
 /// ZCode 来源下展示的套餐：Start = 体验套餐优先（网关判定不可用回落个人），
@@ -38,6 +39,8 @@ pub struct DisplayPreferences {
     #[serde(default)]
     pub source: MeterSourceSelection,
     #[serde(default)]
+    pub gemini_in_carousel: bool,
+    #[serde(default)]
     pub zcode_plan: ZCodePlanSelection,
     pub x: Option<i32>,
     pub y: Option<i32>,
@@ -50,6 +53,7 @@ impl Default for DisplayPreferences {
             reduced_motion: false,
             always_on_top: true,
             source: MeterSourceSelection::default(),
+            gemini_in_carousel: false,
             zcode_plan: ZCodePlanSelection::default(),
             x: None,
             y: None,
@@ -209,6 +213,7 @@ mod tests {
             reduced_motion: true,
             always_on_top: false,
             source: MeterSourceSelection::Carousel,
+            gemini_in_carousel: true,
             zcode_plan: ZCodePlanSelection::Coding,
             x: Some(120),
             y: Some(240),

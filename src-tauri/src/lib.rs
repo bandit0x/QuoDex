@@ -1,4 +1,5 @@
 mod capacity;
+mod gemini_quota;
 #[cfg(all(target_os = "windows", any(not(debug_assertions), test)))]
 mod desktop_shortcut;
 mod platform;
@@ -58,6 +59,18 @@ fn configure_bundled_webview2_runtime() {
         return;
     };
     if let Some(runtime) = bundled_webview2_runtime(&executable) {
+        // WebView2 can't share a running browser profile between different fixed
+        // runtime directories. Installed and portable copies may run together.
+        if std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
+            if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+                use std::hash::{Hash, Hasher};
+                let mut key = std::collections::hash_map::DefaultHasher::new();
+                runtime.hash(&mut key);
+                let profile = std::path::PathBuf::from(local).join("QuoDex/WebView2")
+                    .join(format!("{:016x}", key.finish()));
+                std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", profile);
+            }
+        }
         std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", runtime);
     }
 }
@@ -370,8 +383,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             #[cfg(all(target_os = "windows", not(debug_assertions)))]
-            if let Err(error) = desktop_shortcut::replace_desktop_shortcut() {
-                eprintln!("failed to create the QuoDex desktop shortcut: {error}");
+            if std::env::var_os("CODEX_CREDITS_CONFIG_DIR").is_none() {
+                if let Err(error) = desktop_shortcut::replace_desktop_shortcut() {
+                    eprintln!("failed to create the QuoDex desktop shortcut: {error}");
+                }
             }
             let store = PreferencesStore::new(app.handle());
             app.manage(store);
@@ -452,6 +467,7 @@ pub fn run() {
             open_codex_chat,
             open_task_chat,
             read_capacity_snapshot,
+            gemini_quota::read_gemini_quota,
             read_tomato_connection,
             read_zcode_quota_snapshot,
             load_display_preferences,

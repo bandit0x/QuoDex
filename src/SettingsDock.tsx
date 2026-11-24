@@ -37,9 +37,10 @@ export function SettingsDock({ preferences, source, saveState, saveError, usageE
     <div className={`dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError || usageError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}${detailsOpen ? " dock-controls--details" : ""}`} data-save-state={saveState}>
       <div className="dock-liquid-shell" aria-hidden="true" />
     <div className="dock-sources" role="group" aria-label="额度来源">
-      {([['codex', 'Codex'], ['zcode', 'ZCode'], ['carousel', '轮播']] as const).map(([value, label]) => <button
+      {([['codex', 'Codex'], ['zcode', 'ZCode'], ['gemini', 'Gemini'], ['carousel', '轮播']] as const).map(([value, label]) => <button
         key={value} type="button" className={`glass-lens glass-lens--${value}`} data-glass-lens data-lens-tone={value} data-selected={source === value}
-        aria-pressed={source === value} onClick={() => onChange({ ...preferences, source: value })}>
+        aria-pressed={source === value} onClick={() => onChange({ ...preferences, source: value,
+          ...(value === "gemini" ? { geminiInCarousel: true } : {}) })}>
         {value === "carousel" ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5m10-4a8 8 0 0 0-13-2m-1 10a8 8 0 0 0 13 2" /></svg> : <span className="lens-state-dot" aria-hidden="true" />}
         <span>{label}</span>
       </button>)}

@@ -9,16 +9,17 @@ const legends = {
 interface GeminiReadoutProps {
   pool: keyof typeof legends;
   remainingPercent: number | null;
+  stale?: boolean;
 }
 
-export function GeminiReadout({ pool, remainingPercent }: GeminiReadoutProps) {
+export function GeminiReadout({ pool, remainingPercent, stale }: GeminiReadoutProps) {
   const legend = legends[pool];
   const known = remainingPercent !== null && Number.isFinite(remainingPercent)
     && remainingPercent >= 0 && remainingPercent <= 100;
   const value = known ? Number(remainingPercent.toFixed(1)).toString() : "—";
   return (
     <div className="gemini-readout" role="img"
-      aria-label={`${legend.name}，${known ? `剩余 ${value}%` : "额度未知"}`}>
+      aria-label={`${legend.name}，${known ? `${stale ? "上次" : ""}剩余 ${value}%` : "额度未知"}`}>
       <div className="gemini-readout__legend" aria-hidden="true">
         {pool !== "web" && <span className="gemini-readout__source">AG</span>}
         <span>{legend.label}</span>
