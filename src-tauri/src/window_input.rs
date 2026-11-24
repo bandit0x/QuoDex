@@ -133,10 +133,16 @@ mod native {
         Diagnostic::new("QDT-634", format!("{reason}；请重新打开 QuoDex"))
     }
 
+    fn cursor_position() -> Option<POINT> {
+        let mut point = POINT::default();
+        // SAFETY: GetCursorPos writes to valid stack storage on success.
+        unsafe { GetCursorPos(&mut point) }.ok().map(|()| point)
+    }
+
     // Geometry updates and hook callbacks all run on Tauri's UI thread. The hook
     // reconciles before Windows routes the input, so a fast first click cannot
     // land on stale rectangular padding. It never consumes or records events.
-    fn refresh(event: Option<(u32, POINT)>) -> Result<bool, Diagnostic> {
+    fn refresh(event: Option<(u32, POINT)>) -> Result<(), Diagnostic> {
         let (hwnd, original_layered) = INPUT.with(|state| {
             let state = state.borrow();
             (state.hwnd, state.original_layered)
@@ -149,9 +155,11 @@ mod native {
             let (kind, desktop) = match event {
                 Some(event) => event,
                 None => {
-                    let mut point = POINT::default();
-                    GetCursorPos(&mut point)
-                        .map_err(|e| failure("无法读取系统指针").with_detail(e.to_string()))?;
+                    // A background desktop can temporarily have no readable cursor.
+                    // Preserve the current style until the next poll or hook event.
+                    let Some(point) = cursor_position() else {
+                        return Ok(());
+                    };
                     (0, point)
                 }
             };
@@ -213,7 +221,35 @@ mod native {
             if pressed && !ignored && GetAncestor(WindowFromPoint(desktop), GA_ROOT) == hwnd {
                 INPUT.with(|state| state.borrow_mut().policy.captured = true);
             }
-            Ok(ignored)
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn unavailable_cursor_defers_refresh_on_an_inactive_desktop() {
+        use windows::core::HSTRING;
+        use windows::Win32::System::{StationsAndDesktops::*, Threading::GetCurrentThreadId};
+
+        // Only the test thread changes desktop. The user's input desktop stays active.
+        unsafe {
+            let original = GetThreadDesktop(GetCurrentThreadId()).unwrap();
+            let name = HSTRING::from(format!("QuoDex-test-{}", uuid::Uuid::new_v4()));
+            let desktop = CreateDesktopW(
+                &name,
+                None,
+                None,
+                Default::default(),
+                DESKTOP_CREATEWINDOW.0 | DESKTOP_READOBJECTS.0 | DESKTOP_WRITEOBJECTS.0,
+                None,
+            )
+            .unwrap();
+            SetThreadDesktop(desktop).unwrap();
+            let unavailable = cursor_position().is_none();
+            SetThreadDesktop(original).unwrap();
+            CloseDesktop(desktop).unwrap();
+
+            assert!(unavailable);
+            assert!(cursor_position().is_some());
         }
     }
 
@@ -310,7 +346,7 @@ mod native {
             state.borrow_mut().policy.manual_until =
                 Some(Instant::now() + Duration::from_millis(duration_ms))
         });
-        refresh(None).map(|_| ())
+        refresh(None)
     }
 }
 

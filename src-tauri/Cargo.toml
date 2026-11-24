@@ -56,3 +56,6 @@ windows = { version = "0.61.3", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.61.3", features = ["Win32_System_StationsAndDesktops", "Win32_Security"] }
