@@ -1,0 +1,12 @@
+{
+  "originalTarget": {
+    "meanRGBChannelAbsoluteDifference": 20.816555555555556,
+    "differentPixels": 25291,
+    "comparedPixels": 39000
+  },
+  "targetWithoutTwoBadges": {
+    "meanRGBChannelAbsoluteDifference": 19.376692307692306,
+    "differentPixels": 25291,
+    "comparedPixels": 39000
+  }
+}

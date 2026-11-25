@@ -1,0 +1,220 @@
+{
+  "status": "Blocked",
+  "executableSHA256": "efc193a4117b2394d460e5b744f388cf5904bbff8e71335c9bf2d8391e193acf",
+  "productSourceRevision": "b32a9b9fb6e3c256f0e9b75a1be61aa4593738eb",
+  "windowsVersion": "10.0.26200",
+  "pythonVersion": "3.11.9",
+  "normalFiveHourWeekly": {
+    "gemini": [
+      82,
+      16
+    ],
+    "partner": [
+      24,
+      90
+    ],
+    "web": [
+      68,
+      55
+    ]
+  },
+  "capture": "Win32 PrintWindow PW_RENDERFULLCONTENT, RGB on black backing; entire quota surface including footer; no actual image resampling, no mask, zero tolerance",
+  "designGitRevision": "597653aff8a7c494a533399c1cd644065530c480",
+  "runtimeSHA256": "57f29c15d881707e13173026a82d610d52e690e987d7ce2c35fab821276de114",
+  "cases": {
+    "ready-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "file": "docs\\design\\gemini-quota-windows\\liquid\\twin\\material\\optical-glass-study.png",
+        "sha256": "b2776cfeaa88557b0cf9a3fac661f5901bb79e08ce1dea7583b5e3a094d0a0d2",
+        "crop": [
+          194,
+          17,
+          1577,
+          601
+        ],
+        "size": [
+          300,
+          130
+        ],
+        "resampling": "Lanczos"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 一周，剩余 16%",
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": "ready-standard-hwnd.png",
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 25291,
+      "actualDecodedRGBSHA256": "9078a961c1bfcbea2d7f58e037902c5e3cd1f9d79370338adab344e54330e81f",
+      "approvedDecodedRGBSHA256": "6e90c4b7cbedd860ca9bfd48029b4623d421d2ce75190753c05ed98932518354",
+      "maxChannelDifference": 247,
+      "differenceBounds": [
+        0,
+        0,
+        300,
+        130
+      ]
+    },
+    "ready-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "file": "docs\\design\\gemini-quota-windows\\liquid\\twin\\material\\optical-glass-study.png",
+        "sha256": "b2776cfeaa88557b0cf9a3fac661f5901bb79e08ce1dea7583b5e3a094d0a0d2",
+        "crop": [
+          194,
+          626,
+          1577,
+          852
+        ],
+        "size": [
+          260,
+          48
+        ],
+        "resampling": "Lanczos"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 一周，剩余 16%",
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": "ready-narrow-hwnd.png",
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 11806,
+      "actualDecodedRGBSHA256": "fe8f05e1a32adb9540449b75823383e95d294d30394a541b5a7c95337c52cb0e",
+      "approvedDecodedRGBSHA256": "4fc00d098663fa2f0c3e7e8ac6c8662e4c2320f7abf6e0c7a60c4b62b80ed063",
+      "maxChannelDifference": 242,
+      "differenceBounds": [
+        0,
+        0,
+        260,
+        48
+      ]
+    }
+  },
+  "visualCoverage": "normal readings in both layouts; the optical study contains only this state",
+  "reader": "Actual Windows UI Automation reading two anonymous Edge panels on a private desktop",
+  "details": {
+    "ready": {
+      "visibleRows": [
+        [
+          "AG Gemini",
+          "5 小时",
+          "82%",
+          "2 小时后重置"
+        ],
+        [
+          "AG Gemini",
+          "一周",
+          "16%",
+          "3 天后重置"
+        ],
+        [
+          "AG Claude/GPT",
+          "5 小时",
+          "24%",
+          "1 小时后重置"
+        ],
+        [
+          "AG Claude/GPT",
+          "一周",
+          "90%",
+          "面板未披露"
+        ],
+        [
+          "Gemini Web",
+          "5 小时",
+          "68%",
+          "4 小时后重置"
+        ],
+        [
+          "Gemini Web",
+          "一周",
+          "55%",
+          "2 天后重置"
+        ]
+      ],
+      "visibleDiagnostic": null,
+      "screenshots": [
+        "details-ready-scroll-0.png",
+        "details-ready-scroll-1.png",
+        "details-ready-scroll-3.png",
+        "details-ready-scroll-6.png",
+        "details-ready-scroll-8.png",
+        "details-ready-scroll-10.png"
+      ],
+      "restoredReadings": [
+        "AG Gemini 一周，剩余 16%",
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "restoredHWNDSize": [
+        300,
+        334
+      ],
+      "restoredOrigin": [
+        120,
+        0
+      ],
+      "restoredChangedRGBPixels": 0,
+      "restoredDifferenceBounds": null,
+      "restoredMaxChannelDifference": 0,
+      "returnImages": []
+    }
+  },
+  "comparedRGBPixels": 51480,
+  "changedRGBPixels": 37097,
+  "differingCases": [
+    "ready-standard",
+    "ready-narrow"
+  ],
+  "differingDetailReturns": []
+}
