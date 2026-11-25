@@ -359,6 +359,9 @@ export function FluidReservoir({
     let atlas = geminiAtlasRef.current;
     let waitingForAtlas = twinGauge && isGeminiAccent(accent) && !atlas;
     let mounted = true;
+    // This effect owns one canvas, accent and target percentage. Repainting an
+    // unchanged atlas on Chromium's GPU can select a different sampling level.
+    let staticFrame: { atlas: HTMLImageElement; ratio: number; width: number; height: number } | null = null;
     const initialLevel = visibleLevelRef.current;
     const transitionStart = performance.now();
     const transitionDuration = twinGauge ? 380 : 600;
@@ -403,6 +406,7 @@ export function FluidReservoir({
       if (fallbackCanvas.width !== pixelWidth || fallbackCanvas.height !== pixelHeight) {
         fallbackCanvas.width = pixelWidth;
         fallbackCanvas.height = pixelHeight;
+        staticFrame = null;
       }
       const context = fallbackCanvas.getContext("2d");
       if (!context) return;
@@ -411,7 +415,14 @@ export function FluidReservoir({
         const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / transitionDuration));
         const level = remainingPercent + (initialLevel - remainingPercent) * (1 - progress) ** 3;
         visibleLevelRef.current = level;
-        if (twinGauge) context.resetTransform();
+        if (twinGauge) {
+          const atRest = (initialLevel === remainingPercent || progress === 1)
+            && !surface.isActive && bodyMomentum.agitation === 0;
+          if (atRest && staticFrame?.atlas === atlas && staticFrame.ratio === ratio
+            && staticFrame.width === pixelWidth && staticFrame.height === pixelHeight) return;
+          staticFrame = atRest ? { atlas, ratio, width: pixelWidth, height: pixelHeight } : null;
+          context.resetTransform();
+        }
         const moving = !reducedMotion && (!twinGauge || surface.isActive || bodyMomentum.agitation > 0);
         const stir = twinGauge && initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
         drawGeminiGlass(context, atlas, accent, twinGauge ? pixelWidth : logicalWidth,
@@ -469,7 +480,8 @@ export function FluidReservoir({
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(() => render());
-    resizeObserver?.observe(opticalRenderer && webglCanvas ? webglCanvas : fallbackCanvas);
+    resizeObserver?.observe(opticalRenderer && webglCanvas ? webglCanvas : fallbackCanvas,
+      twinGauge ? { box: "device-pixel-content-box" } : undefined);
     return () => {
       mounted = false;
       resizeObserver?.disconnect();
@@ -509,11 +521,12 @@ export function FluidReservoir({
       const surfaceActive = surface.step(frameScale);
       const bodyActive = bodyMomentum.step(frameScale);
       const active = surfaceActive || bodyActive || !!impulse;
+      if (twinGauge && !active) bodyMomentum.reset();
       drawRef.current();
       frameRef.current = active ? requestAnimationFrame(animate) : null;
     };
     frameRef.current = requestAnimationFrame(animate);
-  }, [motion, reducedMotion, accent]);
+  }, [motion, reducedMotion, accent, twinGauge]);
 
   useEffect(() => () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
