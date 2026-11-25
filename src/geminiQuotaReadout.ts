@@ -44,17 +44,17 @@ export function geminiPoolNotes(pool: GeminiPool, index: number): string[] {
       }
     }
   }
-  if (pool.source) notes.push(`来源：${{ panel: "可见面板", background: "独立网页登录", desktop: "AG 桌面" }[pool.source]}`);
+  if (pool.source) notes.push(`来源：${{ panel: "可见面板", background: "独立网页登录", desktop: "AG 后台" }[pool.source]}`);
   if (pool.diagnostic) {
     notes.push(`${pool.diagnostic.message} · ${pool.diagnostic.code}`);
     return notes;
   }
   if (pool.state === "absent") notes.push(index === 0
-    ? "在 Chrome 或 Edge 打开 Gemini → 设置 → 使用限额 · QGM-201"
-    : "在 Antigravity 打开 Settings → Models 或 View Usage · QGM-202");
-  if (pool.state === "unreadable") notes.push("面板未给出可识别的周期和百分比 · QGM-203");
-  if (pool.state === "failed") notes.push("无法读取窗口，请重新打开额度面板 · QGM-204");
-  if (pool.state === "ambiguous") notes.push("检测到多个面板，请保留一个 · QGM-205");
+    ? "请连接 Gemini Web 账号后刷新 · QGM-201"
+    : "请在 Antigravity 登录账号后刷新 · QGM-202");
+  if (pool.state === "unreadable") notes.push("未取得可识别的周期和百分比 · QGM-203");
+  if (pool.state === "failed") notes.push("额度读取失败，请稍后刷新 · QGM-204");
+  if (pool.state === "ambiguous") notes.push("无法确认额度归属，请确认登录账号后刷新 · QGM-205");
   if (pool.state === "unsupported") notes.push("请在 Windows 浮窗中读取 · QGM-206");
   return notes;
 }

@@ -134,13 +134,16 @@ export function useGeminiQuota(enabled: boolean, load: () => Promise<GeminiSnaps
     trigger.current = refreshAll;
     refreshSource.current = source => { void poll(source); };
     refreshAll();
-    const timer = window.setInterval(refreshAll, POLL_INTERVAL_MS);
+    const timers = split ? [
+      window.setInterval(() => { void poll("web"); }, POLL_INTERVAL_MS),
+      window.setInterval(() => { void poll("desktop"); }, 2 * 60_000),
+    ] : [window.setInterval(refreshAll, POLL_INTERVAL_MS)];
     document.addEventListener("visibilitychange", onWake);
     return () => {
       cancelled = true;
       trigger.current = () => {};
       refreshSource.current = () => {};
-      window.clearInterval(timer);
+      timers.forEach(timer => window.clearInterval(timer));
       document.removeEventListener("visibilitychange", onWake);
       void connection?.then(unlisten => unlisten?.());
     };

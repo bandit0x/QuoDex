@@ -4,6 +4,10 @@ use serde::Serialize;
 use std::sync::LazyLock;
 
 #[cfg(windows)]
+mod desktop;
+#[cfg(windows)]
+mod desktop_runtime;
+#[cfg(windows)]
 mod web_session;
 #[cfg(windows)]
 pub(crate) mod windows_reader;
@@ -82,20 +86,13 @@ pub async fn read_gemini_quota(source: Option<String>) -> Result<GeminiQuota, Di
             Pool::unavailable("absent"),
         ],
         Some("desktop") => {
-            let ag = tauri::async_runtime::spawn_blocking(desktop_status)
-                .await
-                .unwrap_or_else(|_| {
-                    desktop_pool("failed", "QGM-234", "无法确认 Antigravity 桌面状态")
-                });
-            [Pool::unavailable("absent"), ag.clone(), ag]
+            let [gemini, partner] = read_desktop().await;
+            [Pool::unavailable("absent"), gemini, partner]
         }
         Some("panel") => read_panels().await,
         None => {
-            let (web, mut pools) = tokio::join!(web_session::read(), read_panels());
-            if web.state != "notConnected" || pools[0].state != "available" {
-                pools[0] = web;
-            }
-            pools
+            let (web, [gemini, partner]) = tokio::join!(web_session::read(), read_desktop());
+            [web, gemini, partner]
         }
         _ => return Err(Diagnostic::new("QGM-233", "无法识别 Gemini 额度来源")),
     };
@@ -120,66 +117,15 @@ async fn read_panels() -> [Pool; 3] {
 }
 
 #[cfg(windows)]
-fn desktop_pool(state: &'static str, code: &'static str, message: &'static str) -> Pool {
-    Pool {
-        source: "desktop",
-        ..Pool::error(state, code, message)
-    }
-}
-
-#[cfg(windows)]
-fn desktop_status() -> Pool {
-    use windows::Win32::{
-        Foundation::CloseHandle,
-        System::{
-            Diagnostics::ToolHelp::{
-                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-                TH32CS_SNAPPROCESS,
-            },
-            RemoteDesktop::ProcessIdToSessionId,
-            Threading::GetCurrentProcessId,
-        },
-    };
-    let running = unsafe {
-        let mut current_session = 0;
-        if ProcessIdToSessionId(GetCurrentProcessId(), &mut current_session).is_err() {
-            return desktop_pool("failed", "QGM-234", "无法确认当前 Windows 会话");
-        }
-        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
-            return desktop_pool("failed", "QGM-234", "无法确认 Antigravity 桌面状态");
-        };
-        let mut entry = PROCESSENTRY32W {
-            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-            ..Default::default()
-        };
-        let mut found = false;
-        let mut has_entry = Process32FirstW(snapshot, &mut entry).is_ok();
-        while has_entry {
-            let name = String::from_utf16_lossy(&entry.szExeFile);
-            let mut session = 0;
-            if name
-                .trim_end_matches('\0')
-                .eq_ignore_ascii_case("Antigravity.exe")
-                && ProcessIdToSessionId(entry.th32ProcessID, &mut session).is_ok()
-                && session == current_session
-            {
-                found = true;
-                break;
-            }
-            has_entry = Process32NextW(snapshot, &mut entry).is_ok();
-        }
-        let _ = CloseHandle(snapshot);
-        found
-    };
-    if running {
-        desktop_pool(
-            "blocked",
-            "QGM-232",
-            "桌面版已运行，尚无已验证的只读额度连接",
-        )
-    } else {
-        desktop_pool("absent", "QGM-231", "Antigravity 桌面版未运行")
-    }
+async fn read_desktop() -> [Pool; 2] {
+    tauri::async_runtime::spawn_blocking(desktop::read)
+        .await
+        .unwrap_or_else(|_| {
+            std::array::from_fn(|_| Pool {
+                source: "desktop",
+                ..Pool::error("failed", "QGM-251", "AG 采样任务异常，请重启 QuoDex")
+            })
+        })
 }
 
 #[tauri::command]
@@ -192,6 +138,37 @@ pub fn connect_gemini_web(app: tauri::AppHandle) -> Result<(), Diagnostic> {
     {
         let _ = app;
         Err(Diagnostic::new("QGM-206", "当前系统尚未支持独立网页登录"))
+    }
+}
+
+#[cfg(all(test, windows))]
+mod live_tests {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires installed Antigravity Desktop and an existing signed-in account"]
+    async fn desktop_reads_real_quota_without_models_panel() {
+        let snapshot = read_gemini_quota(Some("desktop".into())).await.unwrap();
+        for (index, pool) in snapshot.pools.iter().enumerate().skip(1) {
+            assert_eq!(
+                pool.state, "available",
+                "pool {index}: {:?}",
+                pool.diagnostic
+            );
+            assert_eq!(pool.windows.len(), 2, "requires both quota periods");
+            assert!(pool.account_key.is_some());
+            for window in &pool.windows {
+                assert!((0.0..=100.0).contains(&window.remaining_percent));
+            }
+            println!(
+                "{}",
+                serde_json::json!({
+                    "pool": index, "source": pool.source, "windows": pool.windows,
+                    "observedAtMs": pool.observed_at_ms,
+                })
+            );
+        }
+        assert_eq!(snapshot.pools[1].account_key, snapshot.pools[2].account_key);
     }
 }
 
