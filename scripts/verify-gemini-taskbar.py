@@ -1,4 +1,4 @@
-import argparse, base64, ctypes, datetime, json, os, pathlib, shutil, sqlite3, subprocess, tempfile, time, tkinter as tk
+import argparse, base64, ctypes, datetime, json, math, os, pathlib, shutil, sqlite3, subprocess, tempfile, time, tkinter as tk
 import win32api, win32con, win32gui, win32process
 from PIL import ImageChops, ImageGrab
 
@@ -91,20 +91,63 @@ try:
     assert len(orbs)==3, orbs
     assert all(abs(item['height']-item['width']) <= 1 for item in orbs)
     win32api.SetCursorPos((30,40))
-    if options.reduced_motion:
-        assert ' 3 个任务' in orb_name, orb_name
-        item=next(b for b in orbs if b['name']==orb_name)
+    colors={'Codex':(255,255,255),'ZCode':(0,0,0),'Gemini':(38,112,223)}
+    def bounds(item):
         x,y=round(item['x']),round(item['y'])
-        bounds=(x,y,x+round(item['width']),y+round(item['height']))
-        fixed=ImageGrab.grab(bbox=bounds,all_screens=True).convert('RGB')
+        return (x,y,x+round(item['width']),y+round(item['height']))
+    def ring_image(item):
+        return ImageGrab.grab(bbox=bounds(item),all_screens=True).convert('RGB')
+    def distance(a,b):
+        return max(abs(p-q) for p,q in zip(a,b))
+    def missing_arc(image,ink):
+        # Cast rays through the outline. Only a contiguous sector may lack brand ink.
+        cx,cy=(image.width-1)/2,(image.height-1)/2
+        gaps=[]
+        for i in range(72):
+            theta=i*math.tau/72
+            hits=[image.getpixel((round(cx+r*math.cos(theta)),round(cy+r*math.sin(theta))))
+                  for r in range(round(image.width*.32),math.floor(min(cx,cy))+1)]
+            gaps.append(all(distance(p,ink)>50 for p in hits))
+        # An isolated missed ray at this size spans about a single pixel.
+        return [gap and (gaps[i-1] or gaps[(i+1)%len(gaps)]) for i,gap in enumerate(gaps)]
+    def check_hollow(image,bg):
+        # Leave space for the fixed status character in the center.
+        cx,cy=(image.width-1)/2,(image.height-1)/2
+        side=[image.getpixel((x,y)) for y in range(image.height) for x in range(image.width)
+              if .18*image.width<abs(x-cx) and (x-cx)**2+(y-cy)**2<(.32*image.width)**2]
+        assert side and sum(distance(p,bg)<=2 for p in side)/len(side)>.80, 'Opaque ring interior'
+    def check_gap(gaps):
+        starts=sum(gap and not gaps[i-1] for i,gap in enumerate(gaps))
+        assert starts==1 and 3<=sum(gaps)<=14, ('Expected a single short gap',sum(gaps),starts)
+    def check_scene(palette):
+        for item in orbs:
+            name=next(name for name in colors if name in item['name'])
+            image=ring_image(item)
+            check_hollow(image,palette)
+            gaps=missing_arc(image,colors[name])
+            if name=='Gemini':
+                check_gap(gaps)
+            else:
+                assert not any(gaps), (name,'Incomplete idle ring',sum(gaps))
+    assert ' 3 个任务' in orb_name, orb_name
+    gemini=next(b for b in orbs if b['name']==orb_name)
+    # Muted, nonsaturated fixture backgrounds make each provider stroke independently measurable.
+    backgrounds={'light':(225,218,204),'dark':(66,77,87)}
+    for theme,palette in backgrounds.items():
+        back.configure(bg='#%02x%02x%02x'%palette)
+        back.update()
+        time.sleep(.3)
+        check_scene(palette)
+        if not options.reduced_motion:
+            capture('standard-'+theme,174)
+    if options.reduced_motion:
+        fixed=ring_image(gemini)
         time.sleep(.45)
-        later=ImageGrab.grab(bbox=bounds,all_screens=True).convert('RGB')
-        assert sum(c==(208,183,204) for c in fixed.get_flattened_data())>fixed.width*fixed.height/2, 'Missing solid Gemini face'
-        assert ImageChops.difference(fixed,later).getbbox() is None,'Reduced motion face moved'
+        later=ring_image(gemini)
+        assert ImageChops.difference(fixed,later).getbbox() is None,'Reduced motion gap moved'
         capture('reduced',174)
-        print('Running Gemini task stayed solid with reduced motion')
+        print('Single static running gap and transparent centers passed on both backgrounds')
         raise SystemExit(0)
-    capture('standard',174)
     call('hover',name=orb_name)
     ready(lambda x:any('等待你操作 · Gemini / Antigravity' in b for b in x['buttons']) and
           any('匿名桌面报错' in b for b in x['buttons']))
@@ -112,62 +155,47 @@ try:
     win32api.SetCursorPos((30,40))
     closed=ready(lambda x:not any('匿名桌面报错' in b for b in x['buttons']))
     orb=next(item for item in closed['buttonBounds'] if item['name']==orb_name)
-    left,top=round(orb['x']),round(orb['y'])
-    box=(left,top,left+round(orb['width']),top+round(orb['height']))
-    samples=[]
-    for _ in range(5):
-        samples.append(ImageGrab.grab(bbox=box,all_screens=True).convert('RGB'))
-        time.sleep(.125)
-    changed=max(sum(max(px)>4 for px in ImageChops.difference(samples[0],frame).get_flattened_data())
-                for frame in samples[1:])
-    assert changed>12, f'Running ring did not move: {changed}'
-    print('moving pixels in Gemini ring:',changed)
-    # Sample the inner face on either side of the fixed exclamation mark.
-    def face_strength(image):
-        cx,cy=image.width/2,image.height/2
-        distance=[max(abs(c-ref) for c,ref in zip(image.getpixel((x,y)),(208,183,204)))
-                  for y in range(image.height) for x in range(image.width)
-                  if abs(x+.5-cx)>.13*image.width and
-                  (x+.5-cx)**2+(y+.5-cy)**2<(.34*image.width)**2]
-        return sum(distance)/len(distance)
-    def change_running(running):
-        with sqlite3.connect(data/'conversation_summaries.db') as fixture:
-            status='CASCADE_RUN_STATUS_RUNNING' if running else 'CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT'
-            fixture.execute("UPDATE conversation_summaries SET status=? WHERE title='匿名桌面运行'",(status,))
+    # Record a rotation using the UI Automation rectangle of the real button.
+    box=bounds(orb)
+    frames=[]
+    ring_frames=[]
+    started=time.monotonic()
+    for index in range(33):
+        time.sleep(max(0,started+index*.1-time.monotonic()))
+        image=grab_window(174)
         l,_,_,b=win32gui.GetWindowRect(hwnd)
-        crop_top=b-round(174*ctypes.windll.user32.GetDpiForWindow(hwnd)/96)
-        local_box=tuple(value-offset for value,offset in zip(box,(l,crop_top,l,crop_top)))
-        frames=[]
-        crossed=None
-        start=time.monotonic()
-        while time.monotonic()-start<10:
-            now=time.monotonic()
-            image=grab_window(174)
-            strength=face_strength(image.crop(local_box))
-            frames.append((now,image,strength))
-            reached=strength>5 if running else strength==0
-            if reached:
-                if crossed is None: crossed=len(frames)-1
-                if now-frames[crossed][0]>.8: break
-            else:
-                crossed=None
-            time.sleep(max(0,.08-(time.monotonic()-now)))
-        assert crossed is not None and frames[-1][0]-frames[crossed][0]>.8, ('Gemini face transition timed out',running)
-        assert any(.15<s<4.5 for _,_,s in frames), ('No intermediate shade',running)
-        return [frame for frame in frames if frame[0]>=frames[crossed][0]-1.25]
-    stopped=change_running(False)
-    stopped[-1][1].save(out/'idle.png')
-    started=change_running(True)
-    frames=stopped+started
-    durations=[round((b[0]-a[0])*1000) for a,b in zip(frames,frames[1:])]
-    durations[len(stopped)-1]=450
-    frames[0][1].save(out/'motion.webp',save_all=True,append_images=[frame[1] for frame in frames[1:]],
-                      duration=durations+[180],lossless=True,loop=0)
-    print('Gemini inner face faded to solid #d0b7cc and back to motion through intermediate shades',flush=True)
+        top=b-image.height
+        cropped=image.crop((box[0]-l,box[1]-top,box[2]-l,box[3]-top))
+        frames.append(image)
+        ring_frames.append(cropped)
+    for image in ring_frames:
+        check_gap(missing_arc(image,colors['Gemini']))
+    shifts={tuple(missing_arc(image,colors['Gemini'])) for image in ring_frames}
+    assert len(shifts)>12, ('Gap did not rotate',len(shifts))
+    middle=tuple(round(v*ring_frames[0].width) for v in (.32,.25,.68,.75))
+    mark=ring_frames[0].crop(middle)
+    assert all(ImageChops.difference(mark,image.crop(middle)).getbbox() is None for image in ring_frames[1:]), 'Center symbol moved'
+    assert any(distance(p,backgrounds['dark'])>60 for p in mark.get_flattened_data()),'Missing center symbol'
+    frames[0].save(out/'motion.webp',save_all=True,append_images=frames[1:-1],duration=100,lossless=True,loop=0)
+    print(f'{len(shifts)} measured gap positions, error symbol stayed fixed')
+    with sqlite3.connect(data/'conversation_summaries.db') as fixture:
+        fixture.execute("UPDATE conversation_summaries SET status='CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT' WHERE title='匿名桌面运行'")
+    for _ in range(60):
+        if not any(missing_arc(ring_image(orb),colors['Gemini'])): break
+        time.sleep(.15)
+    else: raise AssertionError('Ring did not close after the final running task stopped')
+    capture('idle',174)
+    with sqlite3.connect(data/'conversation_summaries.db') as fixture:
+        fixture.execute("UPDATE conversation_summaries SET status='CASCADE_RUN_STATUS_RUNNING' WHERE title='匿名桌面运行'")
     call('settings')
     click('收起为窄条')
-    ready(lambda x:x['width']==260 and any(24 <= b['width'] <= 26 and abs(b['height']-b['width'])<=1
+    compact=ready(lambda x:x['width']==260 and any(24 <= b['width'] <= 26 and abs(b['height']-b['width'])<=1
           for b in x['buttonBounds'] if b['name'].startswith('查看 Gemini 全部')))
+    tiny=next(b for b in compact['buttonBounds'] if b['name']==orb_name)
+    for _ in range(50):
+        if sum(missing_arc(ring_image(tiny),colors['Gemini']))>=3: break
+        time.sleep(.15)
+    check_gap(missing_arc(ring_image(tiny),colors['Gemini']))
     win32api.SetCursorPos((30,40))
     capture('narrow',92)
     print('native brand rings, hover task list, pointer exit and narrow layout passed')

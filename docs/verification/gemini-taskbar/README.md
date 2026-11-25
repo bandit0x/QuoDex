@@ -1,6 +1,16 @@
 # Agent 任务圆环 · Windows 验证
 
-## B · 瓷粉实心圆
+## 白、蓝、黑空心环
+
+2026-11-25，在 Windows 11 的 300 px 标准浮窗和 260 px 窄条上启动 QuoDex 发布程序，使用匿名任务验证。源码为 `b47c86b`，EXE 的 SHA-256 为 `72DFB331934E80627392B4490BBAAE81C2C69F7F901D170877540D109ECB92A7`。
+
+- 调换桌面背景后，三个环内都能读到新的背景色。环线分别为 Codex 白色、ZCode 黑色、Gemini 蓝色。[浅色桌面](rings/standard-light.png) · [深色桌面](rings/standard-dark.png)
+- 运行中的 Gemini 环只有一个缺口。逐帧取样时，缺口沿圆周移动，中心报错符号固定。最后一个运行任务转为等待后，圆环闭合。开启「减少动效」后，运行中的缺口固定，间隔 450 ms 两次取样的圆环图像一致。[运行实录](rings/motion.webp) · [闭合](rings/idle.png) · [减少动效](rings/reduced.png)
+- 悬停 Gemini 展开三条聊天及来源，移开后收起。窄条的按钮为 25 px，ZCode 的完成标记和 Gemini 的报错标记均可见。[悬停](rings/origins.png) · [窄条](rings/narrow.png)
+
+将 `QUODEX_EXECUTABLE` 指向发布 EXE，运行 `python scripts/verify-gemini-taskbar.py`。再加上 `--reduced-motion` 参数复验静止缺口。两次检查均使用独立配置。
+
+## 历史方案 B · 瓷粉实心圆
 
 2026-11-25 在 Windows 11 build 26200、96 DPI、WebView2 158.0.4370.33 下，使用独立配置和匿名聊天启动 QuoDex 0.4.12 的 Windows 发布 EXE。源码提交 `36f6e19`，EXE 的 SHA-256 为 `D4E1194C59A6850DFEE96EE8C81D7FCB59EC35147ED3FAF2B9B77E0E9139D9F4`。[已选 B 稿](../../design/gemini-taskbar/finishes/comparison.png)
 
@@ -11,7 +21,7 @@
 | 窄条与悬停 | 300 px 标准浮窗和 260 px 窄条均容纳三圆。ZCode 的近期完成显示 `✔`。Gemini 同时有运行、等待和报错聊天，显示 `!`。指针进入 Gemini 时显示三条匿名聊天及来源，移开后收起。[窄条](porcelain/narrow.png) · [悬停](porcelain/origins.png) |
 | 减少动效 | 在独立配置中启用减少动效并保留运行中的聊天。Gemini 显示藕紫纯色，间隔 450 ms 的两张原生截图中该圆区域内每个像素完全相同。[减少动效](porcelain/reduced.png) |
 
-在安装 Python、pywin32 和 Pillow 的 Windows 测试机上，将 `QUODEX_EXECUTABLE` 设为发布 EXE 的绝对路径。运行 `python scripts/verify-gemini-taskbar.py` 复验三圆、启停、悬停和窄条。运行 `python scripts/verify-gemini-taskbar.py --reduced-motion` 复验减少动效。截图与录屏默认保存到 `.scratch/gemini-taskbar-native`。
+该版对应的复验脚本保存在提交 `cae6fdf`。
 
 ## 旧版 D 稿验证
 
