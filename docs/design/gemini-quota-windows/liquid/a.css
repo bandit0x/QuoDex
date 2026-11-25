@@ -1,0 +1,72 @@
+.face.a .a-frame {
+  width: 100%; height: 100%; padding: 2px 7px 0;
+  display: grid; grid-template-rows: minmax(0,1fr) 19px; gap: 1px;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: #fff0d3; box-sizing: border-box;
+}
+.face.a .a-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; min-height: 0 }
+.face.a .a-dial {
+  position: relative; display: block; isolation: isolate; overflow: hidden;
+  border-radius: 49% / 46%;
+  background: radial-gradient(ellipse at center,#101928 54%,transparent 56%),
+    conic-gradient(from 175deg,#161b26,#718194 17%,#263747 29%,#ced9dc 40%,#465565 49%,#202e3c 58%,#9aabba 70%,#536372 78%,#243343 86%,#19212e);
+  box-shadow: inset 0 1px 1px #f4f8f4aa, inset 0 -1px 2px #8d9caf88, 0 1px 2px #050911;
+}
+.face.a .a-cavity {
+  position: absolute; inset: 10% 7% 11%; overflow: hidden; border-radius: 50% / 47%;
+  background: #182b3f url("../../../../src/gemini-glass.webp") left center / 400% 100% no-repeat;
+  box-shadow: 0 0 0 1px #0a121c,0 0 0 2px #9aa7b355;
+}
+.face.a .a-cavity::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 2px 4px #020914bd,inset 1px 0 3px #a0d9fe48;
+  background: radial-gradient(ellipse at 27% -14%,#e7f5ff71 0%,transparent 50%);
+}
+.face.a .a-cavity .q-liquid { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit }
+.face.a .a-scale { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none }
+.face.a .a-rail { stroke: #17170e; stroke-width: 3.2 }
+.face.a .a-lit { stroke: #efb75e; stroke-width: 2.5 }
+.face.a .a-ticks { stroke: #f0d3a48c; stroke-width: .68 }
+.face.a .a-needle { stroke: #fff6d5; stroke-width: 2.7; stroke-linecap: round; filter: drop-shadow(0 0 1px #23180b) }
+.face.a .a-name,.face.a .a-five,.face.a .a-week {
+  position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 1;
+  text-shadow: 0 1px 2px #090e1b,0 0 3px #090e1b; line-height: 1;
+}
+.face.a .a-name { top: 20%; font: 600 13px/1 Georgia,"Segoe UI",serif; color: #fff0d5 }
+.face.a .a-five,.face.a .a-week,.face.a .a-plate > span { display: inline-flex; align-items: baseline; gap: 4px }
+.face.a .a-five { top: 40%; }
+.face.a .a-five .q-value { font: italic 23px/1 Georgia,serif; color: #fff4df }
+.face.a .a-key { font: 550 10px/1 "Segoe UI","Microsoft YaHei UI",sans-serif; color: #ede9e2; white-space: nowrap }
+.face.a .a-week {
+  bottom: 6%; padding: 2px 8px 1px; border-radius: 7px;
+  background: linear-gradient(#27323c,#1c222b); border: 1px solid #c7a46d8c;
+  box-shadow: 0 1px 2px #040910; color: #ffdc99;
+}
+.face.a .a-week .a-key { color: #f0c982 }
+.face.a .a-week .q-value { font: italic 14px/1 Georgia,serif; color: #ffdf9d }
+.face.a .q-value small { font-size: .7em }
+.face.a .a-plate {
+  width: 86%; margin: 0 auto; align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 11px;
+  border-radius: 46% 46% 7px 7px / 2px 2px 6px 6px;
+  background: linear-gradient(92deg,#273747,#364556 10%,#172530 35%,#223342 66%,#394554 88%,#23323f);
+  border: 1px solid #86929a77; box-shadow: inset 0 1px #c1c8ca3b,0 1px 2px #040810; white-space: nowrap;
+}
+.face.a .a-plate > b { font: 600 11px/1 Georgia,serif; color: #e2d7be }
+.face.a .a-plate .q-value { font: italic 13px/1 Georgia,serif; color: #fff0d6 }
+.face.a .a-plate .a-key { font-size: 9px; color: #dce2e6 }
+.surface.narrow .face.a .a-frame {
+  padding: 1px 4px; grid-template-rows: minmax(0,1fr) 13px; gap: 0;
+}
+.surface.narrow .face.a .a-pair { gap: 3px }
+.surface.narrow .face.a .a-dial { border-radius: 35% / 48% }
+.surface.narrow .face.a .a-cavity { inset: 9% 5% 6%; border-radius: 35% / 49% }
+.surface.narrow .face.a .a-name { top: 11%; font-size: 10.5px }
+.surface.narrow .face.a .a-five,.surface.narrow .face.a .a-week { top: auto; bottom: 8%; transform: none; gap: 2px }
+.surface.narrow .face.a .a-five { left: 13% }
+.surface.narrow .face.a .a-week { left: auto; right: 12%; padding: 0; box-shadow: none; border: 0; background: none }
+.surface.narrow .face.a .a-five .q-value,.surface.narrow .face.a .a-week .q-value { font-size: 13.5px }
+.surface.narrow .face.a .a-key { font-size: 9px }
+.surface.narrow .face.a .a-plate { width: 87%; border-radius: 5px; gap: 8px }
+.surface.narrow .face.a .a-plate > b { font-size: 9.5px }
+.surface.narrow .face.a .a-plate .q-value { font-size: 11px }
+.surface.narrow .face.a .a-plate > span { gap: 3px }

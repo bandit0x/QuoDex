@@ -1,0 +1,212 @@
+.face.b {
+  --b-name: 65px;
+  --b-five: 40px;
+  --b-week: 40px;
+  --b-gap: 5px;
+  --b-ink: #e1ebe8;
+  --b-brass: #e8c382;
+}
+
+.face.b .b-manifold {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 5px 9px 4px;
+  display: grid;
+  grid-template-rows: 12px minmax(0, 1fr);
+  color: var(--b-ink);
+  background:
+    radial-gradient(ellipse at 28% 4%, #a9d4cd21, transparent 59%),
+    linear-gradient(145deg, #344449 0%, #141f25 35%, #19252a 71%, #354041 100%);
+  box-shadow: inset 0 1px #c0c5aa5e, inset 0 -1px #020b0d;
+}
+
+.face.b .b-legend,
+.face.b .b-row {
+  display: grid;
+  grid-template-columns: var(--b-name) minmax(0, 1fr) var(--b-five) var(--b-week);
+  column-gap: var(--b-gap);
+  align-items: center;
+}
+
+.face.b .b-legend {
+  font: 600 9px/1 "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.face.b .b-legend b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.face.b .b-five-key { color: #d7e5e6; }
+.face.b .b-five-key i {
+  width: 7px;
+  height: 4px;
+  border-radius: 40%;
+  background: linear-gradient(#c7dbe3, #789ba6 60%, #c2d8d6);
+}
+
+.face.b .b-week-key { color: var(--b-brass); }
+.face.b .b-week-key i {
+  width: 3px;
+  height: 6px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #987039, #f6d69a);
+}
+
+.face.b .b-calibration {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  margin-inline: 6% 12%;
+  color: #b4c0bb;
+  font: 9px/1 "Bahnschrift", sans-serif;
+}
+.face.b .b-calibration i { font-style: normal; }
+
+.face.b .b-bank {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  padding: 1px 0 0;
+}
+
+/* A single pair of machined end plates holds all three glass tubes. */
+.face.b .b-bank::before,
+.face.b .b-bank::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 3px;
+  width: 5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #36474a, #9caaa7 24%, #526461 53%, #354140 73%, #0e191d);
+  box-shadow: 0 1px 1px #040c10;
+}
+.face.b .b-bank::before { left: calc(var(--b-name) + var(--b-gap) - 1px); }
+.face.b .b-bank::after { right: calc(var(--b-five) + var(--b-week) + var(--b-gap) * 2 - 1px); }
+
+.face.b .b-row { position: relative; min-height: 0; }
+.face.b .b-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #e6d6b9;
+}
+.face.b .b-group small {
+  font: 600 7px/1 "Bahnschrift", sans-serif;
+  letter-spacing: .08em;
+  color: #bfbdac;
+}
+.face.b .b-group b { font: 600 11.5px/1 Georgia, serif; }
+
+.face.b .b-tube {
+  position: relative;
+  display: block;
+  align-self: center;
+  height: 19px;
+  margin-inline: 3px;
+  border-radius: 5px / 45%;
+  background: linear-gradient(#49595e, #101f27 24%, #071620 75%, #657678);
+  box-shadow: 0 2px 2px #070c108c, inset 0 1px #afb9ad80, inset 0 -1px #6d8c8780;
+}
+.face.b .b-vial {
+  position: absolute;
+  inset: 1px;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.face.b .b-vial .q-liquid {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.face.b .b-glint {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  top: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d9e9e290 15%, #e2e8e0a8 67%, transparent);
+}
+.face.b .b-scale-track {
+  position: absolute;
+  inset: 0 14% 0 6%;
+}
+.face.b .b-ticks {
+  position: absolute;
+  inset: auto 0 1px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #cad9cd9c 0 1px, transparent 1px 10%);
+}
+.face.b .b-cursor {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: linear-gradient(90deg, #5f4627, #fff0c3 40%, #ae824a 90%);
+  box-shadow: 1px 0 1px #34240fa6;
+}
+.face.b .b-cursor::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 7px;
+  height: 3px;
+  border-radius: 1px 1px 2px 2px;
+  background: linear-gradient(#fcdda4, #98703b);
+}
+.face.b .b-cursor.is-old { opacity: .75; }
+
+.face.b .b-reading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+  font: 600 15px/1 "Bahnschrift", "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.face.b .b-reading.b-week { color: var(--b-brass); }
+.face.b .b-reading .q-value { font: inherit; color: inherit; }
+.face.b .b-reading .q-value small { font-size: .63em; line-height: 1; }
+.face.b:has(.q-old) { --b-week: 61px; }
+
+.narrow .face.b {
+  --b-name: 68px;
+  --b-five: 35px;
+  --b-week: 35px;
+  --b-gap: 3px;
+}
+.narrow .face.b .b-manifold {
+  padding: 1px 7px 2px;
+  grid-template-rows: 8px minmax(0, 1fr);
+}
+.narrow .face.b .b-legend { font-size: 8px; }
+.narrow .face.b .b-legend b { gap: 2px; }
+.narrow .face.b .b-calibration { font-size: 7px; }
+.narrow .face.b .b-bank { padding: 0; }
+.narrow .face.b:has(.q-old) { --b-week: 49px; }
+.narrow .face.b .b-bank::before,
+.narrow .face.b .b-bank::after { inset-block: 1px; width: 4px; }
+.narrow .face.b .b-group { flex-direction: row; align-items: baseline; gap: 2px; }
+.narrow .face.b .b-group small { font-size: 7px; }
+.narrow .face.b .b-group b { font-size: 9.5px; }
+.narrow .face.b .b-reading { font-size: 11.5px; }
+.narrow .face.b .b-tube { height: 9px; }
+.narrow .face.b .b-cursor { top: -1px; bottom: -1px; width: 2px; }
+.narrow .face.b .b-cursor::before { left: -1px; width: 4px; height: 2px; }
+.narrow .face.b .b-ticks { height: 1px; }

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuoDex · Gemini 额度液仓</title>
+  <link rel="stylesheet" href="studio.css">
+  <link rel="stylesheet" href="a.css">
+  <link rel="stylesheet" href="b.css">
+  <link rel="stylesheet" href="c.css">
+</head>
+<body>
+<main>
+  <div id="sheet">
+    <header><h1>Gemini 额度液仓</h1><span class="sheet-note">QuoDex <i> / </i> 界面设计样稿</span></header>
+    <div class="gallery" id="gallery"></div>
+  </div>
+  <form id="bench" onsubmit="return false">
+    <h2>调节示例额度</h2>
+    <label>来源<select id="source"><option value="gemini">AG Gemini</option><option value="partner">AG Claude/GPT</option><option value="web">Gemini Web</option></select></label>
+    <label>5 小时 <output for="five" id="five-label"></output><input id="five" type="range" min="0" max="100" step="1"></label>
+    <label>一周 <output for="week" id="week-label"></output><input id="week" type="range" min="0" max="100" step="1"></label>
+    <label>读取状态<select id="state"><option value="normal">本次读数</option><option value="missing">本组周额度未读</option><option value="old">本组周额度为上次读数</option><option value="empty">全部未读</option></select></label>
+    <button id="reset" type="button">还原示例</button>
+  </form>
+  <footer class="references"><span>设计参考</span><a href="../../../verification/gemini-live/standard.png">QuoDex 暖金液仓</a><a href="https://antigravity.google/docs/models">Antigravity 模型分组</a><a href="../../../verification/gemini-live/README.md">三组双周期读数</a></footer>
+</main>
+<dialog id="detail" aria-labelledby="detail-title">
+  <div class="dialog-top"><h2 id="detail-title"></h2><button type="button" id="close-dialog">关闭</button></div>
+  <div id="detail-body"></div>
+</dialog>
+<script src="liquid.js"></script>
+<script src="a.js"></script>
+<script src="b.js"></script>
+<script src="c.js"></script>
+<script src="studio.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+.face.c {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 3px 12px 1px 6px;
+  box-sizing: border-box;
+  color: #fff1dc;
+  text-shadow: 0 1px 2px #081422, 0 0 3px #101321;
+}
+.face.c .c-lens {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  height: 100px;
+  border-radius: 49% 47% 53% 44% / 56% 48% 51% 44%;
+  background: #182634 url('../../../../src/gemini-glass.webp') left center / 400% 100%;
+  box-shadow: inset 1px 1px 2px #e8f7ffbd, 0 2px 3px #05101bb3;
+}
+.face.c .c-lens .q-liquid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+.face.c .c-lens::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 1px 1px 1px #ecfbffd6, inset -2px -2px 3px #86adc47a, inset 3px 4px 7px #0b182b3d;
+}
+.face.c .c-inscription {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+}
+.face.c .c-scope, .face.c .c-period {
+  color: #ebdbbb;
+  font: 600 10px/1.1 'Microsoft YaHei UI', sans-serif;
+}
+.face.c .c-amount, .face.c .c-amount .q-value {
+  display: inline-block;
+  margin: 0;
+  color: #fff5da;
+  font: italic 39px/1 Georgia, 'Times New Roman', serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -.035em;
+}
+.face.c .c-amount small { font-size: .52em; }
+.face.c .c-source { font: 600 12px/1.25 Georgia, serif; }
+.face.c .c-period { margin-top: 1px; }
+.face.c .c-register {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  line-height: 1;
+  white-space: nowrap;
+}
+.face.c .c-register col:first-child { width: 48%; }
+.face.c .c-register th, .face.c .c-register td { padding: 0; text-align: right; vertical-align: middle; }
+.face.c .c-register thead tr { height: 15px; }
+.face.c .c-register thead th {
+  color: #e2d6bf;
+  font: 600 10px/1.1 'Microsoft YaHei UI', sans-serif;
+}
+.face.c .c-register tbody tr { height: 24px; border-top: 1px solid #ced6d124; }
+.face.c .c-register tbody th {
+  text-align: left;
+  font: 600 11px/1 Georgia, serif;
+  color: #f0e6d6;
+}
+.face.c .c-register .q-value {
+  color: #edf0e9;
+  display: inline-block;
+  font: italic 16px/1 Georgia, serif;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.face.c .c-register .q-value:has(.q-old) { display: inline-flex; flex-direction: column; align-items: flex-end; font-size: 14px; }
+.face.c .c-register .q-old { margin: 0; font: 500 8px/1 'Microsoft YaHei UI', sans-serif; }
+.face.c .c-register .c-marked .q-value {
+  color: #fff1cd;
+  text-decoration: underline;
+  text-decoration-color: #efd491;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.surface.narrow .face.c {
+  grid-template-columns: 55px minmax(0, 1fr);
+  gap: 5px;
+  padding: 2px 9px 2px 5px;
+}
+.surface.narrow .face.c .c-lens { height: 42px; }
+.surface.narrow .face.c .c-scope { font-size: 8px; }
+.surface.narrow .face.c .c-amount, .surface.narrow .face.c .c-amount .q-value { font-size: 19px; }
+.surface.narrow .face.c .c-short { font: 600 8px/1 'Segoe UI', 'Microsoft YaHei UI', sans-serif; color: #f0e6d6; }
+.surface.narrow .face.c .c-register col:first-child { width: 15%; }
+.surface.narrow .face.c .c-register col:nth-child(2) { width: 26%; }
+.surface.narrow .face.c .c-register col:nth-child(3) { width: 38%; }
+.surface.narrow .face.c .c-register td, .surface.narrow .face.c .c-register thead th { text-align: center; }
+.surface.narrow .face.c .c-register thead tr { height: 11px; }
+.surface.narrow .face.c .c-register thead th { font: 600 10px/1 Georgia, serif; }
+.surface.narrow .face.c .c-register tbody tr { height: 14px; }
+.surface.narrow .face.c .c-register tbody th { font: 500 9px/1 'Microsoft YaHei UI', sans-serif; }
+.surface.narrow .face.c .c-register .q-value { font-size: 13px; }
+.surface.narrow .face.c .c-register .q-value:has(.q-old) { flex-direction: row; align-items: baseline; gap: 1px; font-size: 11px; }
+.surface.narrow .face.c .c-register .q-old { font-size: 7px; }
+.surface.narrow .face.c .c-register .c-axis { color: #ffe6a7; }
+.surface.narrow .face.c .c-register .c-marked .q-value { text-underline-offset: 1px; }
