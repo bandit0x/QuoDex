@@ -14,21 +14,27 @@ const tau = Math.PI*2;
 const clamp = v => Math.max(0,Math.min(1,v));
 const streams = [];
 // Cross sections in the 20.4-unit source coordinate system.
-// Static material varies across its width only, never around the circumference.
 const stillProfiles = {
-  idle:      {width:1.45, edge:.27, face:.50},
-  waiting:   {width:1.90, edge:.21, face:.56},
-  completed: {width:1.32, edge:.24, face:.53},
-  failed:    {width:2.38, edge:.11, face:.63},
-  unknown:   {width:1.55, edge:.29, face:.48},
+  idle:      {width:1.85, reflectance:.66},
+  waiting:   {width:2.05, reflectance:.76},
+  completed: {width:1.68, reflectance:.72},
+  failed:    {width:2.38, reflectance:.80},
+  unknown:   {width:1.65, reflectance:.56},
 };
-function stillRim(radius,profile) {
+function stillRim(radius,angle,profile) {
   const outer=diameter/2-.15;
   const depth=clamp((outer-radius)/profile.width);
-  const roundedFace=Math.sin(Math.PI*depth);
+  // Normal of a round bead: the inner and outer shoulders face opposite ways.
+  const outward=1-2*depth;
+  const towardViewer=Math.sqrt(1-outward*outward);
+  const towardWindow=Math.cos(angle+3*Math.PI/4);
+  const diffuse=clamp(.78*towardViewer+.62*outward*towardWindow);
+  // A broad upper-left window is reflected across the face, fixed in desktop space.
+  const windowLight=.5+.5*towardWindow;
+  const reflected=windowLight*(.28+.72*towardViewer);
   return {
     outer,inner:outer-profile.width,
-    energy:profile.edge+(profile.face-profile.edge)*roundedFace,
+    energy:.06+.31*diffuse+profile.reflectance*.72*reflected,
   };
 }
 
@@ -54,7 +60,8 @@ function waveAt(angle,time,seed) {
   return {outer,inner:outer-2*(.72+.48*energy),energy};
 }
 function measure(stream) {
-  const n=Math.ceil(stream.canvas.getBoundingClientRect().width*Math.min(devicePixelRatio||1,2));
+  const samplesPerPixel=stream.moving?1:2;
+  const n=Math.ceil(stream.canvas.getBoundingClientRect().width*Math.min(devicePixelRatio||1,2)*samplesPerPixel);
   if(!n || n===stream.canvas.width && stream.image) return;
   stream.canvas.width=stream.canvas.height=n;
   stream.image=stream.ctx.createImageData(n,n);
@@ -85,7 +92,7 @@ function paint(stream,time) {
   for(const {offset,radius,angle,coverage} of stream.band) {
     const {outer,inner,energy}=stream.moving
       ? waveAt(angle,time,stream.seed)
-      : stillRim(radius,stream.profile);
+      : stillRim(radius,angle,stream.profile);
     // Same two pigment intervals and crest exponent as 0.4.10. The centre stays transparent.
     const step=energy<.45?0:1;
     const mix=step===0 ? energy/.45 : ((energy-.45)/.55)**.65;
