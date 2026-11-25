@@ -1,0 +1,32 @@
+.gemini-quota-details {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.gemini-quota-details table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.gemini-quota-details th,
+.gemini-quota-details td {
+  padding: 3px 4px;
+  border-bottom: 1px solid #c9e8f433;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.gemini-quota-details th { font-weight: 600; }
+.gemini-quota-details th:nth-child(1) { width: 29%; }
+.gemini-quota-details th:nth-child(2) { width: 15%; }
+.gemini-quota-details th:nth-child(3) { width: 22%; }
+.gemini-quota-details small { margin-left: 3px; color: #ffe2aa; }
+.gemini-quota-details dl { margin: 10px 4px; }
+.gemini-quota-details dl > div + div { margin-top: 5px; }
+.gemini-quota-details dt { display: inline; font-weight: 600; }
+.gemini-quota-details dd { display: inline; margin-left: .5em; overflow-wrap: anywhere; }
+.gemini-quota-details button { padding: 4px 8px; font: inherit; color: inherit; background: #142938; border: 1px solid #92b4c7; border-radius: 6px; }
+.gemini-quota-details p { margin: 5px 0; }

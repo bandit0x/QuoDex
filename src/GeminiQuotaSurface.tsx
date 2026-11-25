@@ -1,66 +1,48 @@
-import { GeminiChambers } from "./GeminiChambers";
+import { GeminiTwinChambers } from "./GeminiTwinChambers";
+import { geminiPoolNotes, getGeminiReading, summarizeGeminiReadings } from "./geminiQuotaReadout";
+import "./GeminiQuotaSurface.css";
 import type { FluidMotionSample } from "./fluidPhysics";
 import type { GeminiPool } from "./geminiQuota";
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 
 const names = ["Web", "AG Gemini", "AG Claude/GPT"];
-function describe(pool: GeminiPool, index: number) {
-  const values = pool.windows.map(w => `${w.period === "weekly" ? "每周" : "5 小时"}剩余 ${Number(w.remainingPercent.toFixed(1))}%${w.reset ? " · " + w.reset : ""}`);
-  if (pool.observedAtMs !== null) {
-    const time = new Date(pool.observedAtMs).toLocaleString("zh-CN", { hour12: false });
-    values.push(`${pool.state === "available" ? "读取于" : "上次读数"} ${time}`);
-  }
-  if (pool.source) values.push(pool.source === "panel" ? "来源：可见面板" : "来源：独立网页登录");
-  if (pool.diagnostic) {
-    values.push(`${pool.diagnostic.message} · ${pool.diagnostic.code}`);
-    return values.join(" · ");
-  }
-  if (pool.state === "absent") values.push(index === 0
-    ? "在 Chrome 或 Edge 打开 Gemini → 设置 → 使用限额 · QGM-201"
-    : "在 Antigravity 打开 Settings → Models 或 View Usage · QGM-202");
-  if (pool.state === "unreadable") values.push("面板未给出可识别的周期和百分比 · QGM-203");
-  if (pool.state === "failed") values.push("无法读取窗口，请重新打开额度面板 · QGM-204");
-  if (pool.state === "ambiguous") values.push("检测到多个面板，请保留一个 · QGM-205");
-  if (pool.state === "unsupported") values.push("请在 Windows 浮窗中读取 · QGM-206");
-  return values.join(" · ");
+const itemCounts = ["零", "一", "两", "三", "四", "五", "六"];
+
+function quotaFeedback(pools: GeminiPool[], refreshed: boolean) {
+  const { fresh, stale, missing } = summarizeGeminiReadings(pools);
+  if (stale > 0) return { label: `含${itemCounts[stale]}项上次读数`, tone: "warning" };
+  if (fresh === 6) return { label: refreshed ? "6/6 已更新" : "6/6 已读取", tone: "normal" };
+  const failure = pools.find(pool => pool.state === "failed");
+  if (fresh === 0 && failure) return { label: `读取失败 · ${failure.diagnostic?.code ?? "QGM-204"}`, tone: "error" };
+  if (fresh > 0) return { label: `已读 ${fresh}/6 · ${itemCounts[missing]}项未读`, tone: "warning" };
+  const needsDetails = pools.some(pool => ["unreadable", "ambiguous", "unsupported"].includes(pool.state));
+  return { label: needsDetails ? "查看额度详情" : "查看额度连接", tone: "warning" };
 }
 
-export function GeminiQuotaDetails({ pools }: { pools: GeminiPool[] }) {
-  const [message, setMessage] = useState("");
-  const connect = async () => {
-    try {
-      await invoke("connect_gemini_web");
-      setMessage("在独立浏览器窗口登录 Gemini，完成后关闭该窗口并点击刷新。");
-    } catch (err) {
-      const diagnostic = err as { message?: string; code?: string } | null;
-      setMessage(`${diagnostic?.message ?? "无法启动系统浏览器"} · ${diagnostic?.code ?? "QGM-216"}`);
-    }
-  };
-  return <div>{pools.map((pool, i) => <div key={names[i]}><b>{names[i]}</b> · {describe(pool, i)}</div>)}
-    {pools[0]?.state !== "unsupported" && <button type="button" onClick={connect}>连接 Gemini 网页账号</button>}
-    {message && <p role="status">{message}</p>}
-  </div>;
+function narrowDescription(pools: GeminiPool[]) {
+  return [1, 2, 0].flatMap(index => (["weekly", "fiveHour"] as const).map(period => {
+    const { value, stale } = getGeminiReading(pools[index], period);
+    const amount = value === null ? "未读" : `${stale ? "上次剩余 " : "剩余 "}${Number(value.toFixed(1))}%`;
+    return `${names[index]} ${period === "weekly" ? "一周" : "5 小时"}${amount}`;
+  })).join("，");
 }
 
 export function GeminiQuotaSurface({ pools, reading, refresh, motion, reducedMotion, collapsed, onRestore, onDetails }: {
   pools: GeminiPool[]; reading: boolean; refresh: () => void; motion: FluidMotionSample;
   reducedMotion: boolean; collapsed: boolean; onRestore: () => void; onDetails: () => void;
 }) {
-  const titles = pools.map(describe);
-  const levels = pools.map(pool => pool.windows.length ? Math.min(...pool.windows.map(w => w.remainingPercent)) : null);
-  const chambers = <GeminiChambers levels={levels} motion={motion} reducedMotion={reducedMotion} titles={titles}
-    stale={pools.map(p => p.observedAtMs !== null && p.state !== "available")} collapsed={collapsed} />;
-  if (collapsed) return <button className="gemini-restore" type="button" data-window-drag-surface
-    aria-label="恢复标准视图" onClick={onRestore}>{chambers}</button>;
-  const count = pools.filter(pool => pool.state === "available").length;
-  const stale = pools.some(p => p.windows.length && p.state !== "available");
-  let status = count === 3 ? "三仓已读取" : count ? `${count}/3 仓已读取` : "查看额度连接";
-  if (pools.some(p => ["unreadable", "ambiguous", "failed", "unsupported"].includes(p.state))) status = "查看额度详情";
-  if (stale) status = "含上次读数";
-  return <>{chambers}<footer className="status-footer gemini-live-footer">
-    <button className="gemini-details-link" type="button" aria-label="查看 Gemini 额度详情" onClick={onDetails}
-      title={titles.map((t, i) => names[i] + " · " + t).join("\n")}><b>GEMINI</b> · {reading ? "正在读取" : status}</button>
-    <button type="button" onClick={refresh} disabled={reading}>刷新</button>
-  </footer></>;
+  const [refreshed, setRefreshed] = useState(false);
+  const chambers = <GeminiTwinChambers pools={pools} collapsed={collapsed} motion={motion} reducedMotion={reducedMotion} />;
+  if (collapsed) return <button className="gemini-twin-surface gemini-twin-surface--narrow" type="button" data-window-drag-surface
+    aria-label="恢复标准视图" aria-description={narrowDescription(pools)} onClick={onRestore}>{chambers}</button>;
+  const feedback = quotaFeedback(pools, refreshed);
+  return <div className="gemini-twin-surface">
+    {chambers}
+    <footer className="gemini-twin-footer">
+      <button type="button" aria-label="查看 Gemini 额度详情" onClick={onDetails}
+        title={pools.map((pool, i) => [names[i], ...geminiPoolNotes(pool, i)].join(" · ")).join("\n")}><b>GEMINI</b> · 详情</button>
+      <span role="status" data-tone={reading ? "normal" : feedback.tone}>{reading ? "正在读取…" : feedback.label}</span>
+      <button type="button" disabled={reading} onClick={() => { setRefreshed(true); refresh(); }}>{feedback.tone === "error" ? "重试" : "刷新"}</button>
+    </footer>
+  </div>;
 }

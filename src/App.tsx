@@ -7,7 +7,8 @@ import { useTaskStatus } from "./useTaskStatus";
 import { readTaskStatus, openTaskChat, dismissTaskFailure } from "./taskStatusClient";
 import type { ChatTask, TaskStatusSnapshot } from "./taskStatusTypes";
 import { FluidReservoir } from "./FluidReservoir";
-import { GeminiQuotaDetails, GeminiQuotaSurface } from "./GeminiQuotaSurface";
+import { GeminiQuotaDetails } from "./GeminiQuotaDetails";
+import { GeminiQuotaSurface } from "./GeminiQuotaSurface";
 import { readGeminiQuota, useGeminiQuota, type GeminiSnapshot } from "./geminiQuota";
 import { ProQuotaSurface, type CodexPresentation } from "./ProQuotaSurface";
 import { OpticalShell } from "./OpticalShell";
@@ -1229,8 +1230,8 @@ export function App({
 
   return (
     <main
-      className={`app-frame app-frame--${visibleLayout}${hasTaskArea ? " app-frame--has-tasks" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
-      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${settingsExtraHeight * 2}px` } as React.CSSProperties}
+      className={`app-frame app-frame--${visibleLayout}${activeIsGemini ? " app-frame--gemini" : ""}${hasTaskArea ? " app-frame--has-tasks" : ""}${settingsPresentation ? ` app-frame--settings-${settingsPresentation.placement}` : ""} ${preferences.reducedMotion ? "reduce-motion" : ""} ${isWindowDragging ? "is-dragging" : ""}`}
+      style={{ "--surface-opacity": preferences.opacity, "--settings-space": `${settingsExtraHeight * 2}px`, "--gemini-task-space": `${taskSpace}px` } as React.CSSProperties}
       onContextMenu={(event) => {
         event.preventDefault();
         void toggleSettings();
@@ -1241,15 +1242,15 @@ export function App({
       onPointerCancel={handleDragEnd}
     >
       <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} compact={collapsed} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
-      <div className={`glass-shell glass-shell--${visibleLayout} ${activeIsGemini ? "gemini-live" : stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
+      {activeIsGemini ? <GeminiQuotaSurface {...gemini} motion={fluidMotion} reducedMotion={preferences.reducedMotion}
+        collapsed={collapsed} onRestore={restoreCollapsedLayout}
+        onDetails={() => { setSettingsDetailsOpen(true); void openSettings(); }} /> : (
+      <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
           reducedMotion={preferences.reducedMotion}
           opacity={preferences.opacity}
         />
-        {activeIsGemini ? <GeminiQuotaSurface {...gemini} motion={fluidMotion} reducedMotion={preferences.reducedMotion}
-          collapsed={collapsed} onRestore={restoreCollapsedLayout}
-          onDetails={() => { setSettingsDetailsOpen(true); void openSettings(); }} /> : <>
         {routeBlocked && !activeIsZcode && <span className="route-alert-halo" aria-hidden="true" />}
         <div className="drag-rail" aria-hidden="true" />
         {!collapsed && <SourceBadge source={activeSource} pro={activeIsPro} />}
@@ -1356,9 +1357,8 @@ export function App({
 
             </footer>
           </>
-        )}</>}
-
-      </div>
+        )}
+      </div>)}
 
       {settingsOpen && <SettingsDock
         details={detailContent}

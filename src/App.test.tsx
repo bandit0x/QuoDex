@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { App, applyRouteGate } from "./App";
+import type { GeminiSnapshot } from "./geminiQuota";
 import { overlayLayoutSizes, SETTINGS_WINDOW_EXTRA_HEIGHT, SETTINGS_ERROR_EXTRA_HEIGHT, type SettingsWindowPresentation } from "./windowClient";
 import type {
   CapacitySnapshot,
@@ -961,29 +962,108 @@ describe("Codex capacity overlay", () => {
 });
 
 describe("Gemini quota source", () => {
-  it("keeps each pool independent through a partial refresh", async () => {
-    const available = (weekly: number, fiveHour: number) => ({ state: "available", windows: [
+  const available = (weekly: number, fiveHour: number): GeminiSnapshot["pools"][number] => ({
+    state: "available", source: "panel", windows: [
       { period: "weekly", remainingPercent: weekly, reset: "Resets Tuesday" },
       { period: "fiveHour", remainingPercent: fiveHour, reset: null },
-    ] });
-    const load = vi.fn()
+    ],
+  });
+  const preferences = async (): Promise<DisplayPreferences> => ({
+    opacity: .92, reducedMotion: true, x: null, y: null, source: "gemini",
+  });
+
+  it("keeps the six readings independent through a partial refresh", async () => {
+    const load = vi.fn<() => Promise<GeminiSnapshot>>()
       .mockResolvedValueOnce({ observedAtMs: 1800000000000,
-        pools: [available(75, 42), available(0, 12), { state: "absent", windows: [] }] })
+        pools: [available(75, 42), available(0, 12), available(90, 24.5)] })
       .mockResolvedValueOnce({ observedAtMs: 1800000015000,
-        pools: [{ state: "absent", windows: [] }, { state: "ambiguous", windows: [] }, available(90, 100)] });
+        pools: [{ state: "absent", source: "panel", windows: [] }, { state: "ambiguous", source: "panel", windows: [] },
+          { ...available(91, 100), windows: [{ period: "fiveHour", remainingPercent: 100, reset: null }] }] });
     render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
       loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadGeminiSnapshot={load}
-      loadPreferences={async () => ({ opacity: .92, reducedMotion: true, x: null, y: null, source: "gemini" })} />);
-    await screen.findByRole("img", { name: "Web，剩余 42%" });
-    expect(screen.getByRole("img", { name: "AG Gemini，剩余 0%" })).toBeVisible();
-    expect(screen.getByRole("img", { name: "AG Claude/GPT，额度未知" })).toBeVisible();
+      loadPreferences={preferences} />);
+    await screen.findByRole("img", { name: "Gemini Web 5 小时，剩余 42%" });
+    for (const name of ["Gemini Web 一周，剩余 75%", "AG Gemini 5 小时，剩余 12%", "AG Gemini 一周，剩余 0%",
+      "AG Claude/GPT 5 小时，剩余 24.5%", "AG Claude/GPT 一周，剩余 90%"]) {
+      expect(screen.getByRole("img", { name })).toBeVisible();
+    }
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
-    await screen.findByRole("img", { name: "Web，上次剩余 42%" });
-    expect(screen.getByRole("img", { name: "AG Gemini，额度未知" })).toBeVisible();
-    expect(screen.getByRole("img", { name: "AG Claude/GPT，剩余 90%" })).toBeVisible();
+    await screen.findByRole("img", { name: "Gemini Web 5 小时，上次剩余 42%" });
+    expect(screen.getByRole("img", { name: "Gemini Web 一周，上次剩余 75%" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Gemini 5 小时，未读" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Gemini 一周，未读" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Claude/GPT 5 小时，剩余 100%" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Claude/GPT 一周，上次剩余 90%" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "查看 Gemini 额度详情" }));
-    expect(await screen.findByLabelText("额度详情")).toHaveTextContent("Resets Tuesday");
-    expect(screen.getByLabelText("额度详情")).toHaveTextContent("QGM-205");
+    const details = await screen.findByLabelText("额度详情");
+    expect(details).toHaveTextContent("QGM-205");
+    expect(details).toHaveTextContent("上次读数");
+    const table = within(details).getByRole("table", { name: "Gemini 额度窗口" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map(row => Array.from(row.children, cell => cell.textContent))).toEqual([
+      ["AG Gemini", "5 小时", "—", "—"],
+      ["AG Gemini", "一周", "—", "—"],
+      ["AG Claude/GPT", "5 小时", "100%", "面板未披露"],
+      ["AG Claude/GPT", "一周", "90%上次", "—"],
+      ["Gemini Web", "5 小时", "42%上次", "—"],
+      ["Gemini Web", "一周", "75%上次", "—"],
+    ]);
+  });
+
+  it("retries a failed read and counts each successfully recovered window", async () => {
+    let finishRetry!: (value: GeminiSnapshot) => void;
+    const retry = new Promise<GeminiSnapshot>(resolve => { finishRetry = resolve; });
+    const load = vi.fn<() => Promise<GeminiSnapshot>>()
+      .mockRejectedValueOnce(new Error("Native quota read failed"))
+      .mockReturnValueOnce(retry)
+      .mockResolvedValueOnce({ observedAtMs: 1800000015000, pools: [available(40, 50), available(0, 80), available(20, 90)] });
+    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadGeminiSnapshot={load} loadPreferences={preferences} />);
+    await screen.findByText("读取失败 · QGM-204");
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByText("正在读取…")).toBeVisible();
+    expect(screen.getByRole("button", { name: "重试" })).toBeDisabled();
+    const partial = available(0, 80);
+    partial.windows = partial.windows.filter(window => window.period === "fiveHour");
+    await act(async () => finishRetry({ observedAtMs: 1800000010000, pools: [available(40, 50), partial, available(20, 90)] }));
+    expect(await screen.findByText("已读 5/6 · 一项未读")).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Gemini 一周，未读" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("6/6 已更新")).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Gemini 一周，剩余 0%" })).toBeVisible();
+  });
+
+  it("restores the narrow gauge and connects Web independently of both Antigravity groups", async () => {
+    const load = vi.fn<() => Promise<GeminiSnapshot>>().mockResolvedValue({
+      observedAtMs: 1800000000000,
+      pools: [
+        { state: "notConnected", source: "background", windows: [],
+          diagnostic: { code: "QGM-211", message: "请连接 Gemini Web 专用浏览器" } },
+        available(16, 82), available(90, 24),
+      ],
+    });
+    const setWindowLayout = vi.fn().mockResolvedValue(undefined);
+    render(<App {...inertPreferences} initialLayout="collapsed" setWindowLayout={setWindowLayout}
+      loadSnapshot={async () => healthySnapshot} loadZcodeSnapshot={async () => healthyZcodeSnapshot}
+      loadGeminiSnapshot={load} loadPreferences={preferences} />);
+    const restore = await screen.findByRole("button", { name: "恢复标准视图" });
+    await within(restore).findByText("82%");
+    expect(within(restore).getByText("16%")).toBeVisible();
+    expect(within(restore).getAllByText("—")).toHaveLength(2);
+    fireEvent.click(restore);
+    await screen.findByRole("img", { name: "AG Claude/GPT 一周，剩余 90%" });
+    expect(setWindowLayout).toHaveBeenCalledWith("compact");
+    fireEvent.click(screen.getByRole("button", { name: "查看 Gemini 额度详情" }));
+    const details = await screen.findByLabelText("额度详情");
+    expect(details).toHaveTextContent("QGM-211");
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("__TAURI_INTERNALS__", { invoke });
+    try {
+      fireEvent.click(within(details).getByRole("button", { name: "连接 Gemini 网页账号" }));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith("connect_gemini_web", {}, undefined));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

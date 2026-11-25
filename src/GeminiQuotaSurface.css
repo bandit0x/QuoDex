@@ -1,0 +1,93 @@
+/* At fractional DPI a window edge can fall halfway through its last physical
+   pixel. Let the shell and its shadow paint that pixel up to the native edge. */
+body:has(.app-frame--gemini),
+#root:has(> .app-frame--gemini) {
+  overflow-clip-margin: 1px;
+}
+/* Gauges use native logical pixels; the existing controls use half scale. */
+.app-frame.app-frame--gemini {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  transform: none;
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-frame.app-frame--gemini.app-frame--has-tasks {
+  padding-top: var(--gemini-task-space);
+}
+/* Keep the gauge above the task row (22) and below its popover (26).
+   WebView2 otherwise rasterizes their gradients in the same layer. */
+.app-frame--gemini.app-frame--has-tasks:not(:has(> .settings-dock)) > .gemini-twin-surface {
+  z-index: 23;
+}
+.app-frame.app-frame--gemini.app-frame--settings-below {
+  padding-bottom: calc(var(--settings-space) * var(--overlay-scale));
+}
+.app-frame--gemini > :is(.task-strip, .task-popover, .settings-dock, .control-message) {
+  zoom: var(--overlay-scale);
+}
+.app-frame--gemini > .task-strip { top: calc(320px + 14px); }
+.app-frame--gemini.app-frame--collapsed > .task-strip { top: calc(320px + 20px); }
+
+.gemini-twin-surface {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: 130px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  text-align: left;
+  color: #f1e5cf;
+  font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  text-rendering: auto;
+  -webkit-font-smoothing: auto;
+  border-radius: 17px;
+  --twin-alpha: min(1, calc(var(--surface-opacity, .92) / .92));
+  background: linear-gradient(122deg, rgb(52 68 75 / var(--twin-alpha)), rgb(19 33 44 / var(--twin-alpha)) 28%, rgb(16 27 38 / var(--twin-alpha)) 62%, rgb(37 50 58 / var(--twin-alpha)));
+  box-shadow: inset 0 0 0 1px #68757a, inset 0 2px 0 #c2cccb96, inset 0 -2px 2px #7c8d93a3, 0 4px 7px #132a3633;
+}
+.gemini-twin-surface--narrow {
+  height: 48px;
+  border-radius: 12px;
+}
+.gemini-twin-footer {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  justify-content: space-between;
+  align-items: center;
+  gap: 5px;
+  min-height: 21px;
+  padding: 0 12px 2px;
+  box-shadow: inset 0 1px #aabdc41c;
+}
+.gemini-twin-footer button {
+  border: 0;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 17px;
+  color: #d9e0de;
+  background: transparent;
+  white-space: nowrap;
+}
+.gemini-twin-footer button:hover { text-decoration: underline; }
+.gemini-twin-footer button:disabled { opacity: .72; cursor: wait; }
+.gemini-twin-footer b {
+  font: 650 8px/1 "Segoe UI", sans-serif;
+  letter-spacing: .14em;
+  color: #e5d4b9;
+}
+.gemini-twin-footer [role="status"] {
+  min-width: 0;
+  text-align: center;
+  color: #d9e8e5;
+  font: 500 9px/16px "Microsoft YaHei UI", sans-serif;
+}
+.gemini-twin-footer [data-tone="warning"] { color: #f8d697; }
+.gemini-twin-footer [data-tone="error"] { color: #ffbfa9; }

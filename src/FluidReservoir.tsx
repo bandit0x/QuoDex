@@ -18,6 +18,7 @@ interface FluidReservoirProps {
   motion: FluidMotionSample;
   motionSeed: number;
   reducedMotion: boolean;
+  twinGauge?: boolean;
 }
 
 interface Palette {
@@ -325,6 +326,7 @@ export function FluidReservoir({
   motion,
   motionSeed,
   reducedMotion,
+  twinGauge = false,
 }: FluidReservoirProps) {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -349,27 +351,32 @@ export function FluidReservoir({
   useEffect(() => {
     const webglCanvas = webglCanvasRef.current;
     const fallbackCanvas = fallbackCanvasRef.current;
-    if (!webglCanvas || !fallbackCanvas) return;
+    if (!fallbackCanvas) return;
     const surface = surfaceRef.current;
     const bodyMomentum = bodyMomentumRef.current;
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
     let atlas = geminiAtlasRef.current;
+    let waitingForAtlas = twinGauge && isGeminiAccent(accent) && !atlas;
     let mounted = true;
     const initialLevel = visibleLevelRef.current;
     const transitionStart = performance.now();
+    const transitionDuration = twinGauge ? 380 : 600;
 
     try {
-      if (!isGeminiAccent(accent)) opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
+      if (webglCanvas && !isGeminiAccent(accent)) opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
     } catch (error) {
       console.warn("WebGL optical reservoir unavailable; using Canvas 2D fallback", error);
     }
-    webglCanvas.dataset.renderer = opticalRenderer ? "webgl" : "inactive";
+    if (webglCanvas) {
+      webglCanvas.dataset.renderer = opticalRenderer ? "webgl" : "inactive";
+      webglCanvas.style.display = opticalRenderer ? "block" : "none";
+    }
     fallbackCanvas.dataset.renderer = "canvas2d";
-    webglCanvas.style.display = opticalRenderer ? "block" : "none";
     fallbackCanvas.style.display = opticalRenderer ? "none" : "block";
 
     const render = (time = performance.now()) => {
+      if (waitingForAtlas) return;
       if (opticalRenderer) {
         opticalRenderer.render({
           remainingPercent,
@@ -384,10 +391,13 @@ export function FluidReservoir({
         });
         return;
       }
-      const logicalWidth = fallbackCanvas.clientWidth;
-      const logicalHeight = fallbackCanvas.clientHeight;
-      if (logicalWidth <= 0 || logicalHeight <= 0) return;
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      // The native-size gauges can have fractional CSS bounds. Round only once,
+      // in physical pixels, so both the atlas and canvas cover the same rectangle.
+      const bounds = twinGauge ? fallbackCanvas.getBoundingClientRect() : null;
+      const logicalWidth = bounds?.width ?? fallbackCanvas.clientWidth;
+      const logicalHeight = bounds?.height ?? fallbackCanvas.clientHeight;
+      if (logicalWidth <= 0 || logicalHeight <= 0) return;
       const pixelWidth = Math.max(1, Math.round(logicalWidth * ratio));
       const pixelHeight = Math.max(1, Math.round(logicalHeight * ratio));
       if (fallbackCanvas.width !== pixelWidth || fallbackCanvas.height !== pixelHeight) {
@@ -398,12 +408,17 @@ export function FluidReservoir({
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       if (atlas && isGeminiAccent(accent)) {
-        const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / 600));
+        const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / transitionDuration));
         const level = remainingPercent + (initialLevel - remainingPercent) * (1 - progress) ** 3;
         visibleLevelRef.current = level;
-        drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, level,
-          surface.heights, time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset,
-          bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum);
+        if (twinGauge) context.resetTransform();
+        const moving = !reducedMotion && (!twinGauge || surface.isActive || bodyMomentum.agitation > 0);
+        const stir = twinGauge && initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
+        drawGeminiGlass(context, atlas, accent, twinGauge ? pixelWidth : logicalWidth,
+          twinGauge ? pixelHeight : logicalHeight, level,
+          surface.heights, twinGauge ? time : time * dynamics.flowScale, moving, dynamics.phaseOffset,
+          bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum,
+          twinGauge ? { pixelRatio: ratio, transitionStir: stir } : undefined);
         return;
       }
       drawReservoir(
@@ -428,34 +443,40 @@ export function FluidReservoir({
       loadGeminiGlass().then(image => {
         if (!mounted) return;
         atlas = image;
+        waitingForAtlas = false;
         geminiAtlasRef.current = image;
         fallbackCanvas.dataset.renderer = "gemini-glass";
         render();
-      }).catch(error => console.warn("QGM-103: 无法解码玻璃材质，使用基础液体绘制", error));
+      }).catch(error => {
+        if (!mounted) return;
+        waitingForAtlas = false;
+        console.warn("QGM-103: 无法解码玻璃材质，使用基础液体绘制", error);
+        render();
+      });
     }
 
     let ambientFrame: number | null = null;
     let lastAmbientTime = 0;
     const animateAmbient = (time: number) => {
-      if (frameRef.current === null && time - lastAmbientTime >= 32) {
+      if (frameRef.current === null && (twinGauge || time - lastAmbientTime >= 32)) {
         lastAmbientTime = time;
         render(time);
       }
-      ambientFrame = requestAnimationFrame(animateAmbient);
+      if (!twinGauge || time < transitionStart + transitionDuration) ambientFrame = requestAnimationFrame(animateAmbient);
     };
-    if (!reducedMotion) ambientFrame = requestAnimationFrame(animateAmbient);
+    if (!reducedMotion && (!twinGauge || initialLevel !== remainingPercent)) ambientFrame = requestAnimationFrame(animateAmbient);
 
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(() => render());
-    resizeObserver?.observe(opticalRenderer ? webglCanvas : fallbackCanvas);
+    resizeObserver?.observe(opticalRenderer && webglCanvas ? webglCanvas : fallbackCanvas);
     return () => {
       mounted = false;
       resizeObserver?.disconnect();
       if (ambientFrame !== null) cancelAnimationFrame(ambientFrame);
       opticalRenderer?.destroy();
     };
-  }, [accent, dynamics.phaseOffset, reducedMotion, remainingPercent]);
+  }, [accent, dynamics.phaseOffset, reducedMotion, remainingPercent, twinGauge]);
 
   useEffect(() => {
     const surface = surfaceRef.current;
@@ -500,7 +521,7 @@ export function FluidReservoir({
 
   return (
     <>
-      <canvas ref={webglCanvasRef} className="fluid-reservoir" aria-hidden="true" />
+      {(!twinGauge || !isGeminiAccent(accent)) && <canvas ref={webglCanvasRef} className="fluid-reservoir" aria-hidden="true" />}
       <canvas
         ref={fallbackCanvasRef}
         className="fluid-reservoir"
