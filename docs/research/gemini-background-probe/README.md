@@ -7,6 +7,8 @@
 | Gemini Web | 点击连接后，在独立的系统浏览器配置里登录一次。QuoDex 用同一配置在后台加载 Google 的用量视图，解析五小时和每周两行。 | 0.4.15 已有该路径。模拟服务确认关窗后能读到新值；真实 Google 站点只核实了未登录状态。 |
 | AG Gemini、AG Claude/GPT | 官方运行时可以一次请求两个模型组的额度；第三方实现也能解析同一类分组数据。 | 个人版缺少已确认的第三方只读授权。0.4.15 两组均取自桌面 Models 面板，退出后没有新的数据源。 |
 
+关于「桌面版开着、始终停在普通聊天页」的 Windows 实现、终端状态栏和网页双周期，见[七个 GitHub 项目的源码对照与匿名测试](github-source-audit.md)。
+
 ## Web 取数与本机实测
 
 现有 `connect()` 打开专用浏览器并直接导航到官方用量地址，`read()` 在该窗口关闭后用同一配置启动无窗口浏览器。日常使用不需要用户进入设置。若首次连接也要只看登录界面，可让连接入口落在普通 Gemini 首页，再由后台完成首读；此变更尚未实施。[0.4.15 探针](../../../src-tauri/src/gemini_quota/web_session.rs) · [Chrome Headless](https://developer.chrome.com/docs/chromium/headless) · [Google 官方限额说明](https://support.google.com/gemini/answer/16275805?hl=en)
