@@ -290,11 +290,15 @@ try {
       assert.equal(nativeProcess.exitCode,0,"QWS-105: native quit must exit normally");
       nativePid=null;
     }
+    async function expectGroupedTask(agent, title, state) {
+      await button(`查看 ${agent} 全部 1 个任务`, "hover");
+      await waitFor(data => data.buttons.includes(`${title} · ${state}`), `${agent}: ${state}`);
+    }
     for(let restart=1;restart<=2;restart++) {
       await start();
-      await waitFor(data=>data.buttons.includes("整理项目文档 · 运行中")&&data.buttons.includes("示例 项目 1：项目任务 1 · 运行中"),"QWS-101: both sources recovered on cold startup");
+      await expectGroupedTask("Codex", "整理项目文档", "运行中");
+      await expectGroupedTask("ZCode", "示例 项目 1：项目任务 1", "运行中");
       await capture(`cold-start-${restart}`);
-      await button("查看 ZCode 全部 1 个任务");
       await waitFor(data=>data.names.includes("ZCode 任务列表"),"QWS-102: ZCode list opens");
       await pause(3000);assert(bridge("read").names.includes("ZCode 任务列表"),"QWS-103: pointer inside must keep list open");
       await capture(`zcode-list-${restart}`);bridge("leave");
@@ -303,9 +307,10 @@ try {
     }
     checks.push("two cold starts restore both running sources without a new message; relocated desktop index and default CLI journal are joined; native list remains open for three seconds and closes on pointer leave; native quit exits normally");
     await start();setChats(["waiting"]);await setZcodeChats(["waiting"]);
-    await waitFor(data=>data.buttons.includes("整理项目文档 · 等待你操作")&&data.buttons.includes("示例 项目 1：项目任务 1 · 等待你操作"),"QWS-104: running transitions to waiting");
+    await expectGroupedTask("Codex", "整理项目文档", "等待你操作");
+    await expectGroupedTask("ZCode", "示例 项目 1：项目任务 1", "等待你操作");
     await capture("waiting");setChats(["cancelled"]);await setZcodeChats(["cancelled"]);
-    await waitFor(data=>(data.names.includes("5 HOUR quota") || data.names.includes("WEEK quota"))&&!data.buttons.some(name=>name?.includes("整理项目文档 ·")||name?.includes("项目任务 1 ·")),"cancelled turns disappear");
+    await waitFor(data=>!data.buttons.some(name=>/^查看 (Codex|ZCode) 全部 [1-9]/.test(name)),"cancelled turns disappear");
     await capture("cancelled");await quitNormally();
     checks.push("both sources transition to waiting and remove cancelled turns through real backend polling");
   } else if(process.argv.includes("--repair-only")) {

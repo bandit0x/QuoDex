@@ -1,0 +1,28 @@
+{
+  "status": "Verified",
+  "executable": "C:\\Users\\bandit\\AppData\\Local\\QuoDex\\codex-credits-view.exe",
+  "sha256": "73aa563baffc559860eec179dfba5e273246e2e742540b833f74a74b91da50a0",
+  "environment": "Windows native release + real window API/UI Automation; isolated SQLite and Desktop-protocol fixture; no browser preview or injected frontend state; plain native verification backdrop",
+  "checks": [
+    "two cold starts restore both running sources without a new message; relocated desktop index and default CLI journal are joined; native list remains open for three seconds and closes on pointer leave; native quit exits normally",
+    "both sources transition to waiting and remove cancelled turns through real backend polling"
+  ],
+  "screenshots": [
+    "cold-start-1.png",
+    "zcode-list-1.png",
+    "cold-start-2.png",
+    "zcode-list-2.png",
+    "waiting.png",
+    "cancelled.png"
+  ],
+  "errors": [],
+  "methods": [
+    "initialize",
+    "thread-owner-discovery",
+    "thread-stream-following-changed"
+  ],
+  "limitations": [
+    "Fixture does not prove live Desktop waiting requests or chat navigation.",
+    "ZCode execution metadata and ZCode.exe process are fixtures, not a real active ZCode turn."
+  ]
+}
