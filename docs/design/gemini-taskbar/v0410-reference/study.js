@@ -13,6 +13,24 @@ const diameter = 20.4;
 const tau = Math.PI*2;
 const clamp = v => Math.max(0,Math.min(1,v));
 const streams = [];
+// Cross sections in the 20.4-unit source coordinate system.
+// Static material varies across its width only, never around the circumference.
+const stillProfiles = {
+  idle:      {width:1.45, edge:.27, face:.50},
+  waiting:   {width:1.90, edge:.21, face:.56},
+  completed: {width:1.32, edge:.24, face:.53},
+  failed:    {width:2.38, edge:.11, face:.63},
+  unknown:   {width:1.55, edge:.29, face:.48},
+};
+function stillRim(radius,profile) {
+  const outer=diameter/2-.15;
+  const depth=clamp((outer-radius)/profile.width);
+  const roundedFace=Math.sin(Math.PI*depth);
+  return {
+    outer,inner:outer-profile.width,
+    energy:profile.edge+(profile.face-profile.edge)*roundedFace,
+  };
+}
 
 // The two packets, their ripple and their width are the v0.4.10 TaskWaterFlow model.
 function phaseSeed(id) {
@@ -65,7 +83,9 @@ function paint(stream,time) {
   const rgba=stream.image.data;
   const scale=stream.scale;
   for(const {offset,radius,angle,coverage} of stream.band) {
-    const {outer,inner,energy}=waveAt(angle,time,stream.seed);
+    const {outer,inner,energy}=stream.moving
+      ? waveAt(angle,time,stream.seed)
+      : stillRim(radius,stream.profile);
     // Same two pigment intervals and crest exponent as 0.4.10. The centre stays transparent.
     const step=energy<.45?0:1;
     const mix=step===0 ? energy/.45 : ((energy-.45)/.55)**.65;
@@ -87,7 +107,7 @@ function ring(agent,state) {
   result.append(canvas);
   streams.push({
     canvas,ctx:canvas.getContext("2d"),stops:agents[agent].stops,seed:phaseSeed(agent),
-    moving:state==="running" || state==="mixed",dashed:state==="unknown"
+    moving:state==="running" || state==="mixed",dashed:state==="unknown",profile:stillProfiles[state]
   });
   if(state==="completed") {
     result.insertAdjacentHTML("beforeend",'<svg class="completion" viewBox="0 0 40.8 40.8"><path d="m5 12 4 4 10-10" transform="translate(10.8 3.5) scale(.8)" stroke-width="2.8"/><text x="20.4" y="29.8" text-anchor="middle">3m</text></svg>');
