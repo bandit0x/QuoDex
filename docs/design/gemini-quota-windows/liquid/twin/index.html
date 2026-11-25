@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>双舷窗 · Gemini 额度设计定稿</title>
+  <link rel="stylesheet" href="studio.css">
+  <link rel="stylesheet" href="a.css">
+  <link rel="stylesheet" href="twin/standard.css">
+  <link rel="stylesheet" href="twin/narrow.css">
+  <link rel="stylesheet" href="twin/final.css">
+</head>
+<body>
+  <main>
+    <section id="proof" aria-labelledby="page-title">
+      <header class="mast"><h1 id="page-title">双舷窗</h1><p>Gemini 额度浮窗 <span>/</span> 设计定稿</p></header>
+      <div class="spread">
+        <section class="specimen">
+          <div class="rubric"><h2>标准浮窗</h2><span>设计尺寸 300 × 130</span></div>
+          <div class="stage large-stage"><div class="enlarged-standard" data-host="standard"></div></div>
+          <p class="caption"><em class="water-key"></em>液面表示 5 小时剩余 <em class="needle-key"></em>金色指针表示一周剩余</p>
+        </section>
+        <section class="specimen">
+          <div class="rubric"><h2>窄条</h2><span>260 × 48</span></div>
+          <div class="stage strip-stage">
+            <div class="zoom-pair"><span class="size-note">放大对照</span><div class="enlarged-strip" data-host="narrow"></div></div>
+            <div class="actual-pair"><span class="size-note">原尺寸</span><div data-host="narrow" id="native-strip"></div></div>
+          </div>
+          <p class="caption">每列对应一个来源，上行为 5 小时，下行为一周。</p>
+        </section>
+      </div>
+    </section>
+    <section class="controls" aria-labelledby="bench-title">
+      <div class="controls-title"><h2 id="bench-title">试读样例</h2><span>仅使用示例数据</span><a href="twin/states.png">查看六种状态</a></div>
+      <div class="inputs">
+        <label>来源<select id="source"><option value="gemini">AG Gemini</option><option value="partner">AG Claude/GPT</option><option value="web">Gemini Web</option></select></label>
+        <label>5 小时 <output id="out-five" for="five">82%</output><input type="range" min="0" max="100" step="0.1" id="five"></label>
+        <label>一周 <output id="out-week" for="week">16%</output><input type="range" min="0" max="100" step="0.1" id="week"></label>
+        <label>样例状态<select id="scenario">
+          <option value="ready">正常读数</option><option value="zero">所选来源周额度耗尽</option><option value="missing">所选来源周额度未读</option>
+          <option value="stale">所选来源周额度为上次读数</option><option value="failure">首次读取失败</option>
+        </select></label>
+        <button id="reset" type="button">还原样例</button>
+      </div>
+    </section>
+    <dialog id="dialog" aria-labelledby="dialog-title">
+      <div class="dialog-top"><h2 id="dialog-title"></h2><button type="button" id="close-dialog">关闭</button></div>
+      <div id="dialog-body"></div>
+    </dialog>
+  </main>
+  <script src="liquid.js"></script>
+  <script src="a.js"></script>
+  <script src="twin/narrow.js"></script>
+  <script src="twin/final.js"></script>
+</body>
+</html>

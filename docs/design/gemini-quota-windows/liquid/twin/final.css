@@ -1,0 +1,48 @@
+:root{background:#f3f1ea;color:#142a31}
+main{max-width:1100px;padding:20px 28px 38px}
+#proof{padding:15px 14px 17px}
+.mast{padding:0 0 15px;border-bottom:1px solid #899995}
+.mast h1{font-size:36px;line-height:1.2;font-weight:630;letter-spacing:-.045em}
+.mast p{margin:0;font-size:13px;font-weight:530;letter-spacing:.015em;color:#4b5859}
+.mast p span{padding:0 5px;color:#887955}
+.spread{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:17px}
+.specimen{min-width:0}
+.rubric{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.rubric h2{font-size:19px;line-height:1.5;letter-spacing:0}
+.rubric>span,.size-note{font:500 11px/1.3 "Segoe UI","Microsoft YaHei UI",sans-serif;letter-spacing:.03em;color:#596563}
+.stage{height:252px;overflow:hidden;border-top:1px solid #c4cbc3;border-bottom:1px solid #aeb9b6;background:
+  radial-gradient(ellipse at 15% 88%,#bac7c5 0,transparent 55%),
+  radial-gradient(ellipse at 94% 0%,#ecece1 0,transparent 59%),linear-gradient(122deg,#dbe0d9,#cbd1cb)}
+.large-stage{display:grid;place-items:center}
+.enlarged-standard{zoom:1.52}
+.strip-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.zoom-pair,.actual-pair{display:flex;flex-direction:column;align-items:center;gap:7px}
+.size-note{font-size:10px;line-height:12px;white-space:nowrap}
+.enlarged-strip{zoom:1.68}
+.native-preview{display:inline-block}
+.caption{display:flex;align-items:center;flex-wrap:wrap;gap:5px;font-size:12px;margin:10px 0 0}
+.caption em{display:inline-block;flex:0 0 auto}
+.water-key{width:13px;height:6px;border-radius:40%;background:linear-gradient(#7d9aff,#4553a4)}
+.needle-key{width:12px;height:3px;background:#9c702b;transform:rotate(-29deg);margin-left:10px}
+.controls{border-top:1px solid #adb8b0;padding:15px 0 0}
+.controls-title{display:flex;align-items:center;gap:10px}
+.controls-title h2{font-size:16px}.controls-title>span{font-size:11px;color:#646e6c}
+.controls-title a{font-size:11px;margin-left:auto}
+.inputs{display:flex;align-items:end;gap:22px;flex-wrap:wrap;margin-top:14px}
+.inputs label{display:grid;grid-template-columns:auto 1fr;column-gap:8px;row-gap:5px;font-size:11px;color:#394d50}
+.inputs select,.inputs input{grid-column:span 2}
+.inputs select,.inputs button{background:#fbfaf5;border:1px solid #a3afa8;border-radius:5px;color:#283a3e;font-size:12px;padding:4px 8px}
+.inputs input{width:112px;margin:6px 0;accent-color:#435f71}
+.inputs input:disabled{cursor:default}
+.shell-footer{display:grid;grid-template-columns:auto 1fr auto;gap:5px;align-items:center}
+.shell-footer button{font-size:10px}
+.shell-footer .feedback{min-width:0;text-align:center;color:#d9e8e5;font:500 9px/16px "Microsoft YaHei UI",sans-serif}
+.shell-footer .feedback[data-tone="warning"]{color:#f8d697}
+.shell-footer .feedback[data-tone="error"]{color:#ffbfa9}
+#dialog-body p{font-size:12px;color:#4d5552;line-height:1.5;margin:9px 0 2px}
+#dialog-body .surface{margin:0 auto}
+@media(max-width:1020px) and (min-width:800px){main{padding-inline:17px}.spread{gap:15px}.enlarged-standard{zoom:1.23}.enlarged-strip{zoom:1.35}}
+@media(max-width:799px){main{max-width:560px;padding-inline:10px}.spread{grid-template-columns:1fr;gap:16px}.stage{height:225px}.strip-stage{height:198px}.enlarged-standard{zoom:1.3}.enlarged-strip{zoom:1.42}}
+@media(max-width:427px){.enlarged-standard{zoom:1}.enlarged-strip{zoom:1.15}.large-stage{height:155px}.strip-stage{height:180px}.mast h1{font-size:28px}.mast p{font-size:11px}.inputs{gap:14px}.caption{font-size:11px}}
+@media(max-width:340px){main{padding-inline:6px}.enlarged-strip{zoom:1}.mast p span{padding:0}.mast p{font-size:10px}}
+@media(max-width:500px){#proof{padding-inline:0}}

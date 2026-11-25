@@ -1,0 +1,75 @@
+.face.a.twin-standard .a-frame {
+  padding: 3px 7px 1px;
+  grid-template-rows: minmax(0, 1fr) 22px;
+  gap: 2px;
+}
+
+.face.a.twin-standard .a-name {
+  top: 16px;
+  font: 600 11.5px/1.1 Georgia, "Segoe UI", serif;
+  color: #f1e8d8;
+  text-shadow: 0 1px 2px #08111a, 0 0 3px #08111a;
+}
+
+.face.a.twin-standard .a-five {
+  top: 31px;
+  gap: 4px;
+  text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a;
+}
+.face.a.twin-standard .a-five .q-value {
+  color: #fff8e9;
+  font-size: 23px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.face.a.twin-standard .a-key {
+  color: #e2e9ec;
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.face.a.twin-standard .a-week {
+  bottom: 7px;
+  gap: 5px;
+  padding: 1px 7px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(#1a2731f5, #101a22fa);
+  box-shadow: inset 0 1px #b5b4a04a, inset 0 -1px #b9c3c025, 0 1px 2px #050a10aa;
+}
+.face.a.twin-standard .a-week .a-key,
+.face.a.twin-standard .a-plate > span:last-child .a-key { color: #edcd91; }
+.face.a.twin-standard .a-week .q-value {
+  font-size: 14px;
+  color: #ffdfa3;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.face.a.twin-standard .a-week:has(.q-old) { gap: 3px; padding-inline: 5px; }
+.face.a.twin-standard .q-value .q-old {
+  margin-left: 2px;
+  font: 500 8px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: #f3cf97;
+}
+
+.face.a.twin-standard .a-plate {
+  display: grid;
+  grid-template-columns: max-content 1fr 1fr;
+  gap: 7px;
+  width: 94%;
+  padding: 0 9px;
+  border-color: #60757b;
+  background: linear-gradient(99deg, #364752, #243440 38%, #1c2c38 70%, #334452);
+}
+.face.a.twin-standard .a-plate > b {
+  color: #f1e7d3;
+  font-size: 11.5px;
+}
+.face.a.twin-standard .a-plate > span {
+  justify-content: flex-end;
+  gap: 4px;
+}
+.face.a.twin-standard .a-plate .q-value {
+  font-size: 14px;
+  color: #fff4e2;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.face.a.twin-standard .a-plate > span:last-child .q-value { color: #ffe0a6; }
