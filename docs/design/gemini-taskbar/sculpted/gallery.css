@@ -1,0 +1,67 @@
+* { box-sizing:border-box }
+:root { font-family:"Segoe UI","Microsoft YaHei UI",sans-serif; background:#0c171c }
+body { margin:0 }
+#gallery {
+  --text:#e8eee9; --sub:#b0c1c2; --muted:#93acae; --divider:#455c61; --button:#293e42;
+  max-width:1090px; margin:auto; padding:28px clamp(15px,3vw,42px) 20px;
+  color:var(--text); background:
+    radial-gradient(ellipse at 20% -15%,#385056 0,transparent 57%),
+    linear-gradient(127deg,#1c3036,#11242b 58%,#172930);
+}
+#gallery.light {
+  --text:#1c3238; --sub:#41585b; --muted:#4a666a; --divider:#a6bcba; --button:#d6e1df;
+  background:radial-gradient(ellipse at 15% 0%,#fbf8ec,transparent 68%),linear-gradient(120deg,#cfddd8,#dee5e2 64%,#c5d5d5)
+}
+header,footer,header>div,.states { display:flex; align-items:center }
+header { justify-content:space-between; flex-wrap:wrap; gap:16px; padding:0 0 20px; border-bottom:1px solid var(--divider) }
+header>div { gap:22px }
+.wordmark { font:italic 30px/1 Georgia,serif; letter-spacing:-1.4px; color:var(--sub) }
+h1 { margin:0; font-size:29px; font-weight:580; letter-spacing:1px }
+button { font:inherit; cursor:pointer; color:var(--text); background:transparent; border:0 }
+button:focus-visible { outline:2px solid var(--text); outline-offset:4px }
+.view-controls {gap:8px}
+.view-controls button { font-size:12px; border:1px solid var(--divider); border-radius:3px; padding:6px 11px }
+.layout { display:grid; grid-template-columns:minmax(137px,1.12fr) repeat(3,minmax(70px,1fr)) minmax(272px,1.72fr); column-gap:8px; align-items:center }
+.engraving { padding:13px 0 9px; color:var(--muted); font:13px/1.3 "Segoe UI","Microsoft YaHei UI",sans-serif }
+.engraving span:not(:first-child) { text-align:center }
+.sample { border-top:1px solid var(--divider); min-height:130px }
+.material { padding:10px 0 }
+h2 { margin:0 0 7px; font-size:22px; font-weight:630 }
+h2 i { margin-right:8px; color:var(--muted); font:italic 20px Georgia,serif }
+.material p { margin:0; color:var(--sub); font-size:12px; line-height:1.65; max-width:13em }
+.specimen { display:grid; place-items:center; margin:0; min-height:92px }
+.specimen figcaption { display:none }
+#gallery.actual .specimen .mark { width:29px; height:29px }
+.mark { width:79px; height:79px; display:block; overflow:visible; filter:drop-shadow(.5px 1.5px .8px #07111c64) }
+.reflection { opacity:0; transition:opacity .4s ease-in-out }
+.mark[data-running=true] .reflection { opacity:1 }
+.bench { width:260px; max-width:100%; margin:auto }
+.rail { display:flex; align-items:center; gap:4.5px; padding-left:8px; height:34px }
+.rail .mark { width:25px; height:25px; filter:drop-shadow(.35px .75px .45px #06101e6b) }
+.chambers { display:block; width:100%; height:auto; border-radius:12px }
+.noticeInk { stroke-linecap:round; stroke-linejoin:round; fill:none; display:none }
+.mark[data-notice] .noticeInk { display:inline }
+.mark[data-family=titanium] .glint { animation:polish 3.1s ease-in-out infinite paused }
+.mark[data-family=waveguide] .glint { opacity:.96; animation:filament 2.7s linear infinite paused }
+.mark[data-family=enamel] .glint { animation:glaze 3.1s ease-in-out infinite paused }
+.mark[data-running=true] .glint { animation-play-state:running }
+@keyframes polish { 0%,12% {transform:translateX(-5px);opacity:0} 25% {opacity:.65} 62% {transform:translateX(40px);opacity:.7} 75%,100% {transform:translateX(42px);opacity:0} }
+@keyframes filament { to {stroke-dashoffset:-100} }
+@keyframes glaze { 0%,100% {opacity:.06} 45% {opacity:1} 74% {opacity:.14} }
+footer { border-top:1px solid var(--divider); padding-top:16px; gap:12px; justify-content:space-between; flex-wrap:wrap }
+.states { flex-wrap:wrap; gap:3px }
+.states button { padding:5px 9px; font-size:12px; border-radius:3px; color:var(--sub) }
+.states button[aria-pressed=true] { background:var(--button); color:var(--text) }
+footer>span { color:var(--muted); font-size:11px }
+@media(max-width:750px) {
+  header>div { gap:10px } h1 {font-size:23px} .wordmark {font-size:23px}
+  .engraving {display:none} .layout.sample { grid-template-columns:repeat(3,1fr); padding:12px 0 19px; row-gap:6px }
+  .material,.bench {grid-column:1/-1}
+  .material {display:flex; gap:12px; align-items:baseline; padding:0} h2 {font-size:18px}
+  .material p {max-width:none} .specimen {min-height:68px} .specimen figcaption {display:block; font-size:11px; color:var(--muted); margin-top:3px}
+  .specimen .mark {width:55px;height:55px} .bench {margin-top:6px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .mark[data-family] .glint { animation:none;opacity:0 }
+  .reflection { transition:none }
+}
