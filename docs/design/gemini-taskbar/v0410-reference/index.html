@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QuoDex · 0.4.10 形态适配</title>
+  <link rel="stylesheet" href="study.css">
+  <script src="study.js" defer></script>
+</head>
+<body>
+<main id="sheet">
+  <header>
+    <div><span class="product">QuoDex</span><h1>0.4.10 形态适配</h1></div>
+    <div class="controls">
+      <button type="button" id="zoom" aria-pressed="false">放大</button>
+      <button type="button" id="core" aria-pressed="false">0.4.10 暗芯</button>
+      <button type="button" id="contrast" aria-pressed="false">深色桌面</button>
+      <button type="button" id="reduce" aria-pressed="false">减少动效</button>
+    </div>
+  </header>
+  <section class="studio" aria-label="三色任务圆环">
+    <table>
+      <thead><tr><th scope="col" id="scale">标准 · 29 px</th><th scope="col">运行</th><th scope="col">等待</th><th scope="col">完成</th><th scope="col">报错</th><th scope="col">未知</th><th scope="col">运行 + 报错</th></tr></thead>
+      <tbody id="examples"></tbody>
+    </table>
+  </section>
+  <footer>
+    <div class="dock-sample"><div id="strip" aria-label="窄条任务栏"></div><img src="../../gemini-quota-windows/liquid/twin/narrow.png" alt="Gemini 双舷窗窄条参考"></div>
+    <div><h2>窄条 · 25 px</h2><p>Codex 运行中，ZCode 最近完成，Gemini 同时有运行和报错。</p></div>
+  </footer>
+</main>
+</body>
+</html>
