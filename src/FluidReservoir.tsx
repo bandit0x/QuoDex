@@ -4,6 +4,7 @@ import {
   deriveFluidDynamics,
   FLUID_TAIL_EXTENSION,
   FluidBodyMomentum,
+  FluidImpulseLag,
   FluidSurface,
   type FluidMotionSample,
   linearLiquidLevel,
@@ -329,6 +330,7 @@ export function FluidReservoir({
   const fallbackCanvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef(new FluidSurface(56));
   const bodyMomentumRef = useRef(new FluidBodyMomentum());
+  const impulseLagRef = useRef(new FluidImpulseLag());
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(0);
   const visibleLevelRef = useRef(remainingPercent);
@@ -401,7 +403,7 @@ export function FluidReservoir({
         visibleLevelRef.current = level;
         drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, level,
           surface.heights, time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset,
-          bodyMomentum.offset, bodyMomentum.agitation);
+          bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum);
         return;
       }
       drawReservoir(
@@ -461,28 +463,36 @@ export function FluidReservoir({
     if (reducedMotion) {
       surface.reset();
       bodyMomentum.reset();
+      impulseLagRef.current.reset();
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       drawRef.current();
       return;
     }
     if (motion.sequence === 0) return;
-    surface.disturb(motion.accelerationX, motion.accelerationY, motion.phase === "released");
-    bodyMomentum.disturb(motion.accelerationX, motion.accelerationY, motion.phase === "released");
+    const lag = isGeminiAccent(accent) ? impulseLagRef.current : null;
+    const disturb = (x: number, y: number, released = false) => {
+      surface.disturb(x, y, released);
+      bodyMomentum.disturb(x, y, released);
+    };
+    if (lag) lag.push(motion.accelerationX, motion.accelerationY, motion.phase === "released");
+    else disturb(motion.accelerationX, motion.accelerationY, motion.phase === "released");
     if (frameRef.current !== null) return;
     lastTimeRef.current = performance.now();
 
     const animate = (time: number) => {
       const frameScale = Math.min(2, Math.max(0.35, (time - lastTimeRef.current) / 16.667));
       lastTimeRef.current = time;
+      const impulse = lag?.step(frameScale * 16.667);
+      if (impulse) disturb(impulse[0], impulse[1]);
       const surfaceActive = surface.step(frameScale);
       const bodyActive = bodyMomentum.step(frameScale);
-      const active = surfaceActive || bodyActive;
+      const active = surfaceActive || bodyActive || !!impulse;
       drawRef.current();
       frameRef.current = active ? requestAnimationFrame(animate) : null;
     };
     frameRef.current = requestAnimationFrame(animate);
-  }, [motion, reducedMotion]);
+  }, [motion, reducedMotion, accent]);
 
   useEffect(() => () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);

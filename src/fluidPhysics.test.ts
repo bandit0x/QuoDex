@@ -4,11 +4,26 @@ import {
   deriveChamberSeed,
   deriveFluidDynamics,
   FluidBodyMomentum,
+  FluidImpulseLag,
   FluidSurface,
   linearLiquidLevel,
 } from "./fluidPhysics";
 
 describe("volumetric fluid surface", () => {
+  it("lets the liquid lag behind a drag and retain momentum on reversal", () => {
+    const lag = new FluidImpulseLag();
+    lag.push(1, 0, false);
+    const first = lag.step(16)![0];
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(0.01);
+    const buildup = lag.step(114)![0];
+    expect(first + buildup).toBeCloseTo(1 - 2 / Math.E, 5);
+    lag.push(-1, 0, false);
+    expect(lag.step(16)![0]).toBeGreaterThan(0);
+    expect(lag.step(260)![0]).toBeLessThan(0);
+    lag.reset();
+    expect(lag.step(16)).toBeNull();
+  });
   it("makes shallow, half-full and deep slosh visibly differ under the same drag", () => {
     const measure = (level: number) => {
       const surface = new FluidSurface();

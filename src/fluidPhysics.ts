@@ -12,6 +12,41 @@ export const IDLE_FLUID_MOTION: FluidMotionSample = {
   phase: "idle",
 };
 
+/** Two equal relaxation stages transfer a wall impulse into the liquid.
+ * Their impulse response starts at zero and peaks after one time constant. */
+export class FluidImpulseLag {
+  private wall = [0, 0];
+  private body = [0, 0];
+
+  push(x: number, y: number, released: boolean) {
+    const gain = released ? 2.15 : 1;
+    this.wall[0] += clamp(x, -2.4, 2.4) * gain;
+    this.wall[1] += clamp(y, -2, 2) * gain;
+  }
+
+  step(elapsedMs: number): readonly [number, number] | null {
+    const interval = elapsedMs / 130;
+    const decay = Math.exp(-interval);
+    const delivered: [number, number] = [0, 0];
+    for (let i = 0; i < 2; i++) {
+      const wall = this.wall[i], body = this.body[i];
+      this.wall[i] = wall * decay;
+      this.body[i] = (body + wall * interval) * decay;
+      delivered[i] = wall + body - this.wall[i] - this.body[i];
+    }
+    if (Math.max(...this.wall.map(Math.abs), ...this.body.map(Math.abs)) < 0.001) {
+      this.reset();
+      return null;
+    }
+    return delivered;
+  }
+
+  reset() {
+    this.wall.fill(0);
+    this.body.fill(0);
+  }
+}
+
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
 
@@ -310,6 +345,10 @@ export class FluidBodyMomentum {
 
   get agitation(): number {
     return clamp(Math.hypot(this.momentumX, this.momentumY) / 2.2, 0, 1);
+  }
+
+  get lateralMomentum(): number {
+    return clamp(this.momentumX / 2.2, -1, 1);
   }
 
   reset(): void {
