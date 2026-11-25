@@ -81,3 +81,30 @@ for column, (start, center) in enumerate(((7, 77), (152, 223))):
                 mask = 0
             trim.putpixel((column * 141 + x, y), (red, green, blue, round(255 * mask)))
 trim.save(root / "src/twin-glass-steel.webp", lossless=True, method=6)
+
+plaque = panel.crop((13, 90, 287, 110))
+# Reconstruct the background under the text from adjacent blank steel at
+# the same height. Names, quotas and reset states are typeset in the window.
+for y in range(3, 18):
+    for left, right in ((7, 112), (111, 174), (210, 263)):
+        start, end = plaque.getpixel((left - 1, y)), plaque.getpixel((right, y))
+        for x in range(left, right):
+            position = (x - left + 1) / (right - left + 1)
+            plaque.putpixel((x, y), tuple(round(a + (b-a)*position) for a, b in zip(start, end)))
+plaque.save(root / "src/twin-glass-plaque.webp", lossless=True, method=6)
+
+footer = panel.crop((0, 109, 300, 130)).convert("RGBA")
+for y in range(21):
+    for x in range(300):
+        red, green, blue, _ = footer.getpixel((x, y))
+        opacity = ramp(x, 7, 19) * (1 - ramp(x, 281, 293))
+        if y >= 17:
+            opacity *= 1 - ramp(y, 17, 21)
+        for left, right in ((13, 77), (128, 182), (258, 286)):
+            if left <= x <= right and 4 <= y <= 16:
+                src_start, src_end = panel.getpixel((left - 1, 109 + y)), panel.getpixel((right + 1, 109 + y))
+                f = (x - left + 1) / (right - left + 2)
+                red, green, blue = (round(a + (b-a)*f) for a, b in zip(src_start, src_end))
+                break
+        footer.putpixel((x, y), (red, green, blue, round(255 * opacity)))
+footer.save(root / "src/twin-glass-footer.webp", lossless=True, method=6)
