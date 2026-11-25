@@ -130,28 +130,30 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     setSelection(name);
   };
   return <>
-    <section className={`task-strip${compact ? " task-strip--compact" : ""}`} data-reduced-motion={reducedMotion || undefined} aria-label="聊天任务" onMouseLeave={scheduleClose}>
-      {shown.map(group => {
-        const states = group.tasks.map(task => task.state);
-        const unavailable = group.statuses.some(status => status.health !== "ready");
-        const running = states.includes("running");
-        // Completed chats are already sorted newest first within this group.
-        const completedAt = group.tasks.find(task => task.state === "completed")?.completedAtMs;
-        const minutes = completedAt == null ? null : Math.floor((now - completedAt) / 60_000);
-        const state = states.includes("failed") ? "failed" : states.includes("waiting") ? "waiting"
-          : minutes !== null ? "completed" : states.includes("unknown") || unavailable || diagnostic ? "unknown" : "idle";
-        const description = state === "completed" ? `最近完成于 ${minutes} 分钟前`
-          : state === "idle" ? "" : stateLabels[state];
-        return <button type="button" key={group.name} className="task-agent-orb"
-          data-agent={group.name}
-          data-running={running || undefined} data-spinning={(running && !reducedMotion) || undefined} aria-expanded={selection === group.name}
-          aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
-          aria-description={[running && stateLabels.running, description].filter(Boolean).join("，") || undefined}
-          onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>
-          <AgentTaskRing agent={group.name} state={state} running={running} minutes={minutes} reducedMotion={reducedMotion} />
-        </button>;
-      })}
-    </section>
+    <div className="task-strip-anchor">
+      <section className={`task-strip${compact ? " task-strip--compact" : ""}`} data-reduced-motion={reducedMotion || undefined} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+        {shown.map(group => {
+          const states = group.tasks.map(task => task.state);
+          const unavailable = group.statuses.some(status => status.health !== "ready");
+          const running = states.includes("running");
+          // Completed chats are already sorted newest first within this group.
+          const completedAt = group.tasks.find(task => task.state === "completed")?.completedAtMs;
+          const minutes = completedAt == null ? null : Math.floor((now - completedAt) / 60_000);
+          const state = states.includes("failed") ? "failed" : states.includes("waiting") ? "waiting"
+            : minutes !== null ? "completed" : states.includes("unknown") || unavailable || diagnostic ? "unknown" : "idle";
+          const description = state === "completed" ? `最近完成于 ${minutes} 分钟前`
+            : state === "idle" ? "" : stateLabels[state];
+          return <button type="button" key={group.name} className="task-agent-orb"
+            data-agent={group.name}
+            data-running={running || undefined} data-spinning={(running && !reducedMotion) || undefined} aria-expanded={selection === group.name}
+            aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
+            aria-description={[running && stateLabels.running, description].filter(Boolean).join("，") || undefined}
+            onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>
+            <AgentTaskRing agent={group.name} state={state} running={running} minutes={minutes} reducedMotion={reducedMotion} />
+          </button>;
+        })}
+      </section>
+    </div>
     {activeGroup && <aside className="task-popover" role="dialog" aria-label={`${activeGroup.name} 任务列表`} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
       <div className="task-list">
         <strong>{activeGroup.name} · 全部 {activeGroup.tasks.length} 项</strong>

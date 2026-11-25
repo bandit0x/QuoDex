@@ -1,26 +1,34 @@
-.task-strip {
-  --anchor-zoom: 1;
+.task-strip-anchor {
   position: absolute;
   z-index: 22;
-  top: calc((22px + 320px + 14px) / var(--anchor-zoom));
-  left: calc(34px / var(--anchor-zoom));
+  top: 0;
+  left: 0;
+  width: 100%;
+  zoom: var(--overlay-scale);
+  pointer-events: none;
+}
+/* Cancel the frame scale at the window origin so centering a shorter row
+   on a fractional coordinate does not resample the ring material. */
+.app-frame:not(.app-frame--gemini) > .task-strip-anchor {
+  width: calc(100% * var(--overlay-scale));
+  transform: scale(calc(1 / var(--overlay-scale)));
+  transform-origin: top left;
+}
+.task-strip {
+  position: absolute;
+  top: calc(22px + 320px + 14px);
+  inset-inline: 0;
+  width: max-content;
+  margin-inline: auto;
   height: 72px;
   display: flex;
   align-items: center;
   gap: 9px;
+  pointer-events: auto;
 }
 .app-frame--collapsed .task-strip {
-  top: calc((8px + 320px + 20px) / var(--anchor-zoom));
-  left: calc(16px / var(--anchor-zoom));
+  top: calc(8px + 320px + 20px);
   height: 66px;
-}
-/* Resolve the glyphs at the overlay's displayed size. Cancel the parent's
-   transform for this row so half-pixel positions rasterize like the design. */
-.app-frame:not(.app-frame--gemini) > .task-strip {
-  --anchor-zoom: var(--overlay-scale);
-  zoom: var(--overlay-scale);
-  transform: scale(calc(1 / var(--overlay-scale)));
-  transform-origin: top left;
 }
 .task-agent-orb {
   position: relative;

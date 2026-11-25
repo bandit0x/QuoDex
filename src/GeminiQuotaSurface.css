@@ -22,10 +22,10 @@ body:has(.app-frame--gemini),
 .app-frame--gemini {
   pointer-events: none;
 }
-.app-frame--gemini > :is(.task-strip, .gemini-twin-surface, .task-popover, .settings-dock, .control-message) {
+.app-frame--gemini > :is(.gemini-twin-surface, .task-popover, .settings-dock, .control-message) {
   pointer-events: auto;
 }
-.app-frame--gemini > .task-strip {
+.app-frame--gemini > .task-strip-anchor {
   z-index: -1;
 }
 /* The empty part of the window still receives drags and the settings menu. */
@@ -42,11 +42,11 @@ body:has(.app-frame--gemini),
 .app-frame.app-frame--gemini.app-frame--settings-below {
   padding-bottom: calc(var(--settings-space) * var(--overlay-scale));
 }
-.app-frame--gemini > :is(.task-strip, .task-popover, .settings-dock, .control-message) {
+.app-frame--gemini > :is(.task-popover, .settings-dock, .control-message) {
   zoom: var(--overlay-scale);
 }
-.app-frame--gemini > .task-strip { top: calc(320px + 14px); }
-.app-frame--gemini.app-frame--collapsed > .task-strip { top: calc(320px + 20px); }
+.app-frame--gemini .task-strip { top: calc(320px + 14px); }
+.app-frame--gemini.app-frame--collapsed .task-strip { top: calc(320px + 20px); }
 
 .gemini-twin-surface {
   position: relative;
