@@ -1447,7 +1447,7 @@ describe("dual quota sources", () => {
       const savePreferences = vi.fn(async (_next: DisplayPreferences) => undefined);
       render(<App {...inertPreferences} savePreferences={savePreferences}
         loadSnapshot={async () => healthySnapshot} loadZcodeSnapshot={async () => healthyZcodeSnapshot}
-        loadGeminiSnapshot={async () => ({ pools: [], observedAtMs: Date.now() })} />);
+        loadGeminiSnapshot={async () => ({ pools: [{ state: "absent", source: "panel", windows: [] }, { state: "absent", source: "panel", windows: [] }, { state: "absent", source: "panel", windows: [] }], observedAtMs: Date.now() })} />);
       await act(async () => undefined);
       fireEvent.contextMenu(screen.getByRole("main"));
       await act(async () => undefined);
