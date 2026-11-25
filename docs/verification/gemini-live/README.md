@@ -4,7 +4,9 @@ Windows 主程序的右键设置提供 Gemini 来源。首次选择后，轮播�
 
 ## 数据来源
 
-Web 仓读取 Chrome 或 Edge 中已登录的 Gemini「设置 → 用量限额」页面。AG 两仓分别读取 Antigravity「设置 → 模型」或「查看用量」中的两个模型组。探针每 15 秒读取一次 Windows 辅助功能树，也可以点击「刷新」。窗口需展开并显示对应页面。Antigravity 模型页已加载的额度行可以在滚动视口之外。窗口关闭、最小化或切到其他页面后，已有读数加虚线并标记「上次」。程序重启后从未知开始。多个窗口同时显示同一来源的额度时，详情提示保留一个窗口。[Gemini 官方帮助](https://support.google.com/gemini/answer/16275805?hl=en) · [Antigravity 模型及额度面板](https://antigravity.google/docs/models)
+Windows 单包测试版中，点击浮窗底部 GEMINI →「连接 Gemini 网页账号」。QuoDex 用已安装的 Chrome 或 Edge 新建专用配置，用户在普通浏览器窗口登录并自行关闭。随后 QuoDex 每五分钟尝试读取一次网页双周期，也可手动刷新。每次采样使用同一个专用配置，运行时不依赖扩展、驱动或额外 CLI。使用本机模拟站点已验证窗口关闭、额度变化和会话撤销；Google 真实账号的关窗自动刷新仍待验收。[实验记录](../../research/gemini-background-probe/verify-browser-session.md)
+
+未连接独立会话时，网页仓可从已打开的官方用量页读取。AG 两仓继续从桌面「设置 → 模型」的两个模型组取数；关掉 Antigravity 后只能显示此前读数及其时间。详情标注数据来源，周期或账号不可确认时报告未知。下方较早的真实读数和截图对应页面探针。[Gemini 官方帮助](https://support.google.com/gemini/answer/16275805?hl=en) · [Antigravity 模型面板](https://antigravity.google/docs/models)
 
 ## 成品对照
 

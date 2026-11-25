@@ -397,6 +397,7 @@ dependencies = [
  "base64 0.22.1",
  "block2",
  "chrono",
+ "dom_query",
  "keyring",
  "md-5",
  "objc2",

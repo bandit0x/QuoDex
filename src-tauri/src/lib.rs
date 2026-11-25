@@ -482,6 +482,7 @@ pub fn run() {
             open_task_chat,
             read_capacity_snapshot,
             gemini_quota::read_gemini_quota,
+            gemini_quota::connect_gemini_web,
             read_tomato_connection,
             read_zcode_quota_snapshot,
             load_display_preferences,

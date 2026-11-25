@@ -1,6 +1,8 @@
 import { GeminiChambers } from "./GeminiChambers";
 import type { FluidMotionSample } from "./fluidPhysics";
 import type { GeminiPool } from "./geminiQuota";
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 const names = ["Web", "AG Gemini", "AG Claude/GPT"];
 function describe(pool: GeminiPool, index: number) {
@@ -8,6 +10,11 @@ function describe(pool: GeminiPool, index: number) {
   if (pool.observedAtMs !== null) {
     const time = new Date(pool.observedAtMs).toLocaleString("zh-CN", { hour12: false });
     values.push(`${pool.state === "available" ? "读取于" : "上次读数"} ${time}`);
+  }
+  if (pool.source) values.push(pool.source === "panel" ? "来源：可见面板" : "来源：独立网页登录");
+  if (pool.diagnostic) {
+    values.push(`${pool.diagnostic.message} · ${pool.diagnostic.code}`);
+    return values.join(" · ");
   }
   if (pool.state === "absent") values.push(index === 0
     ? "在 Chrome 或 Edge 打开 Gemini → 设置 → 使用限额 · QGM-201"
@@ -20,7 +27,20 @@ function describe(pool: GeminiPool, index: number) {
 }
 
 export function GeminiQuotaDetails({ pools }: { pools: GeminiPool[] }) {
-  return <div>{pools.map((pool, i) => <div key={names[i]}><b>{names[i]}</b> · {describe(pool, i)}</div>)}</div>;
+  const [message, setMessage] = useState("");
+  const connect = async () => {
+    try {
+      await invoke("connect_gemini_web");
+      setMessage("在独立浏览器窗口登录 Gemini，完成后关闭该窗口并点击刷新。");
+    } catch (err) {
+      const diagnostic = err as { message?: string; code?: string } | null;
+      setMessage(`${diagnostic?.message ?? "无法启动系统浏览器"} · ${diagnostic?.code ?? "QGM-216"}`);
+    }
+  };
+  return <div>{pools.map((pool, i) => <div key={names[i]}><b>{names[i]}</b> · {describe(pool, i)}</div>)}
+    {pools[0]?.state !== "unsupported" && <button type="button" onClick={connect}>连接 Gemini 网页账号</button>}
+    {message && <p role="status">{message}</p>}
+  </div>;
 }
 
 export function GeminiQuotaSurface({ pools, reading, refresh, motion, reducedMotion, collapsed, onRestore, onDetails }: {
@@ -35,7 +55,7 @@ export function GeminiQuotaSurface({ pools, reading, refresh, motion, reducedMot
     aria-label="恢复标准视图" onClick={onRestore}>{chambers}</button>;
   const count = pools.filter(pool => pool.state === "available").length;
   const stale = pools.some(p => p.windows.length && p.state !== "available");
-  let status = count === 3 ? "三仓已读取" : count ? `${count}/3 仓已读取` : "请打开额度面板";
+  let status = count === 3 ? "三仓已读取" : count ? `${count}/3 仓已读取` : "查看额度连接";
   if (pools.some(p => ["unreadable", "ambiguous", "failed", "unsupported"].includes(p.state))) status = "查看额度详情";
   if (stale) status = "含上次读数";
   return <>{chambers}<footer className="status-footer gemini-live-footer">

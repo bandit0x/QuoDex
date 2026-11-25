@@ -4,6 +4,8 @@ use serde::Serialize;
 use std::sync::LazyLock;
 
 #[cfg(windows)]
+mod web_session;
+#[cfg(windows)]
 pub(crate) mod windows_reader;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -19,6 +21,9 @@ pub struct Window {
 pub struct Pool {
     pub state: &'static str,
     pub windows: Vec<Window>,
+    pub observed_at_ms: Option<i64>,
+    pub diagnostic: Option<Diagnostic>,
+    pub source: &'static str,
 }
 
 impl Pool {
@@ -26,13 +31,32 @@ impl Pool {
         Self {
             state,
             windows: Vec::new(),
+            observed_at_ms: None,
+            diagnostic: None,
+            source: "panel",
+        }
+    }
+    fn background(windows: Vec<Window>, observed_at_ms: i64) -> Self {
+        Self {
+            windows,
+            observed_at_ms: Some(observed_at_ms),
+            source: "background",
+            ..Self::unavailable("available")
+        }
+    }
+    fn error(state: &'static str, code: &'static str, message: &'static str) -> Self {
+        Self {
+            diagnostic: Some(Diagnostic::new(code, message)),
+            source: "background",
+            ..Self::unavailable(state)
         }
     }
     fn from_lines(lines: &[String]) -> Self {
         match windows_from_lines(lines) {
             Some(windows) if !windows.is_empty() => Self {
-                state: "available",
                 windows,
+                observed_at_ms: Some(chrono::Utc::now().timestamp_millis()),
+                ..Self::unavailable("available")
             },
             _ => Self::unavailable("unreadable"),
         }
@@ -49,16 +73,38 @@ pub struct GeminiQuota {
 #[tauri::command]
 pub async fn read_gemini_quota() -> Result<GeminiQuota, Diagnostic> {
     #[cfg(windows)]
-    let pools = tauri::async_runtime::spawn_blocking(windows_reader::read)
-        .await
-        .map_err(|_| Diagnostic::new("QGM-204", "额度读取任务中断，请重新读取"))?
-        .map_err(|_| Diagnostic::new("QGM-204", "无法读取窗口辅助功能，请重新打开额度面板"))?;
+    let pools = {
+        let (web, panels) = tokio::join!(
+            web_session::read(),
+            tauri::async_runtime::spawn_blocking(windows_reader::read)
+        );
+        let mut pools = panels
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or_else(|| std::array::from_fn(|_| Pool::unavailable("failed")));
+        if web.state != "notConnected" || pools[0].state != "available" {
+            pools[0] = web;
+        }
+        pools
+    };
     #[cfg(not(windows))]
     let pools = std::array::from_fn(|_| Pool::unavailable("unsupported"));
     Ok(GeminiQuota {
         pools,
         observed_at_ms: chrono::Utc::now().timestamp_millis(),
     })
+}
+
+#[tauri::command]
+pub fn connect_gemini_web() -> Result<(), Diagnostic> {
+    #[cfg(windows)]
+    {
+        web_session::connect()
+    }
+    #[cfg(not(windows))]
+    {
+        Err(Diagnostic::new("QGM-206", "当前系统尚未支持独立网页登录"))
+    }
 }
 
 static PERCENT: LazyLock<Regex> =
