@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./TaskStatusStrip.css";
-import { readyTaskSources, taskSourceNames, type ChatTask, type TaskSourceStatus } from "./taskStatusTypes";
+import { readyTaskSources, taskSourceNames, type ChatTask, type TaskSource, type TaskSourceStatus } from "./taskStatusTypes";
+import { AgentTaskRing, type AgentRingAgent } from "./AgentTaskRing";
 import { isOverlayTaskPointerInside } from "./windowClient";
 import { TaskWaterFlow } from "./TaskWaterFlow";
 import type { Diagnostic } from "./capacityTypes";
@@ -62,7 +63,7 @@ function dismissAriaLabel(task: ChatTask): string {
   return `移除 ${taskTitle(task)} 的${task.state === "failed" ? "报错" : "完成"}提醒`;
 }
 
-const taskGroups = [
+const taskGroups: { name: AgentRingAgent; entries: TaskSource[] }[] = [
   { name: "Codex", entries: ["codex"] },
   { name: "ZCode", entries: ["zcode"] },
   { name: "Gemini", entries: ["geminiWeb", "antigravity"] },
@@ -134,18 +135,20 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
         const states = group.tasks.map(task => task.state);
         const unavailable = group.statuses.some(status => status.health !== "ready");
         const running = states.includes("running");
-        const mark = states.includes("failed") ? "!" : states.includes("waiting") ? "Ⅱ"
-          : states.includes("completed") ? "✔" : states.includes("unknown") || unavailable || diagnostic ? "?" : "";
+        // Completed chats are already sorted newest first within this group.
+        const completedAt = group.tasks.find(task => task.state === "completed")?.completedAtMs;
+        const minutes = completedAt == null ? null : Math.floor((now - completedAt) / 60_000);
+        const state = states.includes("failed") ? "failed" : states.includes("waiting") ? "waiting"
+          : minutes !== null ? "completed" : states.includes("unknown") || unavailable || diagnostic ? "unknown" : "idle";
+        const description = state === "completed" ? `最近完成于 ${minutes} 分钟前`
+          : state === "idle" ? "" : stateLabels[state];
         return <button type="button" key={group.name} className="task-agent-orb"
           data-agent={group.name}
           data-running={running || undefined} data-spinning={(running && !reducedMotion) || undefined} aria-expanded={selection === group.name}
           aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
+          aria-description={[running && stateLabels.running, description].filter(Boolean).join("，") || undefined}
           onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>
-          <svg className="task-agent-ring" viewBox="0 0 32 32" aria-hidden="true">
-            <circle cx="16" cy="16" r="13.8" pathLength="100" />
-            <circle cx="16" cy="16" r="13.8" pathLength="100" />
-          </svg>
-          <span aria-hidden="true">{mark}</span>
+          <AgentTaskRing agent={group.name} state={state} running={running} minutes={minutes} reducedMotion={reducedMotion} />
         </button>;
       })}
     </section>

@@ -53,13 +53,15 @@ it("keeps each agent's status and its diagnostics together when a running chat a
   expect(within(strip).getAllByRole("button")).toHaveLength(2);
   expect(strip.textContent).not.toMatch(/\p{Script=Han}/u);
   expect(gemini()).toHaveAttribute("data-spinning");
-  expect(gemini()).toHaveTextContent("!");
+  expect(gemini()).toHaveAccessibleDescription("运行中，执行报错");
   fireEvent.mouseEnter(gemini());
   const list = screen.getByRole("dialog", { name: "Gemini 任务列表" });
   expect(within(list).getByText(/检查配置目录权限 · QDT-613/)).toBeInTheDocument();
   fireEvent.click(within(list).getByRole("button", { name: "移除 应用异常 的报错提醒" }));
   expect(dismiss).toHaveBeenCalledWith(failed);
-  rerender(<TaskStatusStrip {...props} tasks={[web, completed]} reducedMotion />);
+  const older = { ...completed, id: "older", completedAtMs: now - 180_000 };
+  rerender(<TaskStatusStrip {...props} tasks={[web, older, completed]} reducedMotion />);
   expect(gemini()).not.toHaveAttribute("data-spinning");
-  expect(gemini()).toHaveTextContent("✔");
+  expect(gemini()).toHaveAccessibleDescription("运行中，最近完成于 0 分钟前");
+  expect(within(gemini()).getByText("0m")).toBeInTheDocument();
 });

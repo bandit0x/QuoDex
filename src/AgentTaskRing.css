@@ -1,0 +1,17 @@
+.agent-task-ring {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  /* The desktop frame is scaled to one half of its layout dimensions. */
+  filter: drop-shadow(0 0 1.1px var(--material-edge));
+}
+.agent-task-ring[data-agent="Codex"] { color: white; --material-edge: #283438; }
+.agent-task-ring[data-agent="ZCode"] { color: #080b0d; --material-edge: #f4f9fa; }
+.agent-task-ring[data-agent="Gemini"] { color: #2468ce; --material-edge: #deeeff; }
+.agent-task-ring__surface, .agent-task-ring__completion { position: absolute; inset: 0; width: 100%; height: 100%; }
+.agent-task-ring svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.agent-task-ring__glyph { position: relative; width: 56.37%; height: 56.37%; stroke-width: 2.6; }
+.agent-task-ring[data-state="failed"]:not([data-moving]) .agent-task-ring__glyph { stroke-width: 3.15; }
+.agent-task-ring__completion text { fill: currentColor; stroke: none; font: 650 14px "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; }

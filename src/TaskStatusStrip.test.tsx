@@ -24,7 +24,9 @@ describe("agent rings and chat details", () => {
       createImageData: (width: number, height: number) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }),
       putImageData: (image: ImageData) => frames.push(image.data.slice()),
     };
-    const contextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    const contextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
+      return this.classList.contains("task-water-flow") ? context as unknown as CanvasRenderingContext2D : null;
+    });
     const boundsSpy = vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 20.4 } as DOMRect);
     const callbacks = new Map<number, FrameRequestCallback>();
     let nextId = 0;
@@ -153,7 +155,8 @@ describe("agent rings and chat details", () => {
   it("removes completed chats at thirty minutes and collapses the empty task area", () => {
     const { rerender } = render(<TaskStatusStrip tasks={[success]} now={now + 1_199_999} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
     openCodex();
-    expect(screen.getByText("29m")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("29m")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^查看 Codex 全部/ })).toHaveAccessibleDescription("最近完成于 29 分钟前");
     rerender(<TaskStatusStrip tasks={[success]} now={now + 1_200_000} onOpen={vi.fn()} onDismiss={vi.fn()} onPopoverChange={vi.fn()} />);
     expect(screen.queryByRole("region", { name: "聊天任务" })).not.toBeInTheDocument();
   });

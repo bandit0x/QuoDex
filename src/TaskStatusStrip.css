@@ -18,56 +18,16 @@
   isolation: isolate;
   display: grid;
   place-items: center;
-  width: 57px;
-  height: 57px;
+  width: 58px;
+  height: 58px;
   padding: 0;
   border: 0;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--ring-color);
   background: transparent;
-  font: 700 30px/1 "Segoe UI Symbol", "Segoe UI", sans-serif;
 }
-.task-agent-orb[data-agent="Codex"] {
-  --ring-color: #fff;
-  --ring-edge: rgb(0 0 0 / 56%);
-}
-.task-agent-orb[data-agent="ZCode"] {
-  --ring-color: #000;
-  --ring-edge: rgb(255 255 255 / 68%);
-}
-.task-agent-orb[data-agent="Gemini"] {
-  --ring-color: #2670df;
-  --ring-edge: rgb(255 255 255 / 48%);
-}
-.task-agent-ring {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke-dasharray: 100 0;
-  stroke-linecap: round;
-  pointer-events: none;
-  transition: stroke-dasharray 240ms ease-out;
-}
-.task-agent-ring circle:first-child { stroke: var(--ring-edge); stroke-width: 3.5; }
-.task-agent-ring circle:last-child { stroke: currentColor; stroke-width: 2.1; }
-.task-agent-orb[data-running] .task-agent-ring { stroke-dasharray: 86 14; }
-.task-agent-orb[data-spinning] .task-agent-ring { animation: agent-ring-turn 3.2s linear infinite; }
-.task-agent-orb span {
-  position: relative;
-  -webkit-text-stroke: 2px var(--ring-edge);
-  paint-order: stroke fill;
-}
-.task-agent-orb:focus-visible { outline: 2px dashed currentColor; outline-offset: 2px; }
-.task-strip--compact .task-agent-orb { width: 50px; height: 50px; font-size: 27px; }
-@keyframes agent-ring-turn { to { stroke-dashoffset: -100; } }
-.task-strip[data-reduced-motion] .task-agent-ring { transition: none; }
-@media (prefers-reduced-motion: reduce) {
-  .task-agent-orb[data-spinning] .task-agent-ring { animation: none; }
-  .task-agent-ring { transition: none; }
-}
+.task-agent-orb:focus-visible { outline: 2px dashed #89a9bc; outline-offset: 2px; }
+.task-strip--compact .task-agent-orb { width: 50px; height: 50px; }
 .task-circle {
   position: relative;
   display: flex;
