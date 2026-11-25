@@ -1,17 +1,26 @@
 .task-strip {
+  --anchor-zoom: 1;
   position: absolute;
   z-index: 22;
-  top: calc(22px + 320px + 14px);
-  left: 34px;
+  top: calc((22px + 320px + 14px) / var(--anchor-zoom));
+  left: calc(34px / var(--anchor-zoom));
   height: 72px;
   display: flex;
   align-items: center;
   gap: 9px;
 }
 .app-frame--collapsed .task-strip {
-  top: calc(8px + 320px + 20px);
-  left: 16px;
+  top: calc((8px + 320px + 20px) / var(--anchor-zoom));
+  left: calc(16px / var(--anchor-zoom));
   height: 66px;
+}
+/* Resolve the glyphs at the overlay's displayed size. Cancel the parent's
+   transform for this row so half-pixel positions rasterize like the design. */
+.app-frame:not(.app-frame--gemini) > .task-strip {
+  --anchor-zoom: var(--overlay-scale);
+  zoom: var(--overlay-scale);
+  transform: scale(calc(1 / var(--overlay-scale)));
+  transform-origin: top left;
 }
 .task-agent-orb {
   position: relative;
