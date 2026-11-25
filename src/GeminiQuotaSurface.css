@@ -15,8 +15,27 @@ body:has(.app-frame--gemini),
 .app-frame.app-frame--gemini.app-frame--has-tasks {
   padding-top: var(--gemini-task-space);
 }
-/* Keep the gauge above the task row (22) and below its popover (26).
-   WebView2 otherwise rasterizes their gradients in the same layer. */
+/* Give the GPU-drawn task rings their own paint order below the gauge.
+   Transparent ancestors pass clicks through to the original task buttons. */
+body:has(.app-frame--gemini),
+#root:has(> .app-frame--gemini),
+.app-frame--gemini {
+  pointer-events: none;
+}
+.app-frame--gemini > :is(.task-strip, .gemini-twin-surface, .task-popover, .settings-dock, .control-message) {
+  pointer-events: auto;
+}
+.app-frame--gemini > .task-strip {
+  z-index: -1;
+}
+/* The empty part of the window still receives drags and the settings menu. */
+.app-frame--gemini::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  z-index: -2;
+}
 .app-frame--gemini.app-frame--has-tasks:not(:has(> .settings-dock)) > .gemini-twin-surface {
   z-index: 23;
 }
