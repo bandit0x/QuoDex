@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuoDex · 聊天任务</title>
+<link rel="stylesheet" href="workspace.css">
+<header><div class="heading"><span class="brand">QuoDex</span><h1>聊天任务</h1></div>
+<label>演示数据 <select id="scene"><option value="mixed">有报错和等待</option><option value="working">全部运行中</option><option value="done">全部完成</option><option value="unknown">一个来源离线</option><option value="empty">没有任务</option></select></label></header>
+<main id="boards"></main>
+<dialog><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close" aria-label="关闭">×</button></div><div id="detail"></div></dialog>
+<script src="workspace.js"></script>
+</html>
