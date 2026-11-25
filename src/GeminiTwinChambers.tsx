@@ -75,7 +75,8 @@ function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, 
     {source.key !== "web" && <>
       <span className="twin-cavity" aria-hidden="true">
         {!firstReadPending && <FluidReservoir key={five.value === null ? "dry" : "known"} remainingPercent={five.value ?? 0}
-          accent={source.accent} motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null} twinGauge />}
+          accent={source.accent} motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null}
+          twinGauge={collapsed ? "narrow" : "standard"} />}
       </span>
       <WeekScale reading={week} collapsed={collapsed} />
     </>}

@@ -11,6 +11,7 @@ import {
 } from "./fluidPhysics";
 import { OpticalFluidRenderer, type FluidAccent } from "./opticalFluidRenderer";
 import { drawGeminiGlass, isGeminiAccent, loadGeminiGlass, type GeminiAccent } from "./geminiGlass";
+import { drawTwinGlass } from "./twinGlass";
 
 interface FluidReservoirProps {
   remainingPercent: number;
@@ -18,7 +19,7 @@ interface FluidReservoirProps {
   motion: FluidMotionSample;
   motionSeed: number;
   reducedMotion: boolean;
-  twinGauge?: boolean;
+  twinGauge?: "standard" | "narrow" | false;
 }
 
 interface Palette {
@@ -357,11 +358,9 @@ export function FluidReservoir({
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
     let atlas = geminiAtlasRef.current;
-    let waitingForAtlas = twinGauge && isGeminiAccent(accent) && !atlas;
     let mounted = true;
-    // This effect owns one canvas, accent and target percentage. Repainting an
-    // unchanged atlas on Chromium's GPU can select a different sampling level.
-    let staticFrame: { atlas: HTMLImageElement; ratio: number; width: number; height: number } | null = null;
+    // The effect owns one canvas, accent and target percentage.
+    let staticFrame = false;
     const initialLevel = visibleLevelRef.current;
     const transitionStart = performance.now();
     const transitionDuration = twinGauge ? 380 : 600;
@@ -379,7 +378,6 @@ export function FluidReservoir({
     fallbackCanvas.style.display = opticalRenderer ? "none" : "block";
 
     const render = (time = performance.now()) => {
-      if (waitingForAtlas) return;
       if (opticalRenderer) {
         opticalRenderer.render({
           remainingPercent,
@@ -406,31 +404,32 @@ export function FluidReservoir({
       if (fallbackCanvas.width !== pixelWidth || fallbackCanvas.height !== pixelHeight) {
         fallbackCanvas.width = pixelWidth;
         fallbackCanvas.height = pixelHeight;
-        staticFrame = null;
+        staticFrame = false;
       }
       const context = fallbackCanvas.getContext("2d");
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      if (atlas && isGeminiAccent(accent)) {
+      if (isGeminiAccent(accent) && (twinGauge || atlas)) {
         const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / transitionDuration));
         const level = remainingPercent + (initialLevel - remainingPercent) * (1 - progress) ** 3;
         visibleLevelRef.current = level;
         if (twinGauge) {
           const atRest = (initialLevel === remainingPercent || progress === 1)
             && !surface.isActive && bodyMomentum.agitation === 0;
-          if (atRest && staticFrame?.atlas === atlas && staticFrame.ratio === ratio
-            && staticFrame.width === pixelWidth && staticFrame.height === pixelHeight) return;
-          staticFrame = atRest ? { atlas, ratio, width: pixelWidth, height: pixelHeight } : null;
+          if (atRest && staticFrame) return;
+          staticFrame = atRest;
           context.resetTransform();
+          const stir = initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
+          drawTwinGlass(context, pixelWidth, pixelHeight, twinGauge === "narrow",
+            accent === "orchid", level, surface.heights, time, stir);
+          return;
         }
-        const moving = !reducedMotion && (!twinGauge || surface.isActive || bodyMomentum.agitation > 0);
-        const stir = twinGauge && initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
-        drawGeminiGlass(context, atlas, accent, twinGauge ? pixelWidth : logicalWidth,
-          twinGauge ? pixelHeight : logicalHeight, level,
-          surface.heights, twinGauge ? time : time * dynamics.flowScale, moving, dynamics.phaseOffset,
-          bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum,
-          twinGauge ? { pixelRatio: ratio, transitionStir: stir } : undefined);
-        return;
+        if (atlas) {
+          drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, level, surface.heights,
+            time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset,
+            bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum);
+          return;
+        }
       }
       drawReservoir(
         context,
@@ -450,17 +449,15 @@ export function FluidReservoir({
     };
     drawRef.current = () => render();
     render();
-    if (isGeminiAccent(accent)) {
+    if (!twinGauge && isGeminiAccent(accent)) {
       loadGeminiGlass().then(image => {
         if (!mounted) return;
         atlas = image;
-        waitingForAtlas = false;
         geminiAtlasRef.current = image;
         fallbackCanvas.dataset.renderer = "gemini-glass";
         render();
       }).catch(error => {
         if (!mounted) return;
-        waitingForAtlas = false;
         console.warn("QGM-103: 无法解码玻璃材质，使用基础液体绘制", error);
         render();
       });
