@@ -34,6 +34,19 @@ Windows UI Automation 从匿名面板读取六项额度，QuoDex 将读数绘制
 
 最新的厚玻璃效果图使用 `--optical-study` 对照。它只包含标准窗和窄条的正常读数画面，因此该参数只检查两个固定样本。脚本记录效果图的裁切坐标和 SHA-256，以 Lanczos 将效果图映射到实机尺寸，保留实机原始像素并逐通道比较。此模式与下文针对旧交互定稿的 `--states` 和 `--repeat-extremes` 分开运行。
 
+双舷窗的两张动态材质图由 Blender 5.2.1 LTS Cycles 从两种舱体和两种液体渲染，每张包含 0% 到 100% 每隔两个百分点的一组帧。运行以下命令可重建。额度读取、数字、周刻度和操作按钮仍由程序实时绘制。
+
+```powershell
+$blender = 'D:/modeling/blender/blender.exe'
+$frames = '.scratch/gemini-twin/optical-frames'
+foreach ($layout in 'standard', 'narrow') {
+    & $blender --background --threads 12 --python-exit-code 2 --python scripts/render-twin-glass.py -- $layout $frames
+    if ($LASTEXITCODE -ne 0) { throw "Blender render failed for $layout" }
+}
+python scripts/pack-twin-glass.py $frames src
+python scripts/bake-twin-reflections.py
+```
+
 在 Windows 11、PowerShell 7、Python 3.11 环境下运行。Python 依赖为 pywin32、Pillow、psutil 和 Playwright。电脑需要 Edge、随便携包提供的 WebView2 运行时、Microsoft.Web.WebView2.Core.dll 以及同架构的 WebView2Loader.dll。
 
 ```powershell

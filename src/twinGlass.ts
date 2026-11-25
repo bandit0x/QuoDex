@@ -1,3 +1,96 @@
+import standardAtlas from "./twin-glass-standard.webp";
+import narrowAtlas from "./twin-glass-narrow.webp";
+import reflectionAtlas from "./twin-glass-reflections.webp";
+import waterlineAtlas from "./twin-glass-waterline.webp";
+
+const atlases = { standard: standardAtlas, narrow: narrowAtlas };
+type Layout = keyof typeof atlases;
+export interface TwinGlassTextures {
+  frames: HTMLImageElement;
+  reflections: HTMLImageElement;
+  waterline: HTMLImageElement;
+}
+const textures: Partial<Record<Layout, Promise<TwinGlassTextures>>> = {};
+const tileWidth = 172;
+const tileHeight = 108;
+const columns = 9;
+const rowsPerColor = 6;
+
+async function decode(url: string) {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  return image;
+}
+
+let highlights: Promise<[HTMLImageElement, HTMLImageElement]> | undefined;
+export function loadTwinGlass(layout: Layout) {
+  highlights ??= Promise.all([decode(reflectionAtlas), decode(waterlineAtlas)]).catch(error => {
+    highlights = undefined;
+    throw error;
+  });
+  return textures[layout] ??= Promise.all([decode(atlases[layout]), highlights]).then(([frames, [reflections, waterline]]) => ({
+    frames, reflections, waterline,
+  })).catch(error => {
+    delete textures[layout];
+    throw error;
+  });
+}
+
+export function drawBakedTwinGlass(
+  context: CanvasRenderingContext2D, texture: TwinGlassTextures, layout: Layout, width: number, height: number,
+  violet: boolean, percent: number, nodes: Float32Array, time: number, stir: number,
+) {
+  context.clearRect(0, 0, width, height);
+  context.save();
+  const stirred = stir > .01 || nodes.some(offset => Math.abs(offset) > .05);
+  const strips = stirred ? Math.min(nodes.length, width) : 1;
+  let left = 0;
+  for (let index = 0; index < strips; index++) {
+    const right = Math.round((index + 1) * width / strips);
+    const fraction = (index + .5) / strips;
+    const node = Math.min(nodes.length - 1, Math.floor(fraction * nodes.length));
+    const wave = stirred ? nodes[node] + Math.sin(7 * fraction + time / 60) * stir : 0;
+    const frame = Math.min(50, Math.max(0, (percent - 2 * wave) / 2));
+    const lower = Math.floor(frame);
+    const upperAlpha = frame - lower;
+    const sourceLeft = left * tileWidth / width;
+    const sourceWidth = (right - left) * tileWidth / width;
+    const paint = (tile: number, opacity: number) => {
+      context.globalAlpha = opacity;
+      const x = tile % columns * tileWidth;
+      const y = (Math.floor(tile / columns) + (violet ? rowsPerColor : 0)) * tileHeight;
+      context.drawImage(texture.frames, x + sourceLeft, y, sourceWidth, tileHeight, left, 0, right - left, height);
+    };
+    paint(lower, 1);
+    if (upperAlpha > 0) paint(lower + 1, upperAlpha);
+    if (frame > 0 && frame < 50) {
+      const narrow = layout === "narrow";
+      const position = (narrow ? .88 : 1.01) - (narrow ? .67 : .81) * frame / 50;
+      const power = narrow ? 4 : 2;
+      const chord = Math.max(0, 1 - Math.abs(2 * position - 1) ** power) ** (1 / power);
+      const span = width * chord;
+      const depth = height * (narrow ? .115 : .11) * Math.min(1, frame / 5, (50 - frame) / 4);
+      context.save();
+      context.beginPath();
+      context.rect(left, 0, right - left, height);
+      context.clip();
+      context.globalAlpha = .84;
+      context.globalCompositeOperation = "source-atop";
+      const row = (narrow ? 2 : 0) + Number(violet);
+      context.drawImage(texture.waterline, 0, row * 16, tileWidth, 16,
+        (width - span) / 2, position * height - depth / 2, span, depth);
+      context.restore();
+    }
+    left = right;
+  }
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = "source-atop";
+  context.drawImage(texture.reflections, violet ? tileWidth : 0, layout === "narrow" ? tileHeight : 0,
+    tileWidth, tileHeight, 0, 0, width, height);
+  context.restore();
+}
+
 type Stop = readonly [number, string];
 
 const optics = {

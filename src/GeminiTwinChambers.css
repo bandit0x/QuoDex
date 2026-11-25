@@ -25,12 +25,13 @@
 }
 
 .gemini-twin--standard { height: 109px }
-.gemini-twin--standard .twin-instruments { padding: 3px 7px 1px; grid-template-rows: minmax(0, 1fr) 22px; gap: 2px }
+.gemini-twin--standard .twin-instruments { padding: 3px 7px 1px; grid-template-rows: minmax(0, 1fr) 19px; gap: 3px }
 .gemini-twin--standard .twin-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-height: 0 }
 .gemini-twin--standard .twin-dial {
   position: relative; display: block; isolation: isolate; overflow: hidden; border-radius: 49% / 46%;
   background: radial-gradient(ellipse at center, #101928 54%, transparent 56%),
-    conic-gradient(from 175deg, #161b26, #718194 17%, #263747 29%, #ced9dc 40%, #465565 49%, #202e3c 58%, #9aabba 70%, #536372 78%, #243343 86%, #19212e);
+    repeating-radial-gradient(ellipse at center, #ffffff08 0 .45px, #00000009 .6px .9px, transparent 1px 1.55px),
+    conic-gradient(from 175deg, #26272a, #888784 17%, #444548 29%, #e1e1de 40%, #696b6e 49%, #323538 58%, #b4b5b2 70%, #686967 78%, #343636 86%, #292b2d);
   box-shadow: inset 0 1px 1px #f4f8f4aa, inset 0 -1px 2px #8d9caf88, 0 1px 2px #050911;
 }
 .gemini-twin--standard .twin-cavity {
@@ -38,8 +39,7 @@
   box-shadow: 0 0 0 1px #0a121c, 0 0 0 2px #9aa7b355;
 }
 .gemini-twin--standard .twin-cavity::after {
-  box-shadow: inset 0 2px 4px #020914bd, inset 1px 0 3px #a0d9fe48;
-  background: radial-gradient(ellipse at 27% -14%, #e7f5ff38 0%, transparent 50%);
+  box-shadow: inset 0 1px 2px #020914a0;
 }
 .gemini-twin--standard .twin-rail { stroke: #17170e; stroke-width: 3.2 }
 .gemini-twin--standard .twin-fill { stroke: #efb75e; stroke-width: 2.5 }
@@ -50,13 +50,13 @@
   line-height: 1; white-space: nowrap; text-shadow: 0 1px 2px #090e1b, 0 0 3px #090e1b;
 }
 .gemini-twin--standard .twin-dial .twin-source {
-  top: 16px; color: #f1e8d8; font: 600 11.5px/1.1 Georgia, "Segoe UI", serif;
+  top: 17px; color: #f1e8d8; font: 600 10.5px/1.1 Georgia, "Segoe UI", serif;
   text-shadow: 0 1px 2px #08111a, 0 0 3px #08111a;
 }
 .gemini-twin--standard :is(.twin-five, .twin-week) { display: inline-flex; align-items: baseline; gap: 4px }
-.gemini-twin--standard .twin-dial > .twin-five { top: 31px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
-.gemini-twin--standard .twin-five .twin-value { font: italic 23px/1 Georgia, serif; color: #fff8e9; font-variant-numeric: lining-nums tabular-nums }
-.gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 9.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
+.gemini-twin--standard .twin-dial > .twin-five { top: 33px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
+.gemini-twin--standard .twin-five .twin-value { font: italic 21.5px/1 Georgia, serif; color: #fff8e9; font-variant-numeric: lining-nums tabular-nums }
+.gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 8.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
 .gemini-twin--standard .twin-dial .twin-week {
   bottom: 7px; gap: 5px; padding: 1px 7px 2px; border-radius: 6px;
   background: linear-gradient(#1a2731f5, #101a22fa);
@@ -64,23 +64,23 @@
 }
 .gemini-twin--standard .twin-dial .twin-week:has(.twin-old) { gap: 3px; padding-inline: 5px }
 .gemini-twin--standard .twin-week .twin-key { color: #edcd91 }
-.gemini-twin--standard .twin-week .twin-value { color: #ffdfa3; font: italic 14px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
+.gemini-twin--standard .twin-week .twin-value { color: #ffdfa3; font: italic 12.5px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-plaque {
   display: grid; align-items: center; grid-template-columns: max-content 1fr 1fr; gap: 7px;
-  width: 94%; margin: 0 auto; padding: 0 9px;
+  width: 96%; margin: 0 auto; padding: 0 9px;
   border-radius: 46% 46% 7px 7px / 2px 2px 6px 6px; border: 1px solid #60757b;
-  background: linear-gradient(99deg, #364752, #243440 38%, #1c2c38 70%, #334452);
+  background: linear-gradient(99deg, #383d3e, #2a2d2d 38%, #262929 70%, #3b4143);
   box-shadow: inset 0 1px #c1c8ca3b, 0 1px 2px #040810; white-space: nowrap;
 }
-.gemini-twin--standard .twin-plaque .twin-source { color: #f1e7d3; font: 600 11.5px/1 Georgia, serif }
+.gemini-twin--standard .twin-plaque .twin-source { color: #f1e7d3; font: 600 10.5px/1 Georgia, serif }
 .gemini-twin--standard .twin-plaque > span { justify-content: flex-end }
-.gemini-twin--standard .twin-plaque .twin-value { color: #fff4e2; font: italic 14px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
+.gemini-twin--standard .twin-plaque .twin-value { color: #fff4e2; font: italic 12.5px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-plaque .twin-week .twin-value { color: #ffe0a6 }
 
 .gemini-twin--narrow { height: 48px }
 .gemini-twin--narrow .twin-instruments {
-  padding: 1px 4px; gap: 2px; color: #f7eddc; text-align: center;
-  grid-template-columns: 31px minmax(0, 1fr) minmax(0, 1.16fr) minmax(0, .9fr);
+  padding: 1px 4px; gap: 1px; color: #f7eddc; text-align: center;
+  grid-template-columns: 33px minmax(0, 1fr) minmax(0, 1fr) minmax(0, .83fr);
 }
 .gemini-twin--narrow .twin-instruments > span {
   display: grid; grid-template-rows: 10px 16px 16px; align-content: end; padding-bottom: 1px;
@@ -110,7 +110,7 @@
 .gemini-twin--narrow .twin-marker { stroke: #fff0b8; stroke-width: 2.6; stroke-linecap: round }
 .gemini-twin--narrow .twin-source {
   position: relative; align-self: center; top: 1px; white-space: nowrap;
-  font: 650 10px/11px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: #f7ebd6;
+  font: 650 9px/11px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: #f7ebd6;
   text-shadow: 0 1px 2px #071222, 0 0 2px #071222;
 }
 .gemini-twin--narrow :is(.twin-five, .twin-week) {
@@ -119,7 +119,7 @@
 }
 .gemini-twin--narrow .twin-week { color: #ffdfa5 }
 .gemini-twin--narrow .twin-value {
-  color: inherit; font: 600 15px/16px Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  color: inherit; font: 600 13px/16px Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
   font-variant-numeric: tabular-nums;
 }
 .gemini-twin--narrow .twin-old { color: #ffe7b8; font: 550 8px/1 "Microsoft YaHei UI", sans-serif; vertical-align: 1px }

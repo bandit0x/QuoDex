@@ -11,7 +11,7 @@ import {
 } from "./fluidPhysics";
 import { OpticalFluidRenderer, type FluidAccent } from "./opticalFluidRenderer";
 import { drawGeminiGlass, isGeminiAccent, loadGeminiGlass, type GeminiAccent } from "./geminiGlass";
-import { drawTwinGlass } from "./twinGlass";
+import { drawBakedTwinGlass, drawTwinGlass, loadTwinGlass, type TwinGlassTextures } from "./twinGlass";
 
 interface FluidReservoirProps {
   remainingPercent: number;
@@ -358,6 +358,7 @@ export function FluidReservoir({
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
     let atlas = geminiAtlasRef.current;
+    let twinTexture: TwinGlassTextures | undefined;
     let mounted = true;
     // The effect owns one canvas, accent and target percentage.
     let staticFrame = false;
@@ -420,8 +421,13 @@ export function FluidReservoir({
           staticFrame = atRest;
           context.resetTransform();
           const stir = initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
-          drawTwinGlass(context, pixelWidth, pixelHeight, twinGauge === "narrow",
-            accent === "orchid", level, surface.heights, time, stir);
+          if (twinTexture) {
+            drawBakedTwinGlass(context, twinTexture, twinGauge, pixelWidth, pixelHeight,
+              accent === "orchid", level, surface.heights, time, stir);
+          } else {
+            drawTwinGlass(context, pixelWidth, pixelHeight, twinGauge === "narrow",
+              accent === "orchid", level, surface.heights, time, stir);
+          }
           return;
         }
         if (atlas) {
@@ -449,6 +455,17 @@ export function FluidReservoir({
     };
     drawRef.current = () => render();
     render();
+    if (twinGauge) {
+      loadTwinGlass(twinGauge).then(texture => {
+        if (!mounted) return;
+        twinTexture = texture;
+        staticFrame = false;
+        fallbackCanvas.dataset.renderer = "twin-optical";
+        render();
+      }).catch(error => {
+        if (mounted) console.warn("QGM-104: 无法加载双舷窗光学材质，使用基础液体绘制", error);
+      });
+    }
     if (!twinGauge && isGeminiAccent(accent)) {
       loadGeminiGlass().then(image => {
         if (!mounted) return;
