@@ -4,7 +4,7 @@ Windows 主程序的右键设置提供 Gemini 来源。首次选择后，轮播�
 
 ## 数据来源
 
-Web 仓读取 Chrome 或 Edge 中已登录的 Gemini「设置 → 使用限额」面板。AG 两仓分别读取 Antigravity 用量面板中的两个模型组。探针每 15 秒读取一次 Windows 辅助功能树，也可以点击「刷新」。窗口需展开并显示对应页面。窗口关闭、最小化或切到其他页面后，已有读数加虚线并标记「上次」。程序重启后从未知开始。多个窗口同时显示同一来源的额度时，详情提示保留一个窗口。[Gemini 官方帮助](https://support.google.com/gemini/answer/16275805?hl=en) · [Antigravity 模型及额度面板](https://antigravity.google/docs/models)
+Web 仓读取 Chrome 或 Edge 中已登录的 Gemini「设置 → 用量限额」页面。AG 两仓分别读取 Antigravity「设置 → 模型」或「查看用量」中的两个模型组。探针每 15 秒读取一次 Windows 辅助功能树，也可以点击「刷新」。窗口需展开并显示对应页面。Antigravity 模型页已加载的额度行可以在滚动视口之外。窗口关闭、最小化或切到其他页面后，已有读数加虚线并标记「上次」。程序重启后从未知开始。多个窗口同时显示同一来源的额度时，详情提示保留一个窗口。[Gemini 官方帮助](https://support.google.com/gemini/answer/16275805?hl=en) · [Antigravity 模型及额度面板](https://antigravity.google/docs/models)
 
 ## 成品对照
 
@@ -19,9 +19,19 @@ Web 仓读取 Chrome 或 Edge 中已登录的 Gemini「设置 → 使用限额�
 
 表中的截图使用匿名离线面板。Windows 11 build 26200，Edge 158，发布包内 WebView2 151。通过 Windows Shell 无参数启动普通 GUI 发布程序，在独立配置目录下完成探针读取、切换视图、拖动与静止对照。
 
-另在 Antigravity Desktop 2.35.0 登录后打开 Settings → Models，将官方面板与新启动的 QuoDex 逐仓核对。两组周窗口的百分比一致，Gemini 组的完全刷新倒计时在浮窗详情中可读。当前面板只披露周窗口。Web 仓已用独立 Edge 窗口验证原生读取链路，登录账号的网页面板仍待核对。
+## 真实账号读数复验
 
-本地生产构建通过，前端 190 项测试及额度解析、偏好设置、WebView2 相关的 12 项 Rust 测试通过。可执行文件 SHA-256 为 `66B82A5ED695A0283521AD0DA389492C1A1FDB3E4FCAA053EDD4F8D5838592AC`。
+2026-11-25，在 Windows 11 使用已登录的 Chrome 和 Antigravity Desktop 2.35.0。分别打开 Gemini「用量限额」和 Antigravity「设置 → 模型」。将模型设置停在顶部，Claude/GPT 卡片仍在滚动视口外。用干净的 QuoDex 配置启动修复后的 Windows 发布构建，三仓均显示余额。刷新后逐项核对两个周期和面板披露的重置提示。
+
+| 额度仓 | 5 小时剩余 | 每周剩余 | 仓体显示 |
+| --- | --- | --- | --- |
+| Web | 98% | 100% | 98% |
+| AG Gemini | 99% | 99% | 99% |
+| AG Claude/GPT | 100% | 100% | 100% |
+
+旧版会按窗口标题漏掉独立「用量」页，把 Antigravity 的中文刷新说明拆成新周期，并忽略滚动视口外的模型组。真实中文行的回归测试覆盖用量方向、周期和刷新提示。网页只有整行可访问标签提供重置时间时，探针从该行标签读取时间。
+
+本次复验的 Windows 发布 EXE SHA-256 为 `BFE1C3C95DCBBCDBBADBC846BD477B07CD7B883B66F72BCDD11E0B4FF43EB281`。生产构建通过，前端 187 项和 Rust 177 项测试通过，Rust 另有 5 项原有忽略用例。
 
 ## 复现
 

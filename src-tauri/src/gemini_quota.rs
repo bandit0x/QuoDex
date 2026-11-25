@@ -81,7 +81,8 @@ fn period(line: &str) -> Option<&'static str> {
         || line.contains("週限")
     {
         Some("weekly")
-    } else if FIVE.is_match(line) {
+    } else if FIVE.is_match(line) || matches!(line, "current usage" | "当前用量" | "目前用量")
+    {
         Some("fiveHour")
     } else {
         None
@@ -91,6 +92,7 @@ fn period(line: &str) -> Option<&'static str> {
 fn is_reset(line: &str) -> bool {
     line.starts_with("reset")
         || line.contains("fully refresh in")
+        || line.contains("完全刷新")
         || line.starts_with("refreshes")
         || line.contains("重置")
         || line.starts_with("刷新时间")
@@ -156,6 +158,7 @@ fn parse_row(period: &'static str, row: &[&str]) -> Option<Window> {
             let hint = text
                 .split_once(", it will ")
                 .map_or(*text, |(prefix, _)| &text[prefix.len() + 2..]);
+            let hint = hint.find("它将在").map_or(hint, |start| &hint[start..]);
             if hint.chars().count() <= 100 {
                 reset = Some(hint.to_owned());
             }
@@ -202,6 +205,49 @@ mod tests {
     use super::*;
     fn parse(text: &str) -> Pool {
         Pool::from_lines(&text.lines().map(str::to_owned).collect::<Vec<_>>())
+    }
+    #[test]
+    fn reads_current_usage_and_localized_refresh_hints() {
+        let web = parse(
+            "当前用量\n已使用 2%\n重置时间：13:26\n每周限额\n已使用 0%\n重置时间：11月30日14:26",
+        );
+        assert_eq!(
+            web.windows
+                .iter()
+                .map(|window| (
+                    window.period,
+                    window.remaining_percent,
+                    window.reset.as_deref()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("fiveHour", 98., Some("重置时间：13:26")),
+                ("weekly", 100., Some("重置时间：11月30日14:26"))
+            ]
+        );
+        let ag = parse("每周限额剩余\n您已使用了部分每周限额。,它将在以下时间后完全刷新：6 天 , 23 小时\n99%\n5 小时限额剩余\n您已使用了部分 5 小时限额。,它将在以下时间后完全刷新：4 小时 , 40 分钟\n99%");
+        assert_eq!(
+            ag.windows
+                .iter()
+                .map(|window| (
+                    window.period,
+                    window.remaining_percent,
+                    window.reset.as_deref()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "weekly",
+                    99.,
+                    Some("它将在以下时间后完全刷新：6 天 , 23 小时")
+                ),
+                (
+                    "fiveHour",
+                    99.,
+                    Some("它将在以下时间后完全刷新：4 小时 , 40 分钟")
+                )
+            ]
+        );
     }
     #[test]
     fn reads_independent_periods_and_directions() {

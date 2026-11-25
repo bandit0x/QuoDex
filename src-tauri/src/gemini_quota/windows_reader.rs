@@ -41,9 +41,19 @@ const GROUPS: [&[&str]; 2] = [
         "Claude and GPT models",
         "Claude and GPT Models",
         "Claude 和 GPT 模型",
+        "Claude 与 GPT 模型",
         "Claude 與 GPT 模型",
     ],
 ];
+const AG_QUOTA_REFRESH: &[&str] = &[
+    "Refresh quota and credit data",
+    "Refresh quota and credits data",
+    "刷新配额与额度数据",
+];
+
+static WEB_RESET_TIME: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"重置(?:时间|時間)[：:]\s*(?:\d{1,2}月\d{1,2}日\s*)?\d{1,2}:\d{2}").unwrap()
+});
 
 struct Apartment;
 impl Drop for Apartment {
@@ -78,12 +88,21 @@ unsafe fn by_name(
     root: &IUIAutomationElement,
     names: &[&str],
 ) -> Option<IUIAutomationElement> {
+    named_element(ui, root, names, true)
+}
+
+unsafe fn named_element(
+    ui: &IUIAutomation,
+    root: &IUIAutomationElement,
+    names: &[&str],
+    visible_only: bool,
+) -> Option<IUIAutomationElement> {
     for name in names {
         let cond = ui
             .CreatePropertyCondition(UIA_NamePropertyId, &VARIANT::from(*name))
             .ok()?;
         if let Ok(el) = root.FindFirst(TreeScope_Descendants, &cond) {
-            if !el.CurrentIsOffscreen().unwrap_or_default().as_bool() {
+            if !visible_only || !el.CurrentIsOffscreen().unwrap_or_default().as_bool() {
                 return Some(el);
             }
         }
@@ -125,9 +144,34 @@ unsafe fn web_panel(
         Some("usage" | "usage-limits")
     ) && by_name(ui, doc, WEB_TITLES).is_some()
     {
+        if let Some(list) = by_name(ui, doc, &["Usage cycles", "用量周期", "用量週期"]) {
+            return Some(Pool::from_lines(&web_cycle_lines(ui, &list).ok()?));
+        }
         return Some(Pool::from_lines(&text_lines(ui, doc).ok()?));
     }
     None
+}
+
+unsafe fn web_cycle_lines(ui: &IUIAutomation, list: &IUIAutomationElement) -> Result<Vec<String>> {
+    let items = ui.CreatePropertyCondition(
+        UIA_ControlTypePropertyId,
+        &VARIANT::from(UIA_ListItemControlTypeId.0),
+    )?;
+    let items = list.FindAll(TreeScope_Children, &items)?;
+    let mut lines = Vec::new();
+    for index in 0..items.Length()?.min(8) {
+        let item = items.GetElement(index)?;
+        let mut row = text_lines(ui, &item)?;
+        // The reset timestamp can exist only in the list item's accessible label.
+        if !row.iter().any(|line| super::is_reset(&line.to_lowercase())) {
+            let label = item.CurrentName()?.to_string();
+            if let Some(reset) = WEB_RESET_TIME.find(&label) {
+                row.push(reset.as_str().to_owned());
+            }
+        }
+        lines.extend(row);
+    }
+    Ok(lines)
 }
 
 // A menu item or a matching model heading in a conversation is insufficient.
@@ -191,20 +235,28 @@ unsafe fn ag_panel(
     }
     // In the model selector the quota rows can be revealed by a disclosure button.
     // Search only the button's enclosing section, never use the entire chat document.
-    let anchor = by_name(ui, doc, &["View Usage", "查看用量"])?;
+    let settings = url.is_some_and(|url| {
+        url.query_pairs()
+            .any(|(key, value)| key == "settingsOpen" && value == "true")
+    });
+    let anchor = by_name(ui, doc, &["View Usage", "查看用量"]).or_else(|| {
+        settings
+            .then(|| named_element(ui, doc, AG_QUOTA_REFRESH, false))
+            .flatten()
+    })?;
     if anchor.CurrentControlType().ok()? != UIA_ButtonControlTypeId {
         return None;
     }
     let walker = ui.ControlViewWalker().ok()?;
     let mut parent = anchor;
-    for _ in 0..4 {
+    for _ in 0..8 {
         parent = walker.GetParentElement(&parent).ok()?;
         if ui.CompareElements(&parent, doc).ok()?.as_bool() {
             break;
         }
         if GROUPS
             .iter()
-            .any(|group| by_name(ui, &parent, group).is_some())
+            .any(|group| named_element(ui, &parent, group, false).is_some())
         {
             return Some(parent);
         }
@@ -213,7 +265,8 @@ unsafe fn ag_panel(
 }
 
 unsafe fn ag_group(ui: &IUIAutomation, doc: &IUIAutomationElement, names: &[&str]) -> Option<Pool> {
-    let heading = by_name(ui, doc, names)?;
+    // Loaded rows remain readable outside a settings pane's scroll viewport.
+    let heading = named_element(ui, doc, names, false)?;
     let walker = ui.ControlViewWalker().ok()?;
     let mut element = heading;
     // A heading, its wrapper and its enclosing group often occupy separate nodes.
@@ -314,8 +367,7 @@ fn visit_documents(
                 }
                 continue;
             }
-            if !desktop && !(browser && (title.contains("gemini") || title.contains("antigravity")))
-            {
+            if !desktop && !(browser && browser_candidate_title(&title)) {
                 continue;
             }
             let Ok(root) = ui.ElementFromHandle(hwnd) else {
@@ -341,6 +393,15 @@ fn visit_documents(
         }
         Ok(())
     }
+}
+
+fn browser_candidate_title(title: &str) -> bool {
+    title.contains("gemini")
+        || title.contains("antigravity")
+        || matches!(
+            title.split(" - ").next(),
+            Some("usage" | "用量" | "使用情况" | "使用狀況")
+        )
 }
 
 pub(super) fn read() -> Result<[Pool; 3]> {
