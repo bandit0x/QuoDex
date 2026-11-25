@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QuoDex · Gemini 额度浮窗对照</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header class="page-heading">
+      <div><p class="product">QuoDex</p><h1>Gemini 额度浮窗</h1></div>
+      <label class="scenario">示例数据
+        <select id="scenario">
+          <option value="normal">正常读数</option>
+          <option value="missing">Gemini 周额度未读</option>
+          <option value="zero">Gemini 周额度耗尽</option>
+          <option value="old">Gemini 周额度为上次读数</option>
+        </select>
+      </label>
+    </header>
+    <div class="board" id="board"></div>
+    <footer class="references">设计参考
+      <a href="https://antigravity.google/docs/models">A · Antigravity 模型分组</a>
+      <a href="../../verification/screenshots/quodex-compact.png">B · Codex 双周期液仓</a>
+      <a href="../../verification/gemini-live/standard.png">C · Gemini 三色液仓</a>
+      <a href="../../verification/gemini-live/README.md">双周期读数记录</a>
+    </footer>
+  </main>
+  <dialog id="viewer">
+    <div class="dialog-head"><h2 id="dialog-heading"></h2><button id="close" aria-label="关闭">×</button></div>
+    <div id="dialog-content"></div>
+  </dialog>
+  <script src="preview.js"></script>
+</body>
+</html>

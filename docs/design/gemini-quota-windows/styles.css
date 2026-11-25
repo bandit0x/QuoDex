@@ -1,0 +1,100 @@
+* { box-sizing: border-box }
+:root {
+  font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  color: #1d2838;
+  background: #f5f3ee;
+  font-synthesis: none;
+}
+body { margin: 0 }
+button, select { font: inherit; color: inherit }
+button, select, a { -webkit-tap-highlight-color: transparent }
+button { cursor: pointer }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid #3487b0; outline-offset: 2px }
+main { max-width: 1200px; padding: 36px 32px 21px; margin: 0 auto }
+.page-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 31px }
+.product { margin: 0 0 4px; color: #555975; font: italic bold 19px Georgia, serif }
+h1 { margin: 0; font-size: 34px; letter-spacing: -.045em; line-height: 1.44; font-weight: 670 }
+.scenario { display: flex; align-items: center; gap: 9px; color: #555d6b; font-size: 12px }
+select { border: 1px solid #c5c7ca; background: #fbfaf7; border-radius: 5px; padding: 5px 8px; max-width: 180px }
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px }
+.concept { --rule: #a8a4b7; border-top: 3px solid var(--rule); padding-top: 13px; min-width: 0 }
+.concept:first-child { --rule: #64558e }
+.concept h2 { display: flex; gap: 10px; align-items: baseline; line-height: 1.4; font-size: 20px; letter-spacing: -.04em; margin: 0; font-weight: 650 }
+.letter { font: italic 26px/1 Georgia, serif; color: #6c6085 }
+.purpose { font-size: 13px; line-height: 1.55; color: #4c5464; margin: 5px 0 17px }
+.stage { border: 1px solid #c9cbd1; border-radius: 12px; overflow: hidden; background: radial-gradient(ellipse at 10% 0%, #f4f2ef 0%, transparent 60%), linear-gradient(140deg,#dddee3 26%,#c7cbd3 100%); }
+.stage section { padding: 14px 0 18px; display: grid; justify-items: center }
+.stage section + section { border-top: 1px solid #b7bdc6; padding-top: 12px; padding-bottom: 16px }
+.size { display: flex; align-items: baseline; justify-content: space-between; width: min(300px, 92%); margin: 0 0 11px; font-size: 11px; color: #414b59; font-weight: 620 }
+.size span { color: #535d6c; font: 11px/1 Consolas, monospace; letter-spacing: .04em }
+.trade { margin: 11px 2px 0; font-size: 12px; color: #53606b; line-height: 1.65 }
+.references { border-top: 1px solid #cecdd0; margin-top: 25px; padding-top: 12px; display: flex; flex-wrap: wrap; gap: 16px; color: #606874; font-size: 11px }
+.references a { color: #554e70; text-underline-offset: 3px }
+.glass {
+  --ink: #f1e2c9;
+  color: var(--ink);
+  background: radial-gradient(ellipse at 10% -30%,#415771a6,transparent 65%), linear-gradient(169deg,#223548,#121e2d 48%,#0c1623 85%,#202d40);
+  border: 1px solid #9ca8b2;
+  box-shadow: inset 0 1px 2px #e9f2fa78, inset 1px 0 1px #677f9899, inset 0 -2px 2px #71839c73, 0 4px 7px #28384c41;
+  text-align: left; font-size: 12px; line-height: 1.05;
+}
+.surface { width: 300px; height: 130px; border-radius: 19px; padding: 6px 12px 5px; display: flex; flex-direction: column }
+.brand-row { display: flex; align-items: center; justify-content: space-between; margin-top: auto; min-height: 17px; padding-inline: 1px }
+.brand { color: #cbbfdc; font: 600 9px Bahnschrift,"Segoe UI",sans-serif; letter-spacing: .16em }
+.detail { border: 0; background: none; padding: 2px 3px; font-size: 10px; color: #d5dce6; line-height: 1.15 }
+.detail:hover { color: white; text-decoration: underline }
+.matrix { display: grid; grid-template-columns: 96px 1fr 1fr; column-gap: 6px; align-items: center; flex: 1 }
+.col-label { color: #d4dbe6; font-size: 10.5px; text-align: center; font-weight: 550 }
+.row-label { color: #e4dbca; font: 600 12px/1.1 Georgia, serif; white-space: nowrap }
+.col-label:first-child { text-align: left }
+.meter { position: relative; overflow: hidden; border: 1px solid #71809a71; border-radius: 8px; height: 22px; display: grid; place-items: center; background: linear-gradient(#121d2d,#1c2a42); box-shadow: inset 0 1px 2px #070b14a8 }
+.meter .fill { position: absolute; inset: 0 auto 0 0; width: var(--level); background: linear-gradient(180deg,color-mix(in srgb,var(--tint),white 32%),var(--tint) 22%,color-mix(in srgb,var(--tint),#20344f 46%) 93%,var(--tint)); border-right: 1px solid #d8d8ec7d }
+.meter .reading { position: relative; font-size: 16px }
+.reading { color: #fff1d9; font: italic 22px/1 Georgia, serif; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #050b1d,0 0 3px #050b1d; white-space: nowrap }
+.reading small { margin-left: 1px; font-size: .7em }
+.reading.old { text-decoration: underline dotted #ffd198; text-underline-offset: 2px }
+.old-label { font: 9px "Microsoft YaHei UI",sans-serif; color: #ffd398; margin-left: 2px; vertical-align: 1px }
+.switches { display: flex; justify-content: center; align-items: center; gap: 3px; margin-bottom: 4px; min-height: 24px }
+.switches button { border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 3px 7px; color: #c5d0df; font: 550 11px/1.12 "Segoe UI","Microsoft YaHei UI",sans-serif; white-space: nowrap }
+.switches button[aria-pressed="true"] { background: #3d435a; border-color: #ac9bb3; color: #fff0d6; box-shadow: inset 0 1px 1px #b9b4cb2e }
+.switches button:hover { background: #3b4359 }
+.period-switch { justify-content: space-between; padding: 0 3px }
+.period-switch .switches { margin: 0 }
+.switch-caption { font-size: 10px; color: #ccd6df }
+.gauges { flex: 1; display: flex; gap: 4px; min-height: 0 }
+.gauge { overflow: hidden; position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 8px 10px 8px; border-radius: 11px; background: #0b1c2b url("../../../src/gemini-glass.webp") left center/400% 100% no-repeat; box-shadow: 0 1px 2px #020811 }
+.gauge canvas { position: absolute; inset: 0; width: 100%; height: 100% }
+.gauge .name, .gauge .reading { position: relative; z-index: 1; text-shadow: 0 1px 3px #061020,0 0 4px #081120 }
+.gauge .name { font: 600 13px/1.12 Georgia,"Microsoft YaHei UI",serif; color: #f2e1c6 }
+.gauge .reading { align-self: end; font-size: 25px }
+.trio .gauge { padding: 8px 6px }
+.trio .name { font-size: 12px }
+.trio .reading { font-size: 23px }
+.narrow { width: 260px; height: 48px; padding: 4px 12px; border-radius: 14px; display: grid; gap: 2px; align-content: center }
+.narrow:hover { border-color: #e0d7e1 }
+.mini-row { display: grid; grid-template-columns: 82px 1fr 1fr; align-items: center; gap: 6px; min-height: 16px }
+.mini-row + .mini-row { border-top: 1px solid #71809b4d; padding-top: 2px }
+.mini-name { font: 600 11.5px/1 Georgia,serif; color: #eddcc2; white-space: nowrap }
+.mini-cell { display: flex; align-items: baseline; justify-content: end; gap: 4px; white-space: nowrap }
+.mini-cell .reading { font-size: 15px }
+.period-label { font: 9px "Microsoft YaHei UI",sans-serif; color: #d3dceb }
+.narrow-b { grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 7px }
+.mini-well { border-left: 1px solid #70809777; padding-left: 9px; display: flex; flex-direction: column; gap: 2px }
+.mini-well .reading { font-size: 18px }
+.narrow-c { grid-template-columns: 34px 1fr 1.15fr 1fr; align-items: center; gap: 3px }
+.narrow-c .mini-well { padding-left: 5px }
+.narrow-c .mini-name { font-size: 9px }
+.narrow-c .reading { font-size: 16px }
+.narrow-c .period-label { font-size: 11px }
+.narrow .old-label { font-size: 8px }
+dialog { border: 1px solid #929aa8; border-radius: 14px; background: #eeeef1; padding: 15px; color: #243142; box-shadow: 0 12px 60px #131c333e }
+dialog::backdrop { background: #15212d56 }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 18px }
+.dialog-head h2 { font-size: 14px; margin: 0 }
+.dialog-head button { cursor: pointer; border: 0; color: #424b58; background: transparent; font-size: 21px; width: 27px; height: 27px; line-height: 1 }
+.details-table { border-collapse: collapse; border-spacing: 0; font-size: 12px; min-width: 290px }
+.details-table th,.details-table td { border-top: 1px solid #cfd2d9; padding: 7px 5px; text-align: left }
+.details-table td:last-child { text-align: right }
+@media(max-width:1050px) { main { padding-inline: 18px } .board { gap: 10px } }
+@media(max-width:970px) { .board { grid-template-columns: repeat(auto-fit,minmax(min(318px,100%),1fr)); gap: 22px } }
+@media(max-width:470px) { main { padding: 21px 10px } .page-heading { align-items: start; flex-direction: column; gap: 12px; margin-bottom: 23px } h1 { font-size: 29px } }
