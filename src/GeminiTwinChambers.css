@@ -34,6 +34,14 @@
     conic-gradient(from 175deg, #26272a, #888784 17%, #444548 29%, #e1e1de 40%, #696b6e 49%, #323538 58%, #b4b5b2 70%, #686967 78%, #343636 86%, #292b2d);
   box-shadow: inset 0 1px 1px #f4f8f4aa, inset 0 -1px 2px #8d9caf88, 0 1px 2px #050911;
 }
+.gemini-twin--standard .twin-dial::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: url("./twin-glass-steel.webp") left center / 200% 100% no-repeat;
+  pointer-events: none;
+}
+.gemini-twin--standard .twin-dial[data-pool="partner"]::before { background-position: right center }
 .gemini-twin--standard .twin-cavity {
   inset: 10% 7% 11%; border-radius: 50% / 47%;
   box-shadow: 0 0 0 1px #0a121c, 0 0 0 2px #9aa7b355;

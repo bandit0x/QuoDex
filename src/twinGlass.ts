@@ -86,6 +86,13 @@ export function drawBakedTwinGlass(
   }
   context.globalAlpha = 1;
   context.globalCompositeOperation = "source-atop";
+  const narrow = layout === "narrow";
+  const foot = 4 + (narrow ? 2 : 0) + Number(violet);
+  const sampleHeight = height * (narrow ? .22 : .28);
+  context.globalAlpha = Math.min(1, Math.max(0, percent / 21));
+  context.drawImage(texture.waterline, 0, foot * 16, tileWidth, 16,
+    width * .07, height * .95 - sampleHeight, width * .86, sampleHeight);
+  context.globalAlpha = 1;
   context.drawImage(texture.reflections, violet ? tileWidth : 0, layout === "narrow" ? tileHeight : 0,
     tileWidth, tileHeight, 0, 0, width, height);
   context.restore();

@@ -43,12 +43,14 @@ texture.save(root / "src/twin-glass-reflections.webp", lossless=True, method=6)
 
 # Keep only the transmitted blue or violet light. The colored layer excludes
 # the neutral and warm typesetting and can be positioned by a live liquid level.
-waterlines = [
+light_bands = [
     (284, 153, 828, 194), (948, 290, 1494, 315),
     (419, 685, 784, 711), (830, 768, 1200, 797),
+    (301, 313, 807, 389), (967, 328, 1456, 393),
+    (425, 786, 779, 826), (839, 787, 1193, 826),
 ]
-strip = Image.new("RGBA", (size[0], 16 * len(waterlines)))
-for row, bounds in enumerate(waterlines):
+strip = Image.new("RGBA", (size[0], 16 * len(light_bands)))
+for row, bounds in enumerate(light_bands):
     image = sheet.crop(bounds).resize((size[0], 16), Image.Resampling.LANCZOS)
     for y in range(16):
         fade = ramp(y, -1, 4) * (1 - ramp(y, 12, 16))
@@ -56,5 +58,26 @@ for row, bounds in enumerate(waterlines):
             red, green, blue = image.getpixel((x, y))
             hue = blue - red if row % 2 == 0 else min(blue, red) - green
             alpha = round(190 * fade * ramp(hue, 18, 65) * ramp(blue, 105, 230))
+            if row >= 4:
+                side = abs((x + .5) / size[0] - .5)
+                alpha = round(alpha * ramp(side, .12, .28))
             strip.putpixel((x, row * 16 + y), (red, green, blue, alpha))
 strip.save(root / "src/twin-glass-waterline.webp", lossless=True, method=6)
+
+# Only the outside steel ring is fixed. The inner arc and both needles are
+# painted by the app, so exclude their full paths from this layer.
+panel = sheet.crop((194, 17, 1577, 601)).resize((300, 130), Image.Resampling.LANCZOS)
+trim = Image.new("RGBA", (282, 83))
+for column, (start, center) in enumerate(((7, 77), (152, 223))):
+    for y in range(83):
+        for x in range(141):
+            window_x, window_y = start + x, 3 + y
+            red, green, blue = panel.getpixel((window_x, window_y))
+            radius = math.hypot((window_x + .5 - center) / 72, (window_y + .5 - 45) / 43)
+            lower_edge = .89 if window_y >= 46 else .94
+            mask = ramp(radius, lower_edge, lower_edge + .02) * (1 - ramp(radius, 1.005, 1.03))
+            needle_side = window_x < 29 if column == 0 else window_x > 277
+            if red - min(green, blue) > 17 or (24 <= window_y <= 45 and needle_side):
+                mask = 0
+            trim.putpixel((column * 141 + x, y), (red, green, blue, round(255 * mask)))
+trim.save(root / "src/twin-glass-steel.webp", lossless=True, method=6)
