@@ -20,7 +20,7 @@ export interface GeminiSnapshot { observedAtMs: number; pools: [ReadPool, ReadPo
 export interface GeminiPool extends ReadPool { observedAtMs: number | null }
 export const readGeminiQuota = () => invoke<GeminiSnapshot>("read_gemini_quota");
 
-const emptyPools = (): GeminiPool[] => Array.from({ length: 3 }, () => ({
+const emptyPools: GeminiPool[] = Array.from({ length: 3 }, () => ({
   state: "absent", windows: [], observedAtMs: null,
 }));
 
@@ -59,12 +59,12 @@ export function mergeGeminiSnapshot(previous: GeminiPool[], snapshot: GeminiSnap
 }
 
 export function useGeminiQuota(enabled: boolean, load: () => Promise<GeminiSnapshot>) {
-  const [pools, setPools] = useState(emptyPools);
+  const [pools, setPools] = useState<GeminiPool[] | null>(null);
   const [reading, setReading] = useState(false);
   const trigger = useRef<() => void>(() => {});
   const refresh = useCallback(() => trigger.current(), []);
   useEffect(() => {
-    setPools(emptyPools());
+    setPools(null);
     if (!enabled) return;
     let cancelled = false;
     let busy = false;
@@ -76,12 +76,12 @@ export function useGeminiQuota(enabled: boolean, load: () => Promise<GeminiSnaps
         const snapshot = await load();
         if (!cancelled) {
           const now = Date.now();
-          setPools(previous => mergeGeminiSnapshot(previous, snapshot, now));
+          setPools(previous => mergeGeminiSnapshot(previous ?? emptyPools, snapshot, now));
         }
       } catch {
         if (!cancelled) {
           const now = Date.now();
-          setPools(previous => previous.map((pool, index) =>
+          setPools(previous => (previous ?? emptyPools).map((pool, index) =>
             mergePool(pool, { state: "failed", source: pool.source, windows: [] }, index, now, now)));
         }
       } finally {
@@ -94,5 +94,5 @@ export function useGeminiQuota(enabled: boolean, load: () => Promise<GeminiSnaps
     const timer = window.setInterval(poll, POLL_INTERVAL_MS);
     return () => { cancelled = true; trigger.current = () => {}; window.clearInterval(timer); };
   }, [enabled, load]);
-  return { pools, reading: enabled && reading, refresh };
+  return { pools: pools ?? emptyPools, firstReadPending: pools === null, reading: enabled && reading, refresh };
 }

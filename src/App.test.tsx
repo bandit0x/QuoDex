@@ -972,6 +972,42 @@ describe("Gemini quota source", () => {
     opacity: .92, reducedMotion: true, x: null, y: null, source: "gemini",
   });
 
+  it("mounts the two materials on the first result and keeps them during refresh", async () => {
+    let finishRead!: (snapshot: GeminiSnapshot) => void;
+    const load = () => new Promise<GeminiSnapshot>(resolve => { finishRead = resolve; });
+    const { container } = render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadGeminiSnapshot={load} loadPreferences={preferences} />);
+    await screen.findByText("正在读取…");
+    const canvases = () => [...container.querySelectorAll(".twin-cavity canvas")];
+    expect(container.querySelectorAll(".twin-cavity")).toHaveLength(2);
+    expect(canvases()).toHaveLength(0);
+    const snapshot: GeminiSnapshot = { observedAtMs: Date.now(), pools: [available(55, 68), available(16, 82), available(90, 24)] };
+    await act(async () => finishRead(snapshot));
+    const meters = canvases();
+    expect(meters).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("正在读取…")).toBeVisible();
+    expect(screen.getByRole("img", { name: "AG Gemini 5 小时，剩余 82%" })).toBeVisible();
+    expect(canvases()[0]).toBe(meters[0]);
+    expect(canvases()[1]).toBe(meters[1]);
+    await act(async () => finishRead({ ...snapshot, pools: [available(55, 68), available(16, 48), available(90, 100)] }));
+    expect(screen.getByRole("img", { name: "AG Gemini 5 小时，剩余 48%" })).toBeVisible();
+  });
+
+  it("mounts dry materials when the first narrow reading explicitly reports no windows", async () => {
+    let finishRead!: (snapshot: GeminiSnapshot) => void;
+    const { container } = render(<App {...inertPreferences} initialLayout="collapsed"
+      loadSnapshot={async () => healthySnapshot} loadZcodeSnapshot={async () => healthyZcodeSnapshot}
+      loadGeminiSnapshot={() => new Promise(resolve => { finishRead = resolve; })} loadPreferences={preferences} />);
+    const restore = await screen.findByRole("button", { name: "恢复标准视图" });
+    await within(restore).findByRole("img", { name: "AG Gemini 5 小时，未读" });
+    expect(container.querySelectorAll(".twin-cavity canvas")).toHaveLength(0);
+    const absent: GeminiSnapshot["pools"][number] = { state: "absent", windows: [] };
+    await act(async () => finishRead({ observedAtMs: Date.now(), pools: [absent, absent, absent] }));
+    expect(container.querySelectorAll(".twin-cavity canvas")).toHaveLength(2);
+    expect(within(restore).getAllByText("—")).toHaveLength(6);
+  });
+
   it("keeps the six readings independent through a partial refresh", async () => {
     const load = vi.fn<() => Promise<GeminiSnapshot>>()
       .mockResolvedValueOnce({ observedAtMs: 1800000000000,
@@ -1020,6 +1056,7 @@ describe("Gemini quota source", () => {
     render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
       loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadGeminiSnapshot={load} loadPreferences={preferences} />);
     await screen.findByText("读取失败 · QGM-204");
+    expect(document.querySelectorAll(".twin-cavity canvas")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByText("正在读取…")).toBeVisible();
     expect(screen.getByRole("button", { name: "重试" })).toBeDisabled();

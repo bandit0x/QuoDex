@@ -27,12 +27,13 @@ function narrowDescription(pools: GeminiPool[]) {
   })).join("，");
 }
 
-export function GeminiQuotaSurface({ pools, reading, refresh, motion, reducedMotion, collapsed, onRestore, onDetails }: {
-  pools: GeminiPool[]; reading: boolean; refresh: () => void; motion: FluidMotionSample;
+export function GeminiQuotaSurface({ pools, firstReadPending, reading, refresh, motion, reducedMotion, collapsed, onRestore, onDetails }: {
+  pools: GeminiPool[]; firstReadPending: boolean; reading: boolean; refresh: () => void; motion: FluidMotionSample;
   reducedMotion: boolean; collapsed: boolean; onRestore: () => void; onDetails: () => void;
 }) {
   const [refreshed, setRefreshed] = useState(false);
-  const chambers = <GeminiTwinChambers pools={pools} collapsed={collapsed} motion={motion} reducedMotion={reducedMotion} />;
+  const chambers = <GeminiTwinChambers pools={pools} firstReadPending={firstReadPending}
+    collapsed={collapsed} motion={motion} reducedMotion={reducedMotion} />;
   if (collapsed) return <button className="gemini-twin-surface gemini-twin-surface--narrow" type="button" data-window-drag-surface
     aria-label="恢复标准视图" aria-description={narrowDescription(pools)} onClick={onRestore}>{chambers}</button>;
   const feedback = quotaFeedback(pools, refreshed);

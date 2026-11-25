@@ -13,6 +13,7 @@ const missingReading: GeminiReading = { value: null, stale: false };
 
 interface GeminiTwinChambersProps {
   pools: GeminiPool[];
+  firstReadPending: boolean;
   collapsed: boolean;
   motion: FluidMotionSample;
   reducedMotion: boolean;
@@ -57,7 +58,7 @@ function WeekScale({ reading, collapsed }: { reading: GeminiReading; collapsed: 
   </svg>;
 }
 
-function SourceInstrument({ source, pools, collapsed, motion, reducedMotion }: GeminiTwinChambersProps & { source: Source }) {
+function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, reducedMotion }: GeminiTwinChambersProps & { source: Source }) {
   const pool = pools[source.index];
   const five = pool ? getGeminiReading(pool, "fiveHour") : missingReading;
   const week = pool ? getGeminiReading(pool, "weekly") : missingReading;
@@ -71,8 +72,8 @@ function SourceInstrument({ source, pools, collapsed, motion, reducedMotion }: G
   return <span className={isWeb ? "twin-plaque" : "twin-dial"} data-pool={source.key}>
     {source.key !== "web" && <>
       <span className="twin-cavity" aria-hidden="true">
-        <FluidReservoir key={five.value === null ? "dry" : "known"} remainingPercent={five.value ?? 0} accent={source.accent}
-          motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null} twinGauge />
+        {!firstReadPending && <FluidReservoir key={five.value === null ? "dry" : "known"} remainingPercent={five.value ?? 0}
+          accent={source.accent} motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null} twinGauge />}
       </span>
       <WeekScale reading={week} collapsed={collapsed} />
     </>}
