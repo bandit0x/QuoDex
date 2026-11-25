@@ -1065,6 +1065,8 @@ describe("Gemini quota source", () => {
       "AG Claude/GPT 5 小时，剩余 24.5%", "AG Claude/GPT 一周，剩余 90%"]) {
       expect(screen.getByRole("img", { name })).toBeVisible();
     }
+    expect(screen.getByRole("img", { name: "AG Gemini 一周，剩余 0%" })).not.toHaveTextContent(/一周|0%/);
+    expect(screen.getByRole("img", { name: "Gemini Web 一周，剩余 75%" })).toHaveTextContent("75%");
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await screen.findByRole("img", { name: "Gemini Web 5 小时，上次剩余 42%" });
     expect(screen.getByRole("img", { name: "Gemini Web 一周，上次剩余 75%" })).toBeVisible();

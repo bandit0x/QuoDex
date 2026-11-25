@@ -118,6 +118,25 @@ for y in range(90):
         shell.putpixel((x, y), (*rgb, round(255 * opacity)))
 shell.save(root / "src/twin-glass-shell.webp", lossless=True, method=6)
 
+# Register the fixed outside band to the window. Keep a clear gap around
+# the moving gold scales and leave the transparent desktop corners alone.
+housing = Image.new("RGBA", panel.size)
+for y in range(130):
+    for x in range(300):
+        red, green, blue = panel.getpixel((x, y))
+        radius = min(math.hypot((x+.5-center)/72, (y+.5-45)/43) for center in (77, 223))
+        if y < 90:
+            wall = ramp(radius, .88 if y >= 55 else .955, .91 if y >= 55 else .975)
+        else:
+            # Only the separators and exterior edges below the dials are fixed.
+            wall = float(y in (90, 91, 108, 109, 110, 111, 125, 126, 127, 128, 129) or x < 12 or x >= 290)
+        corners = math.hypot(max(0, 17-min(x+.5,299.5-x)), max(0, 17-min(y+.5,129.5-y)))
+        alpha = wall * (1-ramp(corners, 14.5, 16))
+        if radius < 1 and y < 55 and red - min(green, blue) > 18:
+            alpha = 0
+        housing.putpixel((x,y), (red,green,blue,round(255*alpha)))
+housing.save(root / "src/twin-glass-housing.webp", lossless=True, method=6)
+
 compact = sheet.crop((194, 626, 1577, 852)).resize((260, 48), Image.Resampling.LANCZOS)
 plaque = compact.crop((194, 1, 258, 47))
 for y in range(1, 44):

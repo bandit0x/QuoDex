@@ -32,9 +32,10 @@ for index, (box, text) in enumerate(zip(bounds, letter_boxes)):
     y,x = np.meshgrid(np.linspace(-1,1,108),np.linspace(-1,1,172),indexing="ij")
     if index < 2:
         dist = (np.abs(x)**2 + np.abs(y)**2)**.5
+        opacity = np.clip((1.01-dist)/.13,0,1)*250
     else:
         dist = (np.abs(x)**3.7 + np.abs(y)**3.7)**(1/3.7)
-    opacity = np.clip((.91-dist)/.23,0,1)
-    layer = Image.fromarray(np.rint(np.dstack((material,opacity*225))).astype("uint8"))
+        opacity = np.clip((.91-dist)/.23,0,1)*225
+    layer = Image.fromarray(np.rint(np.dstack((material,opacity))).astype("uint8"))
     sheet.paste(layer,((index%2)*172,(index//2)*108))
 sheet.save(root / "src/twin-glass-cavity.webp", lossless=True, method=6)

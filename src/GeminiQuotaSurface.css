@@ -96,6 +96,15 @@ body:has(.app-frame--gemini),
   opacity: var(--twin-alpha);
   pointer-events: none;
 }
+.gemini-twin-surface:not(.gemini-twin-surface--narrow)::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: "";
+  background: url("./twin-glass-housing.webp") center / 100% 100% no-repeat;
+  opacity: var(--twin-alpha);
+  pointer-events: none;
+}
 .gemini-twin-footer {
   position: relative;
   isolation: isolate;

@@ -79,7 +79,7 @@ export function drawBakedTwinGlass(
     const position = meniscusPosition(frame / 50, narrow);
     const meniscus = position * height;
     context.save();
-    context.globalAlpha = .96;
+    context.globalAlpha = narrow ? .96 : Math.min(1, frame / 3, (51 - frame) / 2);
     context.globalCompositeOperation = "source-atop";
     const cavityX = Number(violet) * tileWidth + sourceLeft;
     const cavityY = narrow ? tileHeight : 0;
@@ -101,7 +101,7 @@ export function drawBakedTwinGlass(
       context.beginPath();
       context.rect(left, 0, right - left, height);
       context.clip();
-      context.globalAlpha = .5;
+      context.globalAlpha = narrow ? .5 : .19;
       context.globalCompositeOperation = "source-atop";
       const row = (narrow ? 2 : 0) + Number(violet);
       context.drawImage(texture.waterline, 0, row * 16, tileWidth, 16,
@@ -114,10 +114,10 @@ export function drawBakedTwinGlass(
   context.globalCompositeOperation = "source-atop";
   const foot = 4 + (narrow ? 2 : 0) + Number(violet);
   const sampleHeight = height * (narrow ? .22 : .28);
-  context.globalAlpha = Math.min(1, Math.max(0, percent / 21));
+  context.globalAlpha = Math.min(1, Math.max(0, percent / 21)) * (narrow ? 1 : .35);
   context.drawImage(texture.waterline, 0, foot * 16, tileWidth, 16,
     width * .07, height * .95 - sampleHeight, width * .86, sampleHeight);
-  context.globalAlpha = 1;
+  context.globalAlpha = narrow ? 1 : .34;
   context.drawImage(texture.reflections, violet ? tileWidth : 0, layout === "narrow" ? tileHeight : 0,
     tileWidth, tileHeight, 0, 0, width, height);
   context.restore();

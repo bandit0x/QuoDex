@@ -43,9 +43,10 @@
 }
 .gemini-twin--standard .twin-dial[data-pool="partner"]::before { background-position: right center }
 .gemini-twin--standard .twin-cavity {
-  inset: 8% 5.25% 4%; border-radius: 50% / 49%;
+  inset: 8% 5.25% 1%; border-radius: 50% / 49%;
   box-shadow: 0 0 0 1px #121719, 0 0 0 2px #9aa7b338;
 }
+.gemini-twin--standard .twin-dial[data-pool="partner"] .twin-cavity { inset-inline: 4.25% }
 .gemini-twin--standard .twin-cavity::after {
   box-shadow: inset 0 1px 2px #020914a0;
 }
@@ -55,7 +56,7 @@
 .gemini-twin--standard .twin-fill { stroke: #efb75e; stroke-width: 2.3 }
 .gemini-twin--standard .twin-ticks { stroke: #f0d3a48c; stroke-width: .68 }
 .gemini-twin--standard .twin-marker { stroke: #fff6d5; stroke-width: 2.7; stroke-linecap: round; filter: drop-shadow(0 0 1px #23180b) }
-.gemini-twin--standard .twin-dial > :is(.twin-source, .twin-five, .twin-week) {
+.gemini-twin--standard .twin-dial > :is(.twin-source, .twin-five) {
   position: absolute; left: 50%; transform: translateX(-50%); z-index: 1;
   line-height: 1; white-space: nowrap; text-shadow: 0 1px 2px #090e1b, 0 0 3px #090e1b;
 }
@@ -68,14 +69,7 @@
 .gemini-twin--standard .twin-dial > .twin-five { top: 34px; margin-left: 3px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
 .gemini-twin--standard .twin-five .twin-value { font: italic 21.5px/1 Georgia, serif; color: #f8eddd; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 8.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
-.gemini-twin--standard .twin-dial .twin-week {
-  bottom: 5px; gap: 5px; padding: 1px 7px 2px; border-radius: 6px;
-  background: linear-gradient(#1a2731f5, #101a22fa);
-  box-shadow: inset 0 1px #b5b4a04a, inset 0 -1px #b9c3c025, 0 1px 2px #050a10aa;
-}
-.gemini-twin--standard .twin-dial .twin-week:has(.twin-old) { gap: 3px; padding-inline: 5px }
 .gemini-twin--standard .twin-week .twin-key { color: #edcd91 }
-.gemini-twin--standard .twin-week .twin-value { color: #e6bf8b; font: italic 12.5px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-plaque {
   display: grid; align-items: center; grid-template-columns: max-content 1fr 1fr; gap: 7px;
   width: 96%; margin: 0 auto; padding: 0 9px;

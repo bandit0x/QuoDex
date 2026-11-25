@@ -21,11 +21,16 @@ interface GeminiTwinChambersProps {
   reducedMotion: boolean;
 }
 
+function quotaLabel(source: Source, period: GeminiPeriod, reading: GeminiReading) {
+  const amount = reading.value === null ? "未读"
+    : (reading.stale ? "上次剩余 " : "剩余 ") + Number(reading.value.toFixed(1)) + "%";
+  return `${source.name} ${periodLabel[period]}，${amount}`;
+}
+
 function QuotaValue({ source, period, reading }: { source: Source; period: GeminiPeriod; reading: GeminiReading }) {
   const percent = reading.value === null ? null : Number(reading.value.toFixed(1)) + "%";
-  const label = percent === null ? "未读" : (reading.stale ? "上次剩余 " : "剩余 ") + percent;
   return <span className="twin-value" data-group={source.key} data-period={period} role="img"
-    aria-label={`${source.name} ${periodLabel[period]}，${label}`}>
+    aria-label={quotaLabel(source, period, reading)}>
     {percent ?? "—"}{reading.stale && percent !== null && <small className="twin-old">上次</small>}
   </span>;
 }
@@ -42,11 +47,13 @@ const ticks = Array.from({ length: 21 }, (_, i) =>
 const standardArc = "M6,51 A61,46 0 0 1 128,51";
 const narrowArc = "M1.5 12 C1.5 4.4 1.5 1.45 5.7 1.4 Q40 .8 74.3 1.4 C78.5 1.45 78.5 4.4 78.5 12";
 
-function WeekScale({ reading, collapsed }: { reading: GeminiReading; collapsed: boolean }) {
+function WeekScale({ reading, collapsed, source }: { reading: GeminiReading; collapsed: boolean; source: Source }) {
   const { value, stale } = reading;
   const arc = collapsed ? narrowArc : standardArc;
   const fraction = (value ?? 0) / 100;
-  return <svg className="twin-scale" aria-hidden="true" viewBox={collapsed ? "0 0 80 46" : "0 0 134 86"}
+  return <svg className="twin-scale" aria-hidden={collapsed || undefined} role={collapsed ? undefined : "img"}
+    aria-label={collapsed ? undefined : quotaLabel(source, "weekly", reading)}
+    viewBox={collapsed ? "0 0 80 46" : "0 0 134 86"}
     preserveAspectRatio="none">
     <path className="twin-rail" d={arc} pathLength={collapsed ? 100 : undefined}
       strokeDasharray={value === null ? (collapsed ? "1.5 3" : "1.4 2.4") : undefined} />
@@ -78,11 +85,11 @@ function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, 
           accent={source.accent} motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null}
           twinGauge={collapsed ? "narrow" : "standard"} />}
       </span>
-      <WeekScale reading={week} collapsed={collapsed} />
+      <WeekScale reading={week} collapsed={collapsed} source={source} />
     </>}
     <b className="twin-source">{isWeb && collapsed ? "Web" : source.name}</b>
     {collapsed ? <>{row("weekly", week)}{row("fiveHour", five)}</>
-      : <>{row("fiveHour", five)}{row("weekly", week)}</>}
+      : <>{row("fiveHour", five)}{isWeb && row("weekly", week)}</>}
   </span>;
 }
 
