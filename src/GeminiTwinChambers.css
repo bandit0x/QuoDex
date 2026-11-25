@@ -66,7 +66,7 @@
 .gemini-twin--standard .twin-dial[data-pool="gemini"] .twin-source { margin-left: -1px }
 .gemini-twin--standard :is(.twin-five, .twin-week) { display: inline-flex; align-items: baseline; gap: 4px }
 .gemini-twin--standard .twin-dial > .twin-five { top: 34px; margin-left: 3px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
-.gemini-twin--standard .twin-five .twin-value { font: italic 21.5px/1 Georgia, serif; color: #f8eddd; font-variant-numeric: lining-nums tabular-nums }
+.gemini-twin--standard .twin-five .twin-value { font: italic 700 23px/1 "Times New Roman", Georgia, serif; color: #f8eddd; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 8.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
 .gemini-twin--standard .twin-dial .twin-week {
   bottom: 5px; gap: 5px; padding: 1px 7px 2px; border-radius: 6px;
@@ -144,7 +144,7 @@
 .gemini-twin--narrow .twin-plaque .twin-week { top: 0; color: #e8bd7d }
 .gemini-twin--narrow .twin-five { top: -3px; left: 1px }
 .gemini-twin--narrow .twin-value {
-  color: inherit; font: 600 13px/16px Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  color: inherit; font: 700 13px/16px Calibri, Bahnschrift, "Segoe UI", sans-serif;
   font-variant-numeric: tabular-nums;
 }
 .gemini-twin--narrow .twin-old { color: #ffe7b8; font: 550 8px/1 "Microsoft YaHei UI", sans-serif; vertical-align: 1px }
