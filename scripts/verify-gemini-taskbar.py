@@ -10,10 +10,11 @@ out.mkdir(parents=True, exist_ok=True)
 root=pathlib.Path(tempfile.mkdtemp(prefix='quodex-orbs-'))
 parser=argparse.ArgumentParser()
 parser.add_argument('--reduced-motion',action='store_true',help='Verify a running task with the app motion preference enabled.')
+parser.add_argument('--gemini-window',action='store_true',help='Capture the Gemini twin chambers with six readings from anonymous local panels.')
 options=parser.parse_args()
 config=root/'config'
 config.mkdir()
-(config/'display-preferences.json').write_text(json.dumps(dict(source='codex',x=185,y=98,opacity=.96,alwaysOnTop=True,reducedMotion=options.reduced_motion)))
+(config/'display-preferences.json').write_text(json.dumps(dict(source='gemini' if options.gemini_window else 'codex',x=185,y=98,opacity=.96,alwaysOnTop=True,reducedMotion=options.reduced_motion)))
 data=root/'.gemini/antigravity'
 data.mkdir(parents=True)
 stamp=datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -30,11 +31,16 @@ with sqlite3.connect(zcode/'cli/db/db.sqlite') as agent:
     agent.executescript("CREATE TABLE session(id TEXT,parent_id TEXT,task_type TEXT); CREATE TABLE turn_usage(session_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER,error_code TEXT); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE part(id TEXT,message_id TEXT,session_id TEXT,time_updated INTEGER,data TEXT);")
     agent.execute("INSERT INTO session VALUES('ses-sample',NULL,'interactive')")
     now=int(time.time()*1000)
-    agent.execute("INSERT INTO turn_usage VALUES('ses-sample','turn-sample','completed',?,?,NULL)",(now-60000,now-5000))
+    agent.execute("INSERT INTO turn_usage VALUES('ses-sample','turn-sample','completed',?,?,NULL)",(now-240000,now-181000))
 app=None
 back=None
+panels=None
 cursor=win32api.GetCursorPos()
 try:
+    if options.gemini_window:
+        panels=subprocess.Popen([shutil.which('node'),str(repo/'scripts/gemini-panel-fixture.mjs')],
+                                stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,creationflags=subprocess.CREATE_NO_WINDOW)
+        assert panels.stdout.readline().startswith('Expected 72 / 46 / 12.'),'QDT-V13 offline Gemini panels did not start'
     back=tk.Tk()
     back.overrideredirect(True)
     back.geometry('1050x710+0+0')
@@ -91,7 +97,6 @@ try:
     assert len(orbs)==3, orbs
     assert all(abs(item['height']-item['width']) <= 1 for item in orbs)
     win32api.SetCursorPos((30,40))
-    colors={'Codex':(255,255,255),'ZCode':(0,0,0),'Gemini':(38,112,223)}
     def bounds(item):
         x,y=round(item['x']),round(item['y'])
         return (x,y,x+round(item['width']),y+round(item['height']))
@@ -99,54 +104,94 @@ try:
         return ImageGrab.grab(bbox=bounds(item),all_screens=True).convert('RGB')
     def distance(a,b):
         return max(abs(p-q) for p,q in zip(a,b))
-    def missing_arc(image,ink):
-        # Cast rays through the outline. Only a contiguous sector may lack brand ink.
-        cx,cy=(image.width-1)/2,(image.height-1)/2
-        gaps=[]
-        for i in range(72):
-            theta=i*math.tau/72
-            hits=[image.getpixel((round(cx+r*math.cos(theta)),round(cy+r*math.sin(theta))))
-                  for r in range(round(image.width*.32),math.floor(min(cx,cy))+1)]
-            gaps.append(all(distance(p,ink)>50 for p in hits))
-        # An isolated missed ray at this size spans about a single pixel.
-        return [gap and (gaps[i-1] or gaps[(i+1)%len(gaps)]) for i,gap in enumerate(gaps)]
+    def equal(a,b):
+        return ImageChops.difference(a,b).getbbox() is None
     def check_hollow(image,bg):
-        # Leave space for the fixed status character in the center.
+        # Sample the clear middle of the hub to both sides of the glyph.
+        # Completion minutes occupy the lower half of this same aperture.
         cx,cy=(image.width-1)/2,(image.height-1)/2
         side=[image.getpixel((x,y)) for y in range(image.height) for x in range(image.width)
-              if .18*image.width<abs(x-cx) and (x-cx)**2+(y-cy)**2<(.32*image.width)**2]
-        assert side and sum(distance(p,bg)<=2 for p in side)/len(side)>.80, 'Opaque ring interior'
-    def check_gap(gaps):
-        starts=sum(gap and not gaps[i-1] for i,gap in enumerate(gaps))
-        assert starts==1 and 3<=sum(gaps)<=14, ('Expected a single short gap',sum(gaps),starts)
+              if .24*image.width<abs(x-cx)<.34*image.width and abs(y-cy)<.1*image.height]
+        hits=sum(distance(p,bg)<=2 for p in side)
+        assert side and hits/len(side)>.85, ('QDT-V01 opaque ring interior',hits,len(side),bg)
+    def rim_pixels(image):
+        cx,cy=(image.width-1)/2,(image.height-1)/2
+        for y in range(image.height):
+            for x in range(image.width):
+                dx,dy=x-cx,y-cy
+                if .32*image.width<math.hypot(dx,dy)<.51*image.width:
+                    yield dx,dy,image.getpixel((x,y))
     def check_scene(palette):
         for item in orbs:
-            name=next(name for name in colors if name in item['name'])
-            image=ring_image(item)
-            check_hollow(image,palette)
-            gaps=missing_arc(image,colors[name])
-            if name=='Gemini':
-                check_gap(gaps)
+            img=ring_image(item)
+            check_hollow(img,palette)
+            pixels=[p for _,_,p in rim_pixels(img)]
+            if 'Codex' in item['name']:
+                present=sum(min(p)>204 and distance(p,palette)>25 for p in pixels)
+            elif 'ZCode' in item['name']:
+                present=sum(max(p)<45 for p in pixels)
             else:
-                assert not any(gaps), (name,'Incomplete idle ring',sum(gaps))
+                present=sum(p[2]-p[0]>52 for p in pixels)
+            assert present>=8, ('QDT-V02 missing agent rim',item['name'],present)
+    def check_soft_light(image):
+        # A stationary Gemini has a broad upper-left reflection. Sample only blue
+        # ring pixels, away from the glyph and the neutral desktop.
+        sectors=[]
+        for cx,cy in [(-1,-1),(1,1)]:
+            pixels=[p[1] for dx,dy,p in rim_pixels(image)
+                    if dx*cx>1 and dy*cy>1 and p[2]-p[0]>48]
+            assert len(pixels)>=8,('QDT-V03 missing shaded sector',len(pixels))
+            sectors.append(sum(pixels)/len(pixels))
+        assert sectors[0]>sectors[1]+10,('QDT-V04 stationary rim lacks upper-left reflection',sectors)
+        print('stationary rim green-channel sector means:',[round(v,1) for v in sectors])
+    def task_state(title,state):
+        with sqlite3.connect(data/'conversation_summaries.db') as fixture:
+            fixture.execute('UPDATE conversation_summaries SET status=? WHERE title=?',(state,title))
+    def wait_motion(item,moving):
+        for _ in range(50):
+            first=ring_image(item)
+            time.sleep(.18)
+            second=ring_image(item)
+            if equal(first,second)==(not moving):
+                time.sleep(.21)
+                if equal(first,ring_image(item))==(not moving):
+                    return second
+        raise AssertionError(('QDT-V05 unexpected ring motion',moving))
+    def crop_button(image,item):
+        x,y,r,b=bounds(item)
+        left,_,_,bottom=win32gui.GetWindowRect(hwnd)
+        top=bottom-image.height
+        return image.crop((x-left,y-top,r-left,b-top))
     assert ' 3 个任务' in orb_name, orb_name
     gemini=next(b for b in orbs if b['name']==orb_name)
-    # Muted, nonsaturated fixture backgrounds make each provider stroke independently measurable.
+    dpi_scale=ctypes.windll.user32.GetDpiForWindow(hwnd)/96
+    assert abs(gemini['width']-29*dpi_scale)<=1,(gemini['width'],dpi_scale,'QDT-V06 standard width')
     backgrounds={'light':(225,218,204),'dark':(66,77,87)}
+    if options.gemini_window:
+        expected={f'{agent} {period}，剩余 {value}%' for agent,pair in
+                  [('Gemini Web',(72,95)),('AG Gemini',(76,46)),('AG Claude/GPT',(12,30))]
+                  for period,value in zip(('5 小时','一周'),pair)}
+        ready(lambda x:expected.issubset(x['names']))
+        back.configure(bg='#424d57')
+        back.update()
+        time.sleep(.3)
+        check_scene(backgrounds['dark'])
+        capture('gemini-window',174)
+        print('Three water rings and six anonymous Gemini quota readings appeared together.')
+        raise SystemExit(0)
     for theme,palette in backgrounds.items():
         back.configure(bg='#%02x%02x%02x'%palette)
         back.update()
         time.sleep(.3)
-        check_scene(palette)
         if not options.reduced_motion:
             capture('standard-'+theme,174)
+        check_scene(palette)
     if options.reduced_motion:
-        fixed=ring_image(gemini)
+        first=ring_image(gemini)
         time.sleep(.45)
-        later=ring_image(gemini)
-        assert ImageChops.difference(fixed,later).getbbox() is None,'Reduced motion gap moved'
+        assert equal(first,ring_image(gemini)),'QDT-V07 reduced-motion water moved'
         capture('reduced',174)
-        print('Single static running gap and transparent centers passed on both backgrounds')
+        print('Running water remained fixed with reduced motion. Transparent centers passed on both backgrounds.')
         raise SystemExit(0)
     call('hover',name=orb_name)
     ready(lambda x:any('等待你操作 · Gemini / Antigravity' in b for b in x['buttons']) and
@@ -154,53 +199,58 @@ try:
     capture('origins',334)
     win32api.SetCursorPos((30,40))
     closed=ready(lambda x:not any('匿名桌面报错' in b for b in x['buttons']))
-    orb=next(item for item in closed['buttonBounds'] if item['name']==orb_name)
-    # Record a rotation using the UI Automation rectangle of the real button.
-    box=bounds(orb)
+    group=[b for b in closed['buttonBounds'] if b['name'].startswith('查看 ') and ' 全部 ' in b['name']]
+    orb=next(item for item in group if item['name']==orb_name)
     frames=[]
-    ring_frames=[]
     started=time.monotonic()
-    for index in range(33):
+    for index in range(32):
         time.sleep(max(0,started+index*.1-time.monotonic()))
-        image=grab_window(174)
-        l,_,_,b=win32gui.GetWindowRect(hwnd)
-        top=b-image.height
-        cropped=image.crop((box[0]-l,box[1]-top,box[2]-l,box[3]-top))
-        frames.append(image)
-        ring_frames.append(cropped)
-    for image in ring_frames:
-        check_gap(missing_arc(image,colors['Gemini']))
-    shifts={tuple(missing_arc(image,colors['Gemini'])) for image in ring_frames}
-    assert len(shifts)>12, ('Gap did not rotate',len(shifts))
-    middle=tuple(round(v*ring_frames[0].width) for v in (.32,.25,.68,.75))
-    mark=ring_frames[0].crop(middle)
-    assert all(ImageChops.difference(mark,image.crop(middle)).getbbox() is None for image in ring_frames[1:]), 'Center symbol moved'
-    assert any(distance(p,backgrounds['dark'])>60 for p in mark.get_flattened_data()),'Missing center symbol'
-    frames[0].save(out/'motion.webp',save_all=True,append_images=frames[1:-1],duration=100,lossless=True,loop=0)
-    print(f'{len(shifts)} measured gap positions, error symbol stayed fixed')
-    with sqlite3.connect(data/'conversation_summaries.db') as fixture:
-        fixture.execute("UPDATE conversation_summaries SET status='CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT' WHERE title='匿名桌面运行'")
-    for _ in range(60):
-        if not any(missing_arc(ring_image(orb),colors['Gemini'])): break
+        frames.append(grab_window(174))
+    for item in group:
+        samples=[crop_button(frame,item) for frame in frames]
+        if item['name']!=orb_name:
+            assert all(equal(samples[0],later) for later in samples[1:]),('QDT-V08 static ring moved',item['name'])
+            continue
+        positions=len({s.tobytes() for s in samples})
+        assert positions>16,('QDT-V09 running water did not travel',positions)
+        # Fit the 24-unit exclamation path (x=12, y=4…20) and its stroke.
+        # The moving rim casts a subpixel reflection just inside the aperture.
+        middle=tuple(round(v*samples[0].width) for v in (.40,.27,.6,.73))
+        mark=samples[0].crop(middle)
+        differences=[ImageChops.difference(mark,image.crop(middle)) for image in samples[1:]]
+        assert all(diff.getbbox() is None for diff in differences),('QDT-V10 center symbol moved',[(d.getbbox(),d.getextrema()) for d in differences if d.getbbox()][:2])
+        assert any(distance(mark.getpixel((x,y)),backgrounds['dark'])>55
+                   for y in range(mark.height) for x in range(mark.width)),'QDT-V11 missing error mark'
+    frames[0].save(out/'motion.webp',save_all=True,append_images=frames[1:],duration=100,lossless=True,loop=0)
+    print(f'{positions} unique running frames. Both stationary buttons and the mixed-state error symbol stayed fixed.')
+    task_state('匿名桌面运行','CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT')
+    stationary=wait_motion(orb,False)
+    check_soft_light(stationary)
+    capture('static-error',174)
+    task_state('匿名桌面报错','CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT')
+    for _ in range(80):
+        if not equal(stationary.crop(middle),ring_image(orb).crop(middle)): break
         time.sleep(.15)
-    else: raise AssertionError('Ring did not close after the final running task stopped')
-    capture('idle',174)
-    with sqlite3.connect(data/'conversation_summaries.db') as fixture:
-        fixture.execute("UPDATE conversation_summaries SET status='CASCADE_RUN_STATUS_RUNNING' WHERE title='匿名桌面运行'")
+    else: raise AssertionError('QDT-V12 waiting glyph did not replace the error glyph')
+    check_soft_light(wait_motion(orb,False))
+    capture('static-waiting',174)
+    task_state('匿名桌面运行','CASCADE_RUN_STATUS_RUNNING')
+    task_state('匿名桌面报错','CASCADE_RUN_STATUS_ERROR')
     call('settings')
     click('收起为窄条')
-    compact=ready(lambda x:x['width']==260 and any(24 <= b['width'] <= 26 and abs(b['height']-b['width'])<=1
+    compact=ready(lambda x:abs(x['width']-260*dpi_scale)<=1 and any(abs(b['width']-25*dpi_scale)<=1 and abs(b['height']-b['width'])<=1
           for b in x['buttonBounds'] if b['name'].startswith('查看 Gemini 全部')))
     tiny=next(b for b in compact['buttonBounds'] if b['name']==orb_name)
-    for _ in range(50):
-        if sum(missing_arc(ring_image(tiny),colors['Gemini']))>=3: break
-        time.sleep(.15)
-    check_gap(missing_arc(ring_image(tiny),colors['Gemini']))
+    check_hollow(wait_motion(tiny,True),backgrounds['dark'])
     win32api.SetCursorPos((30,40))
     capture('narrow',92)
-    print('native brand rings, hover task list, pointer exit and narrow layout passed')
+    print('Native water rings, static material, hover, pointer exit and narrow layout passed.')
 
 finally:
-    win32api.SetCursorPos(cursor)
     if app and app.poll() is None: app.terminate();app.wait(timeout=10)
     if back:back.destroy()
+    if panels and panels.poll() is None:
+        panels.stdin.write('quit\n')
+        panels.stdin.flush()
+        panels.wait(timeout=15)
+    win32api.SetCursorPos(cursor)

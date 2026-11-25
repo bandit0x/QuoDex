@@ -12,7 +12,7 @@
 | 报错 | 珊瑚色实线环，中间为分开的竖笔与短点。 |
 | 未知 | 银灰虚线环，中间为问号。 |
 
-顶部每个 Agent 只占一环。对照稿把颜色用于识别 Agent，沿用旧版的笔画、分钟布局和水纹运动，并让圆心透出桌面。同一 Agent 的不同聊天可以同时运行和报错，样稿用外围水纹与中心叹号一起表达。在正式版 `b47c86b` 中，顶部运行环仍是旋转缺口。[当前版 Windows 实录](../../../verification/gemini-taskbar/rings/motion.webp)
+顶部每个 Agent 只占一环。对照稿把颜色用于识别 Agent，沿用旧版的笔画、分钟布局和水纹运动，并让圆心透出桌面。同一 Agent 的不同聊天可以同时运行和报错，样稿用外围水纹与中心叹号一起表达。[透明环心正式浮窗验收](../../../verification/gemini-taskbar/README.md) · [旧版 `b47c86b` 的旋转缺口](../../../verification/gemini-taskbar/rings/motion.webp)
 
 原版笔画在标签的 `src/TaskStatusStrip.tsx`，材质计算在 `src/TaskWaterFlow.tsx`。后者在标签和 `b47c86b` 中指向相同的 Git blob `a877aa534d8bf5671b52f7ec46a55af4acaab3a5`。可用 `git show v0.4.10:src/TaskWaterFlow.tsx` 查看原算法。
 
