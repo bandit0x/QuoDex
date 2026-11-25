@@ -1,6 +1,18 @@
 # Gemini 无感额度探测开发方案
 
-本次重设计基于 f1e59f4。目标环境为 Windows、Google One AI Plus、已登录的 Antigravity Desktop 和系统 Chrome/Edge。用户只安装 QuoDex。AG 正常聊天或最小化时，两组额度持续刷新；Web 首次完成专用网页登录，此后可关闭所有可见页面。本文等待用户确认实施。
+本次重设计基于 f1e59f4。目标环境为 Windows、Google One AI Plus、已登录的 Antigravity Desktop 和系统 Chrome/Edge。用户只安装 QuoDex。AG 正常聊天或最小化时，两组额度持续刷新；Web 首次完成专用网页登录，此后可关闭所有可见页面。原方案已获用户授权；下面记录本机实测发现以及待确认的取数路径变更。
+
+## 当前实测：2026-11-25
+
+**真实取数实验：Verified；正式 AG 入口：Not built。** 当前产品代码仍是进程检查占位。本轮只验证取数，不以实验脚本代替安装包验收。
+
+- Windows 上的 AG 2.35.1 将本机会话参数从命令行移到了子进程环境；运行后的环境中也已无该参数。对当前桌面实例的实际 HTTPS 请求返回 401。安装包 `dist/languageServer.js`、`dist/authBootstrap.js` 确认了启动参数和认证要求。这是本机版本与先前参考实现的具体差异。
+- 可行实验是调用**已安装 AG 自带的 `language_server.exe`**，使用它的普通 Desktop 认证模式、独立临时应用目录及本实验生成的本机会话参数。Google 登录仍由该官方运行时管理；实验不读取其他进程的凭据，不复制 Google 令牌。`--headless` 会切换到 CLI 文件认证，实测无法复用当前 Desktop 登录，因此不使用该参数。程序通过 Windows 无窗口方式运行，不打开额度面板。
+- 21:44 首次取得四项真实额度。21:46:15、21:48:16（北京时间）间隔采样均成功，采样前后账号相同。Gemini 五小时/周剩余为 100% / 72.46912%，Claude/GPT 为 100% / 50%。`3p-5h` 没有 `resetTime`，不得补造。两次值相同，**尚未验证消耗后的数值变化，也未做 Models 面板对照**。
+- 21:50:54 用整理后的脚本再次成功。它从本机安装包 `dist/actuator/pinnedLsCert.js` 加载证书，开启证书链和 `127.0.0.1` 主机名验证，没有禁用 TLS 校验。临时服务退出和临时数据删除均通过。原桌面进程继续运行。
+- 测试来源：产品基线 `74accd6`；AG 2.35.1 的 `language_server.exe` SHA-256 为 `73CE9A2405B455A93D1F13DB2AE555DA50406110217A349B6DD85C377FBDB9D1`。[可复现脚本](../../research/gemini-background-probe/verify-official-runtime.py) · [匿名采样记录](../../verification/gemini-live/official-runtime-2026-11-25.jsonl)。开发环境执行 `python docs/research/gemini-background-probe/verify-official-runtime.py --samples 2 --interval 120`；Python 仅用于本实验，不作为产品安装依赖。
+
+**待确认变更：** 将“连接用户桌面现有服务”改为“QuoDex 按需启动已安装的官方服务，读取后退出”，替换 `desktop_status()`。无需安装扩展、桥或 CLI。实测服务工作集约 173 MiB，因此不默认长期驻留。此变更只作用于 AG 两仓，Web 保持独立。正式接入须补齐原生进程生命周期、超时清理、账号隔离及错误诊断，并继续验证自然消耗/重置、桌面退出场景和实际安装包。按用户 AGENTS.md 第 4.6 条，已提交方法变更确认，确认前不替换正式入口。
 
 ## 核心改动
 
