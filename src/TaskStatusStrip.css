@@ -15,6 +15,7 @@
 }
 .task-agent-orb {
   position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   width: 57px;
@@ -23,25 +24,57 @@
   border: 0;
   border-radius: 50%;
   cursor: pointer;
-  color: #f5fbff;
-  background: radial-gradient(ellipse at 38% 15%, #5b727e 0%, #243a47 25%, #11212e 59%, #0c1821 77%, #41535b 100%);
-  box-shadow: inset 0 1px 2px #e6ffff, 0 2px 4px #0d233c70;
-  font: 750 31px/1 "Segoe UI Symbol", "Segoe UI", sans-serif;
+  color: var(--orb-ink);
+  background: var(--orb-face);
+  font: 700 30px/1 "Segoe UI Symbol", "Segoe UI", sans-serif;
+}
+.task-agent-orb[data-agent="Codex"] {
+  --orb-face: #abc8dc;
+  --orb-shade: #80acc7;
+  --orb-light: #e4f3fa;
+  --orb-ink: #193648;
+}
+.task-agent-orb[data-agent="ZCode"] {
+  --orb-face: #a5c6b0;
+  --orb-shade: #86b29a;
+  --orb-light: #e2f0dc;
+  --orb-ink: #1d392d;
+}
+.task-agent-orb[data-agent="Gemini"] {
+  --orb-face: #d0b7cc;
+  --orb-shade: #b08eae;
+  --orb-light: #fae5ed;
+  --orb-ink: #43283f;
 }
 .task-agent-orb::before {
   content: "";
   position: absolute;
-  inset: 2px;
+  inset: 0;
   border-radius: inherit;
-  background: conic-gradient(from 38deg, var(--agent-color) 0deg, #f4ffff 40deg, var(--agent-color) 75deg, #243643 110deg, var(--agent-color) 190deg, #789098 224deg, var(--agent-color) 310deg);
-  mask: radial-gradient(circle closest-side, transparent 75%, #000 80%);
+  background: conic-gradient(from -50deg,
+    var(--orb-face) 0% 23%, var(--orb-shade) 49%, var(--orb-light) 62%,
+    var(--orb-shade) 74%, var(--orb-face) 94%);
+  opacity: 0;
+  visibility: hidden;
+  animation: agent-face-turn 3.5s linear infinite;
+  transition: opacity 650ms ease-in-out, visibility 0s linear 650ms;
 }
-.task-agent-orb span { position: relative; text-shadow: 0 1px 2px #10232f; }
-.task-agent-orb[data-spinning]::before { animation: agent-ring-turn 1.65s linear infinite; }
-.task-agent-orb:focus-visible { outline: 3px solid var(--agent-color); outline-offset: 3px; }
+.task-agent-orb[data-spinning]::before {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+@starting-style {
+  .task-agent-orb[data-spinning]::before { opacity: 0; }
+}
+.task-agent-orb span { position: relative; }
+.task-agent-orb:focus-visible { outline: 3px solid var(--orb-ink); outline-offset: 3px; }
 .task-strip--compact .task-agent-orb { width: 50px; height: 50px; font-size: 27px; }
-@keyframes agent-ring-turn { to { transform: rotate(1turn); } }
-@media (prefers-reduced-motion: reduce) { .task-agent-orb[data-spinning]::before { animation: none; } }
+@keyframes agent-face-turn { to { transform: rotate(1turn); } }
+.task-strip[data-reduced-motion] .task-agent-orb::before { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .task-agent-orb::before { display: none; }
+}
 .task-circle {
   position: relative;
   display: flex;

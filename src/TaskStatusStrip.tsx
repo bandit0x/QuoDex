@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./TaskStatusStrip.css";
 import { readyTaskSources, taskSourceNames, type ChatTask, type TaskSourceStatus } from "./taskStatusTypes";
 import { isOverlayTaskPointerInside } from "./windowClient";
@@ -63,9 +63,9 @@ function dismissAriaLabel(task: ChatTask): string {
 }
 
 const taskGroups = [
-  { name: "Codex", entries: ["codex"], color: "#62d8fc" },
-  { name: "ZCode", entries: ["zcode"], color: "#75e5b1" },
-  { name: "Gemini", entries: ["geminiWeb", "antigravity"], color: "#d2a0fa" },
+  { name: "Codex", entries: ["codex"] },
+  { name: "ZCode", entries: ["zcode"] },
+  { name: "Gemini", entries: ["geminiWeb", "antigravity"] },
 ];
 const statePriority = { failed: 0, waiting: 1, running: 2, unknown: 3, completed: 4 };
 export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, compact = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
@@ -129,7 +129,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     setSelection(name);
   };
   return <>
-    <section className={`task-strip${compact ? " task-strip--compact" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+    <section className={`task-strip${compact ? " task-strip--compact" : ""}`} data-reduced-motion={reducedMotion || undefined} aria-label="聊天任务" onMouseLeave={scheduleClose}>
       {shown.map(group => {
         const states = group.tasks.map(task => task.state);
         const unavailable = group.statuses.some(status => status.health !== "ready");
@@ -137,7 +137,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
         const mark = states.includes("failed") ? "!" : states.includes("waiting") ? "Ⅱ"
           : states.includes("completed") ? "✔" : states.includes("unknown") || unavailable || diagnostic ? "?" : "";
         return <button type="button" key={group.name} className="task-agent-orb"
-          style={{ "--agent-color": group.color } as CSSProperties} data-agent={group.name}
+          data-agent={group.name}
           data-spinning={spinning || undefined} aria-expanded={selection === group.name}
           aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
           onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>

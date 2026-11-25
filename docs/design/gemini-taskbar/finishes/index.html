@@ -1,0 +1,30 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>QuoDex · Agent 圆环配色</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f6f5f0;color:#24323b;font:14px/1.4 "Segoe UI","Microsoft YaHei UI",sans-serif}
+main{padding:28px 32px 22px;width:min(1085px,100%);margin:auto}
+header{padding:0 0 14px;border-bottom:1px solid #b2b8b7;display:flex;align-items:center;gap:18px}em{font:italic 34px Georgia;color:#1f3644}h1{font:bold 20px "Microsoft YaHei UI";margin:0}
+section{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+article{min-width:0}h2{display:flex;gap:8px;align-items:baseline;font:600 20px "Microsoft YaHei UI";margin:19px 0 2px}h2 i{color:#717464;font:italic 20px Georgia}
+p{font-size:12px;color:#59666c;margin:4px 0 13px}.paper{background:#eff2f6;padding:14px 0 5px;display:grid;place-items:center;border-block:1px solid #d6dce0}.sample{width:300px}.sample.narrow{width:260px}.meter{display:block;width:100%;height:auto}
+.row{display:flex;align-items:center;gap:4.5px;padding-left:17px;height:36px}.narrow .row{gap:4.5px;padding-left:8px;height:33px}
+.orb{appearance:none;background:var(--body);color:var(--ink);position:relative;isolation:isolate;border-radius:50%;border:0;display:inline-grid;place-items:center;width:28.5px;height:28.5px;flex:none;cursor:pointer;padding:0;outline-offset:2px;font:700 15px/1 "Segoe UI Symbol",sans-serif}
+.orb::before{content:"";position:absolute;inset:0;border-radius:inherit;background:conic-gradient(from -50deg,var(--body) 0% 23%,var(--flow) 49%,var(--crest) 62%,var(--flow) 74%,var(--body) 94%);animation:turn var(--period,2.2s) linear infinite;opacity:0;transition:opacity .65s ease-in-out;mask:radial-gradient(farthest-side,transparent calc(100% - var(--edge,4px)),black calc(100% - var(--edge,4px) + .6px))}.orb span{position:relative;z-index:1}
+[data-on] .orb::before{opacity:1}.narrow .orb{width:25px;height:25px;font-size:13.5px}
+.b .orb{--edge:50px;--period:3.5s}.c .orb{background:transparent;color:var(--body);border:2.5px solid var(--body)}.c .orb::before{inset:-2.5px;--edge:2.8px;--period:2s}
+@keyframes turn{to{transform:rotate(360deg)}}
+.controls{display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;color:#4b5c65;font-size:12px}.controls button{font:inherit;color:#253744;border:1px solid #9aa6ac;border-radius:4px;padding:2px 8px;background:transparent;cursor:pointer}
+.details{font:11px "Segoe UI";color:#485765;padding:8px 0 3px}.zoom{display:flex;align-items:center;gap:11px;padding:8px 0 10px;height:56px}.zoom .orb{width:42px;height:42px;font-size:22px}
+@media(max-width:920px){section{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}}
+@media(prefers-reduced-motion:reduce){.orb::before{animation:none;transition:none}}
+</style><main><header><em>QuoDex</em><h1>任务圆环</h1></header><section></section></main><script>
+const variants=[
+ ['a','A','矿物釉','深蓝、青玉、紫晶；运转时，窄光带沿边缘掠过。',[['#284E67','#5687A1','#C4E5ED','#FFFDF4'],['#286053','#56997E','#BEEDD2','#FFFDF4'],['#674565','#AA779D','#F6CFE7','#FFFDF4']]],
+ ['b','B','瓷粉','雾蓝、鼠尾草、藕紫；运行色从浅色圆面缓缓漂移。',[['#ABC8DC','#80ACC7','#E4F3FA','#193648'],['#A5C6B0','#86B29A','#E2F0DC','#1D392D'],['#D0B7CC','#B08EAE','#FAE5ED','#43283F']]],
+ ['c','C','墨线','钴蓝、松绿、靛紫；细实线起转后浮出一段亮弧。',[['#20598B','#418BB9','#A8DBEC','#20598B'],['#317B66','#60A98C','#C1ECCA','#317B66'],['#765187','#AB78AA','#EBCBEB','#765187']]]
+];
+const mount=document.querySelector('section');
+function orbs(colors){return colors.map(([b,f,c,ink],i)=>'<button class="orb" type="button" aria-label="'+['Codex','ZCode','Gemini'][i]+'" title="'+['Codex','ZCode','Gemini'][i]+'" style="--body:'+b+';--flow:'+f+';--crest:'+c+';--ink:'+ink+'"><span>'+['!','Ⅱ','✔'][i]+'</span></button>').join('')}
+function sample(name,colors){return '<div class="paper"><div class="sample '+name+'"><div class="row">'+orbs(colors)+'</div><img class="meter" src="../../../verification/gemini-live/'+name+'.png" alt="额度仓"></div></div>'}
+variants.forEach(([k,n,title,desc,colors])=>{const a=document.createElement('article');a.className=k;a.innerHTML='<h2><i>'+n+'</i>'+title+'</h2><p>'+desc+'</p><div class="controls">标准 · 静置</div>'+sample('standard',colors)+'<div class="controls">窄条 · 运行</div><div data-on>'+sample('narrow',colors)+'</div><div class="controls">启停对照 · 放大 <button class="toggle">运行 / 停止</button></div><div class="zoom" data-on>'+orbs(colors)+'</div><div class="details">Codex　 /　 ZCode　 /　 Gemini</div>';a.addEventListener('click',e=>{if(e.target.closest('button'))a.querySelector('.zoom').toggleAttribute('data-on')});mount.append(a)});
+</script></html>

@@ -20,7 +20,7 @@ QuoDex lives in a corner of your desktop: check how much Codex / ZCode quota rem
 ## Key Features
 
 - **Quota & resets** — 5-hour, weekly or single-pool plans, Codex / ZCode switching and auto-rotation, available reset counts at a glance.
-- **Two task groups** — Codex and ZCode side by side with 5 items each, color-coded as running / waiting / succeeded / errored; completion alerts dismiss in one click.
+- **Chat tasks** — Codex uses a pale blue dot, ZCode sage green, and Gemini soft lilac. Each dot has a solid fill at rest. While a task runs, a gradient slowly rotates across the disc. A centered `!`, `Ⅱ`, or `✔` marks an error, a waiting task, or a recent completion. Hover to see the chats, including the Web or Antigravity source for Gemini. [Taskbar verification](docs/verification/gemini-taskbar/README.md)
 - **Liquid glass** — the fluid level follows your remaining balance and sloshes naturally while dragging; standard and narrow-strip views with adjustable background transparency.
 - **Token usage** — one click in Settings opens a local web page: six ranges from 7 days to 1 year, combined or split views, monthly heat walls and trend charts; the local ledger is kept long-term.
 - **Cross-PC ledger** — connect your own Baidu Netdisk app to view recorded token usage across devices, with automatic sync every six hours, request deduplication and explicit conflict reporting. Live transfer has been verified on one Windows PC; two-PC and macOS sync validation remain pending. [Setup and verification](docs/research/remote-record/README.md)
