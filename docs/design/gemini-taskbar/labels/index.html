@@ -1,0 +1,14 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>QuoDex · 任务标签对照</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;color:#27333c;background:#f6f5f0;font:14px "Microsoft YaHei UI",sans-serif}main{display:grid;grid-template-columns:repeat(3,320px);gap:12px}article{border-top:1px solid #8d928e;padding-top:10px}h2{font-size:18px;margin:0 0 8px}p{font-size:12px;color:#475362;margin:10px 0 4px}.sample{background:#eff2f6;display:grid;justify-content:center;padding:12px 0 6px}.shell{width:300px}.small{width:260px}.base{width:100%;display:block}.crop{height:116px;overflow:hidden}.crop img{margin-top:-58px}.small .crop{height:43px}.small .crop img{margin-top:-49px}.strip{margin-left:12px;display:flex;align-items:center;gap:3px;color:#fff0d0;text-shadow:0 1px 2px #030c18}.prism{position:relative;width:32px;flex:none}.prism img{width:100%;display:block}.prism b{position:absolute;bottom:1px;left:46%;font:italic bold 11px Georgia}.rows{display:grid;gap:1px}.rail{background:linear-gradient(177deg,#75969e,#233444 22%,#101f30 75%,#496075);box-shadow:inset 0 1px #bfd4d580;border-radius:4px;padding:1px 7px;display:flex;align-items:center;gap:7px}.rail b{font:bold 14px/15px Georgia}.rail span{font:600 12px/15px "Microsoft YaHei UI";color:var(--ink);white-space:nowrap}.a .rail b{width:54px}.b .rows,.c .rows{display:flex;gap:2px}.b .rail{flex-direction:column;align-items:flex-start;gap:1px;padding:3px 6px}.c .rail{display:grid;gap:0;padding:4px 6px;border-bottom:2px solid var(--ink)}.c .rail span{font:bold 14px/15px Georgia}.small .rail{padding-inline:4px}.small .prism{width:28px}.small .strip{margin-left:6px}
+</style><main></main><script>
+const variants=[['a','A · 加大三条光纤'],['b','B · 三列状态签'],['c','C · 三列计数签']];
+const sources=[['Codex','运行','▶','#a5eaff'],['ZCode','等待','Ⅱ','#ffda96'],['Gemini','完成','✓','#a4f3ce']];
+for(const [kind,title] of variants){
+ const article=document.createElement('article');article.className=kind;article.innerHTML='<h2>'+title+'</h2>';document.querySelector('main').append(article);
+ for(const [size,label,file] of [['','标准 · 300 px','standard'],['small','窄条 · 260 px','narrow']]){
+ const rows=sources.map(([name,status,sign,color])=>'<div class="rail" style="--ink:'+color+'"><b>'+name+'</b><span>'+(kind==='c'?sign+' 1':status+' 1')+'</span></div>').join('');
+ article.insertAdjacentHTML('beforeend','<p>'+label+'</p><div class="sample"><div class="shell '+size+'"><div class="strip"><div class="prism"><img src="../../../../src/task-prism.webp"><b>1</b></div><div class="rows">'+rows+'</div></div><div class="crop"><img class="base" src="../../../verification/gemini-taskbar/'+file+'.png"></div></div></div>');
+ }}
+</script></html>
+
