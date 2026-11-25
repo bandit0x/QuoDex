@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { nextCarouselSource, selectedCarouselSources } from "./quotaCarousel";
 import { useTaskMaterial } from "./useTaskMaterial";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import { TaskStatusStrip, visibleChatTasks } from "./TaskStatusStrip";
 import { useTaskStatus } from "./useTaskStatus";
@@ -55,6 +56,7 @@ import {
   TASK_POPOVER_HEIGHT,
   planSettingsExtraHeight,
   SETTINGS_DETAILS_EXTRA_HEIGHT,
+  SETTINGS_CAROUSEL_EXTRA_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -750,15 +752,22 @@ export function App({
   }, [probeRoute]);
 
   const sourceSelection = normalizeSourceSelection(preferences.source);
-  const geminiEnabled = sourceSelection === "gemini" || (sourceSelection === "carousel" && preferences.geminiInCarousel === true);
+  const carouselSources = useMemo(
+    () => selectedCarouselSources({ carouselSources: preferences.carouselSources }),
+    [preferences.carouselSources],
+  );
+  const shownCarouselSource = carouselSources.includes(carouselSource)
+    ? carouselSource : nextCarouselSource(carouselSource, carouselSources);
+  const geminiEnabled = sourceSelection === "gemini" || (sourceSelection === "carousel" && carouselSources.includes("gemini"));
   const gemini = useGeminiQuota(geminiEnabled, loadGeminiSnapshot);
 
   useEffect(() => {
     if (sourceSelection !== "carousel") return;
+    setCarouselSource(current => carouselSources.includes(current) ? current : nextCarouselSource(current, carouselSources));
     let timer: number | null = null;
     const scheduleToggle = () => {
       timer = window.setTimeout(() => {
-        setCarouselSource(value => value === "codex" ? "zcode" : value === "zcode" && geminiEnabled ? "gemini" : "codex");
+        setCarouselSource(value => nextCarouselSource(value, carouselSources));
         scheduleToggle();
       }, CAROUSEL_INTERVAL_MS);
     };
@@ -766,7 +775,7 @@ export function App({
     return () => {
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [sourceSelection, geminiEnabled]);
+  }, [sourceSelection, carouselSources]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1090,6 +1099,7 @@ export function App({
   }, [closeSettingsWindow, settingsPresentation, commitOpacity]);
 
   const settingsExtraHeight = planSettingsExtraHeight(Boolean(preferenceSaveError), Boolean(usageOpenError))
+    + (sourceSelection === "carousel" ? SETTINGS_CAROUSEL_EXTRA_HEIGHT : 0)
     + (settingsDetailsOpen ? SETTINGS_DETAILS_EXTRA_HEIGHT : 0);
   useEffect(() => {
     const generation = ++settingsResizeGeneration.current;
@@ -1158,7 +1168,7 @@ export function App({
     changeLayout("compact");
   }, [changeLayout]);
 
-  const activeSource = sourceSelection === "carousel" ? carouselSource : sourceSelection;
+  const activeSource = sourceSelection === "carousel" ? shownCarouselSource : sourceSelection;
   const activeIsGemini = activeSource === "gemini";
   const activeSlot = activeSource === "codex" ? codexSlot : zcodeSlot;
   const activeIsZcode = activeSource === "zcode";

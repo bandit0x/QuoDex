@@ -742,7 +742,7 @@ describe("Codex capacity overlay", () => {
     const retry = new Promise<void>(resolve => { finishRetry = resolve; });
     const savePreferences = vi.fn().mockRejectedValueOnce(new Error("fixture write failed")).mockImplementationOnce(() => retry);
     const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow);
-    render(<App {...inertPreferences} initialLayout="collapsed" loadSnapshot={async () => healthySnapshot}
+    render(<App {...inertPreferences} loadPreferences={async () => ({ ...basePreferences, source: "codex" })} initialLayout="collapsed" loadSnapshot={async () => healthySnapshot}
       openSettingsWindow={async () => ({ baseLayout: "collapsed", placement: "below", windowPosition: { x: 0, y: 0 }, windowSize: { width: 260, height: 48 + SETTINGS_WINDOW_EXTRA_HEIGHT }, restore: { layout: "collapsed", position: { x: 0, y: 0 } } })}
       savePreferences={savePreferences} resizeSettingsWindow={resizeSettingsWindow} />);
     await screen.findByRole("button", { name: "恢复标准视图" });
@@ -781,7 +781,7 @@ describe("Codex capacity overlay", () => {
     const resizing = new Promise<SettingsWindowPresentation>(resolve => { finishResize = resolve; });
     const resizeSettingsWindow = vi.fn(() => resizing);
     const closeSettingsWindow = vi.fn(async () => undefined);
-    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+    render(<App {...inertPreferences} loadPreferences={async () => ({ ...basePreferences, source: "codex" })} loadSnapshot={async () => healthySnapshot}
       savePreferences={async () => { throw new Error("fixture write failed"); }}
       resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow} />);
     await screen.findByText("76%", { exact: false });
@@ -800,7 +800,7 @@ describe("Codex capacity overlay", () => {
     let finishExpansion: (next: SettingsWindowPresentation) => void = () => undefined;
     const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
     const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow).mockImplementationOnce(() => expansion);
-    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} resizeSettingsWindow={resizeSettingsWindow}
+    render(<App {...inertPreferences} loadPreferences={async () => ({ ...basePreferences, source: "codex" })} loadSnapshot={async () => healthySnapshot} resizeSettingsWindow={resizeSettingsWindow}
       savePreferences={vi.fn().mockRejectedValueOnce({ code: "CRV-304", message: "无法保存本地显示偏好" }).mockResolvedValue(undefined)} />);
     await screen.findByText("76%", { exact: false });
     fireEvent.contextMenu(screen.getByRole("main"));
@@ -820,7 +820,7 @@ describe("Codex capacity overlay", () => {
     const closing = new Promise<void>(resolve => { finishClose = resolve; });
     const resizeSettingsWindow = vi.fn(inertPreferences.resizeSettingsWindow);
     const closeSettingsWindow = vi.fn(() => closing);
-    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} savePreferences={() => saving}
+    render(<App {...inertPreferences} loadPreferences={async () => ({ ...basePreferences, source: "codex" })} loadSnapshot={async () => healthySnapshot} savePreferences={() => saving}
       resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow} />);
     await screen.findByText("76%", { exact: false });
     fireEvent.contextMenu(screen.getByRole("main"));
@@ -841,7 +841,7 @@ describe("Codex capacity overlay", () => {
     const expansion = new Promise<SettingsWindowPresentation>(resolve => { finishExpansion = resolve; });
     const resizeSettingsWindow = vi.fn().mockImplementationOnce(() => expansion).mockRejectedValueOnce(new Error("fixture resize failed"));
     const closeSettingsWindow = vi.fn(async () => undefined);
-    render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot} openSettingsWindow={async () => initial}
+    render(<App {...inertPreferences} loadPreferences={async () => ({ ...basePreferences, source: "codex" })} loadSnapshot={async () => healthySnapshot} openSettingsWindow={async () => initial}
       resizeSettingsWindow={resizeSettingsWindow} closeSettingsWindow={closeSettingsWindow}
       savePreferences={vi.fn().mockRejectedValueOnce({ code: "CRV-304", message: "无法保存本地显示偏好" }).mockResolvedValue(undefined)} />);
     await screen.findByText("76%", { exact: false });
@@ -1413,7 +1413,7 @@ describe("dual quota sources", () => {
       render(
         <App
           {...inertPreferences}
-          loadPreferences={async () => ({ ...basePreferences, source: "carousel" })}
+          loadPreferences={async () => ({ ...basePreferences, source: "carousel", carouselSources: ["codex", "zcode"] })}
           loadSnapshot={async () => healthySnapshot}
           loadZcodeSnapshot={async () => healthyZcodeSnapshot}
         />,
@@ -1436,6 +1436,37 @@ describe("dual quota sources", () => {
       expect(screen.getByText("CODEX")).toBeInTheDocument();
       expect(screen.getByText(/FULL RESETS/)).toBeInTheDocument();
       expect(screen.queryByText("ZCODE")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rotates only selected quota sources and remembers them across manual viewing", async () => {
+    vi.useFakeTimers();
+    try {
+      const savePreferences = vi.fn(async (_next: DisplayPreferences) => undefined);
+      render(<App {...inertPreferences} savePreferences={savePreferences}
+        loadSnapshot={async () => healthySnapshot} loadZcodeSnapshot={async () => healthyZcodeSnapshot}
+        loadGeminiSnapshot={async () => ({ pools: [], observedAtMs: Date.now() })} />);
+      await act(async () => undefined);
+      fireEvent.contextMenu(screen.getByRole("main"));
+      await act(async () => undefined);
+      const choices = within(screen.getByRole("group", { name: "轮播来源" }));
+      expect(choices.getAllByRole("checkbox", { checked: true })).toHaveLength(3);
+      fireEvent.click(choices.getByRole("checkbox", { name: "ZCode" }));
+      fireEvent.click(choices.getByRole("checkbox", { name: "Codex" }));
+      expect(choices.getByRole("checkbox", { name: "Codex" })).toBeChecked();
+      expect(choices.getByText("轮播至少选择两个 Agent")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "ZCode" }));
+      expect(screen.getByText("ZCODE")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "轮播" }));
+      expect(screen.getByText("CODEX")).toBeVisible();
+      expect(screen.getByRole("checkbox", { name: "ZCode" })).not.toBeChecked();
+      await act(async () => { vi.advanceTimersByTime(10_000); });
+      expect(screen.getByRole("button", { name: "查看 Gemini 额度详情" })).toBeVisible();
+      await act(async () => { vi.advanceTimersByTime(10_000); });
+      expect(screen.getByText("CODEX")).toBeVisible();
+      expect(savePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ carouselSources: ["codex", "gemini"] }));
     } finally {
       vi.useRealTimers();
     }

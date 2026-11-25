@@ -59,7 +59,7 @@ export interface DisplayPreferences {
   x: number | null;
   y: number | null;
   source?: SourceSelection;
-  geminiInCarousel?: boolean;
+  carouselSources?: Exclude<SourceSelection, "carousel">[];
   zcodePlan?: ZCodePlanPreference;
 }
 

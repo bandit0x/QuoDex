@@ -39,7 +39,7 @@ pub struct DisplayPreferences {
     #[serde(default)]
     pub source: MeterSourceSelection,
     #[serde(default)]
-    pub gemini_in_carousel: bool,
+    pub carousel_sources: Option<Vec<MeterSourceSelection>>,
     #[serde(default)]
     pub zcode_plan: ZCodePlanSelection,
     pub x: Option<i32>,
@@ -53,7 +53,7 @@ impl Default for DisplayPreferences {
             reduced_motion: false,
             always_on_top: true,
             source: MeterSourceSelection::default(),
-            gemini_in_carousel: false,
+            carousel_sources: None,
             zcode_plan: ZCodePlanSelection::default(),
             x: None,
             y: None,
@@ -213,7 +213,7 @@ mod tests {
             reduced_motion: true,
             always_on_top: false,
             source: MeterSourceSelection::Carousel,
-            gemini_in_carousel: true,
+            carousel_sources: Some(vec![MeterSourceSelection::Codex, MeterSourceSelection::Gemini]),
             zcode_plan: ZCodePlanSelection::Coding,
             x: Some(120),
             y: Some(240),

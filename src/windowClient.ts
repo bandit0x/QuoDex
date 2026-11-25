@@ -12,6 +12,7 @@ export const overlayLayoutSizes: Record<OverlayLayout, { width: number; height: 
 // 202px 自由液态外壳（含安全内边距）与 6px 外边距。
 export const SETTINGS_WINDOW_EXTRA_HEIGHT = 208;
 export const SETTINGS_ERROR_EXTRA_HEIGHT = 34;
+export const SETTINGS_CAROUSEL_EXTRA_HEIGHT = 32;
 export const SETTINGS_DETAILS_EXTRA_HEIGHT = 48;
 
 /** 设置坞额外高度：基础预算 + 每条可见错误轨 34px（保存失败与用量打开失败各自独立）。 */

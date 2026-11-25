@@ -1,4 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { carouselCandidates, carouselLabels, selectedCarouselSources, type CarouselSource } from "./quotaCarousel";
+import { SETTINGS_CAROUSEL_EXTRA_HEIGHT } from "./windowClient";
 import type { Diagnostic, DisplayPreferences, SourceSelection } from "./capacityTypes";
 import { PlanSegmented } from "./PlanSegmented";
 import { version } from "../package.json";
@@ -32,19 +34,46 @@ interface SettingsDockProps {
 
 export function SettingsDock({ preferences, source, saveState, saveError, usageEntryState = "idle", usageError = null, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit, onOpenUsage, collapsed = false, onToggleLayout, details, detailsOpen = false, onToggleDetails }: SettingsDockProps) {
   const shownAlwaysOnTop = saveState === "saving" ? (preferences.alwaysOnTop ?? true) : (appliedAlwaysOnTop ?? preferences.alwaysOnTop ?? true);
+  const [minimumNotice, setMinimumNotice] = useState(false);
+  const carouselSources = selectedCarouselSources(preferences);
+  const toggleCarouselSource = (candidate: CarouselSource) => {
+    const selected = carouselSources.includes(candidate);
+    if (selected && carouselSources.length === 2) {
+      setMinimumNotice(true);
+      return;
+    }
+    setMinimumNotice(false);
+    onChange({ ...preferences, carouselSources: selected
+      ? carouselSources.filter(source => source !== candidate)
+      : carouselCandidates.filter(source => source === candidate || carouselSources.includes(source)) });
+  };
   const twoErrors = Boolean(saveError && usageError);
-  return <aside className="settings-dock" role="dialog" aria-label="显示设置">
+  return <aside className="settings-dock" role="dialog" aria-label="显示设置" style={source === "carousel"
+    ? { "--carousel-space": `${SETTINGS_CAROUSEL_EXTRA_HEIGHT * 2}px` } as CSSProperties : undefined}>
     <div className={`dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError || usageError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}${detailsOpen ? " dock-controls--details" : ""}`} data-save-state={saveState}>
       <div className="dock-liquid-shell" aria-hidden="true" />
     <div className="dock-sources" role="group" aria-label="额度来源">
       {([['codex', 'Codex'], ['zcode', 'ZCode'], ['gemini', 'Gemini'], ['carousel', '轮播']] as const).map(([value, label]) => <button
         key={value} type="button" className={`glass-lens glass-lens--${value}`} data-glass-lens data-lens-tone={value} data-selected={source === value}
-        aria-pressed={source === value} onClick={() => onChange({ ...preferences, source: value,
-          ...(value === "gemini" ? { geminiInCarousel: true } : {}) })}>
+        aria-pressed={source === value} onClick={() => {
+          setMinimumNotice(false);
+          onChange({ ...preferences, source: value });
+        }}>
         {value === "carousel" ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5m10-4a8 8 0 0 0-13-2m-1 10a8 8 0 0 0 13 2" /></svg> : <span className="lens-state-dot" aria-hidden="true" />}
         <span>{label}</span>
       </button>)}
     </div>
+    {source === "carousel" && <div className="dock-carousel" role="group" aria-label="轮播来源">
+      <span className="dock-carousel-label" aria-live="polite">
+        {minimumNotice ? "轮播至少选择两个 Agent" : "轮播来源"}
+      </span>
+      <div className="dock-carousel-choices">
+        {carouselCandidates.map(candidate => <label key={candidate}>
+          <input type="checkbox" checked={carouselSources.includes(candidate)} onChange={() => toggleCarouselSource(candidate)} />
+          {carouselLabels[candidate]}
+        </label>)}
+      </div>
+    </div>}
       <div className="dock-shortcuts">
       <button className="dock-layout" type="button" disabled={!onToggleLayout} onClick={onToggleLayout}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l5 5M20 4l-5 5M4 20l5-5M20 20l-5-5M5 9h4V5m10 4h-4V5M5 15h4v4m10-4h-4v4" /></svg>{collapsed ? "恢复标准视图" : "收起为窄条"}</button>
       <button className="dock-usage" type="button" data-entry-state={usageEntryState} aria-busy={usageEntryState === "opening"}
