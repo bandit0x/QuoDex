@@ -1,10 +1,17 @@
 # Agent 任务圆环 · Windows 验证
 
-主任务栏最多显示三个圆环，依次为 Codex 青色、ZCode 绿色和 Gemini 紫色。运行任务使品牌色外圈旋转；开启「减少动效」后外圈静止。中心优先显示报错 `!`、等待 `Ⅱ`，随后显示近 30 分钟完成 `✔`。同一个 Agent 可以同时显示旋转和中心标记。悬停或用键盘聚焦圆环可展开详情，点击条目按其来源和聊天 ID 跳转。Gemini Web 和 Antigravity 的同名聊天分别保留各自的目标。
+## B · 瓷粉实心圆
 
-2026-11-25，在独立配置的 Windows 发布程序中通过 UI Automation 确认上方有三个圆按钮。测试库含一个近期完成的 ZCode 聊天，以及运行、等待和报错各一个的 Antigravity 聊天。ZCode 显示 ✔，Gemini 显示 !，中心标记可与外圈旋转并存。悬停 Gemini 后显示三个匿名聊天，移开后详情收起。连续采样期间 Gemini 圆环中有 322 个像素的任一 RGB 通道变化超过 4。标准和窄条均显示三个来源。[标准](orbs/standard.png) · [悬停](orbs/origins.png) · [窄条](orbs/narrow.png)
+2026-11-25 在 Windows 11 build 26200、96 DPI、WebView2 158.0.4370.33 下，使用独立配置和匿名聊天启动 QuoDex 0.4.12 的 Windows 发布 EXE。源码提交 `36f6e19`，EXE 的 SHA-256 为 `D4E1194C59A6850DFEE96EE8C81D7FCB59EC35147ED3FAF2B9B77E0E9139D9F4`。[已选 B 稿](../../design/gemini-taskbar/finishes/comparison.png)
 
-上述截图使用匿名数据，发布 EXE 的 SHA-256 为 `E166CBA1BD39ED6FD8D23083F7E48C782D62C9A324B4DE7A3C6B54C15335FF3E`。将 `QUODEX_EXECUTABLE` 指向发布文件，再运行 `python scripts/verify-gemini-taskbar.py` 可复验。Codex、Gemini Web、Antigravity 分别按自己的聊天标识打开，ZCode 当前通过已注册的工作区链接打开对应项目。
+| 对照项 | 桌面程序的实测结果 |
+| --- | --- |
+| 静置 | 三个圆面的主体颜色依次为 Codex 雾蓝 `#ABC8DC`、ZCode 鼠尾草绿 `#A5C6B0`、Gemini 藕紫 `#D0B7CC`，从真实截图取色与 B 稿一致。[静置](porcelain/idle.png) |
+| 运行与启停 | 运行组的整面渐变每 3.5 秒旋转一圈。将匿名 Antigravity 聊天从运行改为等待，再恢复运行，圆面在两个方向都经过中间色。启停过渡 650 ms，中心 `!` 固定。连续采样检测到 Gemini 圆内有 571 个像素的任一 RGB 通道变化超过 4。[标准浮窗](porcelain/standard.png) · [启停实录](porcelain/motion.webp) |
+| 窄条与悬停 | 300 px 标准浮窗和 260 px 窄条均容纳三圆。ZCode 的近期完成显示 `✔`。Gemini 同时有运行、等待和报错聊天，显示 `!`。指针进入 Gemini 时显示三条匿名聊天及来源，移开后收起。[窄条](porcelain/narrow.png) · [悬停](porcelain/origins.png) |
+| 减少动效 | 在独立配置中启用减少动效并保留运行中的聊天。Gemini 显示藕紫纯色，间隔 450 ms 的两张原生截图中该圆区域内每个像素完全相同。[减少动效](porcelain/reduced.png) |
+
+在安装 Python、pywin32 和 Pillow 的 Windows 测试机上，将 `QUODEX_EXECUTABLE` 设为发布 EXE 的绝对路径。运行 `python scripts/verify-gemini-taskbar.py` 复验三圆、启停、悬停和窄条。运行 `python scripts/verify-gemini-taskbar.py --reduced-motion` 复验减少动效。截图与录屏默认保存到 `.scratch/gemini-taskbar-native`。
 
 ## 旧版 D 稿验证
 

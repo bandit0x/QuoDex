@@ -1,4 +1,4 @@
-import base64, ctypes, datetime, json, os, pathlib, shutil, sqlite3, subprocess, tempfile, time, tkinter as tk
+import argparse, base64, ctypes, datetime, json, os, pathlib, shutil, sqlite3, subprocess, tempfile, time, tkinter as tk
 import win32api, win32con, win32gui, win32process
 from PIL import ImageChops, ImageGrab
 
@@ -8,9 +8,12 @@ exe=pathlib.Path(os.environ.get('QUODEX_EXECUTABLE', repo/'src-tauri/target/rele
 out=pathlib.Path(os.environ.get('QUODEX_TASK_REVIEW_DIR', repo/'.scratch/gemini-taskbar-native')).resolve()
 out.mkdir(parents=True, exist_ok=True)
 root=pathlib.Path(tempfile.mkdtemp(prefix='quodex-orbs-'))
+parser=argparse.ArgumentParser()
+parser.add_argument('--reduced-motion',action='store_true',help='Verify a running task with the app motion preference enabled.')
+options=parser.parse_args()
 config=root/'config'
 config.mkdir()
-(config/'display-preferences.json').write_text(json.dumps(dict(source='codex',x=185,y=98,opacity=.96,alwaysOnTop=True,reducedMotion=False)))
+(config/'display-preferences.json').write_text(json.dumps(dict(source='codex',x=185,y=98,opacity=.96,alwaysOnTop=True,reducedMotion=options.reduced_motion)))
 data=root/'.gemini/antigravity'
 data.mkdir(parents=True)
 stamp=datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -63,12 +66,14 @@ try:
         return next(b for b in info['buttons'] if contains in b)
     def click(contains):
         return call('click',name=find(contains))
+    def grab_window(extra):
+        l,t,r,b=win32gui.GetWindowRect(hwnd)
+        dpi=ctypes.windll.user32.GetDpiForWindow(hwnd)/96
+        return ImageGrab.grab(bbox=(l,b-round(extra*dpi),r,b),all_screens=True).convert('RGB')
     def capture(name,extra):
         back.update()
         time.sleep(.25)
-        l,t,r,b=win32gui.GetWindowRect(hwnd)
-        dpi=ctypes.windll.user32.GetDpiForWindow(hwnd)/96
-        shot=ImageGrab.grab(bbox=(l,b-round(extra*dpi),r,b),all_screens=True)
+        shot=grab_window(extra)
         shot.save(out/(name+'.png'))
         print(name,shot.size,flush=True)
     found=[]
@@ -86,8 +91,27 @@ try:
     assert len(orbs)==3, orbs
     assert all(abs(item['height']-item['width']) <= 1 for item in orbs)
     win32api.SetCursorPos((30,40))
+    if options.reduced_motion:
+        assert ' 3 个任务' in orb_name, orb_name
+        item=next(b for b in orbs if b['name']==orb_name)
+        x,y=round(item['x']),round(item['y'])
+        bounds=(x,y,x+round(item['width']),y+round(item['height']))
+        fixed=ImageGrab.grab(bbox=bounds,all_screens=True).convert('RGB')
+        time.sleep(.45)
+        later=ImageGrab.grab(bbox=bounds,all_screens=True).convert('RGB')
+        assert sum(c==(208,183,204) for c in fixed.get_flattened_data())>fixed.width*fixed.height/2, 'Missing solid Gemini face'
+        assert ImageChops.difference(fixed,later).getbbox() is None,'Reduced motion face moved'
+        capture('reduced',174)
+        print('Running Gemini task stayed solid with reduced motion')
+        raise SystemExit(0)
     capture('standard',174)
-    orb=next(item for item in orbs if 'Gemini' in item['name'])
+    call('hover',name=orb_name)
+    ready(lambda x:any('等待你操作 · Gemini / Antigravity' in b for b in x['buttons']) and
+          any('匿名桌面报错' in b for b in x['buttons']))
+    capture('origins',334)
+    win32api.SetCursorPos((30,40))
+    closed=ready(lambda x:not any('匿名桌面报错' in b for b in x['buttons']))
+    orb=next(item for item in closed['buttonBounds'] if item['name']==orb_name)
     left,top=round(orb['x']),round(orb['y'])
     box=(left,top,left+round(orb['width']),top+round(orb['height']))
     samples=[]
@@ -98,12 +122,48 @@ try:
                 for frame in samples[1:])
     assert changed>12, f'Running ring did not move: {changed}'
     print('moving pixels in Gemini ring:',changed)
-    call('hover',name=orb_name)
-    ready(lambda x:any('等待你操作 · Gemini / Antigravity' in b for b in x['buttons']) and
-          any('匿名桌面报错' in b for b in x['buttons']))
-    capture('origins',334)
-    win32api.SetCursorPos((30,40))
-    ready(lambda x:not any('匿名桌面报错' in b for b in x['buttons']))
+    # Sample the inner face on either side of the fixed exclamation mark.
+    def face_strength(image):
+        cx,cy=image.width/2,image.height/2
+        distance=[max(abs(c-ref) for c,ref in zip(image.getpixel((x,y)),(208,183,204)))
+                  for y in range(image.height) for x in range(image.width)
+                  if abs(x+.5-cx)>.13*image.width and
+                  (x+.5-cx)**2+(y+.5-cy)**2<(.34*image.width)**2]
+        return sum(distance)/len(distance)
+    def change_running(running):
+        with sqlite3.connect(data/'conversation_summaries.db') as fixture:
+            status='CASCADE_RUN_STATUS_RUNNING' if running else 'CASCADE_RUN_STATUS_WAITING_FOR_USER_INPUT'
+            fixture.execute("UPDATE conversation_summaries SET status=? WHERE title='匿名桌面运行'",(status,))
+        l,_,_,b=win32gui.GetWindowRect(hwnd)
+        crop_top=b-round(174*ctypes.windll.user32.GetDpiForWindow(hwnd)/96)
+        local_box=tuple(value-offset for value,offset in zip(box,(l,crop_top,l,crop_top)))
+        frames=[]
+        crossed=None
+        start=time.monotonic()
+        while time.monotonic()-start<10:
+            now=time.monotonic()
+            image=grab_window(174)
+            strength=face_strength(image.crop(local_box))
+            frames.append((now,image,strength))
+            reached=strength>5 if running else strength==0
+            if reached:
+                if crossed is None: crossed=len(frames)-1
+                if now-frames[crossed][0]>.8: break
+            else:
+                crossed=None
+            time.sleep(max(0,.08-(time.monotonic()-now)))
+        assert crossed is not None and frames[-1][0]-frames[crossed][0]>.8, ('Gemini face transition timed out',running)
+        assert any(.15<s<4.5 for _,_,s in frames), ('No intermediate shade',running)
+        return [frame for frame in frames if frame[0]>=frames[crossed][0]-1.25]
+    stopped=change_running(False)
+    stopped[-1][1].save(out/'idle.png')
+    started=change_running(True)
+    frames=stopped+started
+    durations=[round((b[0]-a[0])*1000) for a,b in zip(frames,frames[1:])]
+    durations[len(stopped)-1]=450
+    frames[0][1].save(out/'motion.webp',save_all=True,append_images=[frame[1] for frame in frames[1:]],
+                      duration=durations+[180],lossless=True,loop=0)
+    print('Gemini inner face faded to solid #d0b7cc and back to motion through intermediate shades',flush=True)
     call('settings')
     click('收起为窄条')
     ready(lambda x:x['width']==260 and any(24 <= b['width'] <= 26 and abs(b['height']-b['width'])<=1
