@@ -18,6 +18,7 @@ use windows::{
             Accessibility::*,
             WindowsAndMessaging::{
                 FindWindowExW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+                SetForegroundWindow, ShowWindowAsync, SW_RESTORE,
             },
         },
     },
@@ -276,7 +277,8 @@ fn insert(target: &mut Pool, pool: Option<Pool>) {
 }
 
 fn visit_documents(
-    mut visit: impl FnMut(&IUIAutomation, &IUIAutomationElement, &tauri::Url, bool, bool),
+    restore_antigravity: bool,
+    mut visit: impl FnMut(&IUIAutomation, &IUIAutomationElement, &tauri::Url, bool, bool, HWND),
 ) -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
@@ -292,7 +294,7 @@ fn visit_documents(
         let mut previous = None;
         while let Ok(hwnd) = FindWindowExW(None, previous, None, None) {
             previous = Some(hwnd);
-            if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
+            if !IsWindowVisible(hwnd).as_bool() {
                 continue;
             }
             let mut title = [0u16; 300];
@@ -306,6 +308,12 @@ fn visit_documents(
             };
             let desktop = matches!(exe.as_str(), "antigravity.exe" | "antigravity ide.exe");
             let browser = matches!(exe.as_str(), "chrome.exe" | "msedge.exe");
+            if IsIconic(hwnd).as_bool() {
+                if restore_antigravity && desktop {
+                    let _ = ShowWindowAsync(hwnd, SW_RESTORE);
+                }
+                continue;
+            }
             if !desktop && !(browser && (title.contains("gemini") || title.contains("antigravity")))
             {
                 continue;
@@ -328,7 +336,7 @@ fn visit_documents(
                 if browser && (url.scheme() != "https" || url.port().is_some()) {
                     continue;
                 }
-                visit(&ui, &doc, &url, browser, desktop);
+                visit(&ui, &doc, &url, browser, desktop, hwnd);
             }
         }
         Ok(())
@@ -338,7 +346,7 @@ fn visit_documents(
 pub(super) fn read() -> Result<[Pool; 3]> {
     let mut pools = std::array::from_fn(|_| Pool::unavailable("absent"));
     let mut saw_ag_panel = false;
-    visit_documents(|ui, doc, url, browser, desktop| unsafe {
+    visit_documents(false, |ui, doc, url, browser, desktop, _| unsafe {
         match url.host_str() {
             Some("gemini.google.com") if browser => {
                 insert(&mut pools[0], web_panel(ui, doc, url));
@@ -363,86 +371,431 @@ pub(super) fn read() -> Result<[Pool; 3]> {
     Ok(pools)
 }
 
-pub(crate) fn web_chats() -> Result<crate::task_status::SourceTaskSnapshot> {
-    use crate::task_status::{now_ms, ChatTask, SourceTaskSnapshot, TaskSource, TaskState};
-    let observed_at_ms = now_ms();
-    let mut tasks = std::collections::BTreeMap::new();
-    let mut readable = false;
-    visit_documents(|ui, doc, url, browser, _| unsafe {
-        if !browser
-            || url.host_str() != Some("gemini.google.com")
-            || doc.CurrentIsOffscreen().unwrap_or_default().as_bool()
-        {
-            return;
+const WEB_STOP: &[&str] = &[
+    "Stop response",
+    "Stop generating",
+    "停止回答",
+    "停止生成",
+    "停止回覆",
+];
+const WEB_PROMPT: &[&str] = &["Copy prompt", "复制提示", "複製提示"];
+const WEB_QUERY_ID: &str = "user-query-content-";
+const WEB_REDO: &[&str] = &["Redo", "Regenerate", "重做", "重新生成"];
+const WEB_COPY_RESPONSE: &[&str] = &["Copy", "Copy response", "复制", "複製"];
+
+#[derive(Default)]
+struct WebControls {
+    running: bool,
+    prompts: usize,
+    response_ready: bool,
+}
+
+unsafe fn web_controls(ui: &IUIAutomation, doc: &IUIAutomationElement) -> Result<WebControls> {
+    let buttons = ui.CreatePropertyCondition(
+        UIA_ControlTypePropertyId,
+        &VARIANT::from(UIA_ButtonControlTypeId.0),
+    )?;
+    let list = doc.FindAll(TreeScope_Descendants, &buttons)?;
+    let mut controls = WebControls::default();
+    let (mut redo, mut copy_response) = (false, false);
+    for index in 0..list.Length()? {
+        let Ok(element) = list.GetElement(index) else {
+            continue;
+        };
+        let name = element.CurrentName().unwrap_or_default().to_string();
+        let name = name.trim();
+        if WEB_STOP.contains(&name) {
+            controls.running = true;
         }
-        let Some(chat_url) = crate::gemini_tasks::web_chat_url(url.path()) else {
-            // The home page has no stable chat identity.
-            readable |= url.path() == "/app"
-                && by_name(ui, doc, &["Send message", "发送消息", "傳送訊息"]).is_some();
-            return;
-        };
-        if by_name(ui, doc, WEB_TITLES).is_some() {
-            return;
+        if WEB_PROMPT.contains(&name) {
+            controls.prompts += 1;
+            (redo, copy_response) = (false, false);
         }
-        let state = if by_name(
-            ui,
-            doc,
-            &[
-                "Stop response",
-                "Stop generating",
-                "停止回答",
-                "停止生成",
-                "停止回覆",
-            ],
-        )
-        .is_some_and(|element| {
-            element
-                .CurrentControlType()
-                .is_ok_and(|kind| kind == UIA_ButtonControlTypeId)
-        }) {
-            Some(TaskState::Running)
-        } else if by_name(ui, doc, &["Send message", "发送消息", "傳送訊息"]).is_some() {
-            None
-        } else {
-            Some(TaskState::Unknown)
-        };
-        readable = true;
-        let Some(state) = state else {
-            return;
-        };
-        let id = format!("gemini-web:{}", chat_url.path());
-        let name = doc.CurrentName().unwrap_or_default().to_string();
-        let title = if name.is_empty() {
-            "Gemini 网页聊天".into()
-        } else {
-            name.chars().take(160).collect()
-        };
-        tasks
-            .entry(id.clone())
-            .and_modify(|task: &mut ChatTask| {
-                if state == TaskState::Running {
-                    task.state = state;
-                    task.detail = None;
+        redo |= WEB_REDO.contains(&name);
+        copy_response |= redo && WEB_COPY_RESPONSE.contains(&name);
+    }
+    controls.response_ready = controls.prompts > 0 && copy_response && !controls.running;
+    // Gemini keeps only a few prompts mounted. The stable ordinal is carried
+    // by the prompt group's automation ID even when older prompts scroll out.
+    if let Ok(condition) = ui.CreatePropertyConditionEx(
+        UIA_AutomationIdPropertyId,
+        &VARIANT::from(WEB_QUERY_ID),
+        PropertyConditionFlags_MatchSubstring,
+    ) {
+        if let Ok(items) = doc.FindAll(TreeScope_Descendants, &condition) {
+            for index in 0..items.Length().unwrap_or_default() {
+                let Some(id) = items
+                    .GetElement(index)
+                    .ok()
+                    .and_then(|item| item.CurrentAutomationId().ok())
+                else {
+                    continue;
+                };
+                if let Some(ordinal) = query_ordinal(&id.to_string()) {
+                    controls.prompts = controls.prompts.max(ordinal);
                 }
-            })
-            .or_insert_with(|| ChatTask {
+            }
+        }
+    }
+    Ok(controls)
+}
+
+fn query_ordinal(id: &str) -> Option<usize> {
+    id.strip_prefix(WEB_QUERY_ID)?
+        .parse::<usize>()
+        .ok()?
+        .checked_add(1)
+}
+
+#[derive(Default)]
+pub(crate) struct WebChatTracker {
+    windows: std::collections::HashMap<usize, WebFrame>,
+    completed: std::collections::BTreeMap<String, crate::task_status::ChatTask>,
+}
+
+struct WebFrame {
+    route: Option<String>,
+    seen_at: u64,
+    controls: WebControls,
+    highest_prompt: usize,
+    pending: Option<(u64, u64)>,
+}
+
+impl WebFrame {
+    fn observe(
+        previous: Option<&Self>,
+        route: Option<String>,
+        controls: WebControls,
+        now: u64,
+    ) -> (Self, Option<u64>) {
+        let continuing = previous.filter(|frame| {
+            frame.route == route
+                || (frame.route.is_none()
+                    && frame.pending.is_some()
+                    && route.is_some()
+                    && controls.prompts <= 1)
+        });
+        let previous_prompt = continuing.map_or(0, |frame| frame.highest_prompt);
+        let highest_prompt = previous_prompt.max(controls.prompts);
+        let new_prompt = previous_prompt > 0 && controls.prompts > previous_prompt;
+        let active = controls.running || new_prompt;
+        let pending = continuing
+            .and_then(|frame| frame.pending)
+            .filter(|(_, until)| *until >= now);
+        let pending = if active {
+            Some((pending.map_or(now, |(started, _)| started), now + 20_000))
+        } else {
+            pending
+        };
+        let completed =
+            if route.is_some() && controls.response_ready && controls.prompts == highest_prompt {
+                pending.map(|(started, _)| started)
+            } else {
+                None
+            };
+        (
+            Self {
+                route,
+                seen_at: now,
+                controls,
+                highest_prompt,
+                pending: if completed.is_some() { None } else { pending },
+            },
+            completed,
+        )
+    }
+}
+
+impl WebChatTracker {
+    pub(crate) fn read(&mut self) -> Result<crate::task_status::SourceTaskSnapshot> {
+        use crate::task_status::{now_ms, ChatTask, SourceTaskSnapshot, TaskSource, TaskState};
+        let now = now_ms();
+        let mut tasks = std::collections::BTreeMap::new();
+        let mut readable = false;
+        self.windows
+            .retain(|_, frame| now.saturating_sub(frame.seen_at) < 12_000);
+        self.completed
+            .retain(|_, task| task.expires_at_ms.is_some_and(|time| time > now));
+        visit_documents(false, |ui, doc, url, browser, _, hwnd| unsafe {
+            if !browser
+                || url.host_str() != Some("gemini.google.com")
+                || doc.CurrentIsOffscreen().unwrap_or_default().as_bool()
+            {
+                return;
+            }
+            let route =
+                crate::gemini_tasks::web_chat_url(url.path()).map(|url| url.path().to_owned());
+            let home = url.path().trim_end_matches('/') == "/app";
+            if (route.is_none() && !home) || named_panel(ui, doc, WEB_TITLES).is_some() {
+                return;
+            }
+            let Ok(controls) = web_controls(ui, doc) else {
+                return;
+            };
+            readable = true;
+            let window = hwnd.0 as usize;
+            let (frame, completed) =
+                WebFrame::observe(self.windows.get(&window), route.clone(), controls, now);
+            let running = frame.controls.running;
+            let turn_started = completed
+                .or_else(|| frame.pending.map(|(started, _)| started))
+                .unwrap_or(now);
+            self.windows.insert(window, frame);
+            let completed = completed.is_some();
+            let Some(route) = route else {
+                return;
+            };
+            let id = format!("gemini-web:{route}");
+            if running {
+                self.completed.remove(&id);
+            }
+            if !running && !completed {
+                return;
+            }
+            let title = doc.CurrentName().unwrap_or_default().to_string();
+            let task = ChatTask {
                 source: TaskSource::GeminiWeb,
-                id,
-                title,
-                state,
-                turn_id: String::new(),
-                completed_at_ms: None,
-                expires_at_ms: None,
+                id: id.clone(),
+                title: if title.is_empty() {
+                    "Gemini 网页聊天".into()
+                } else {
+                    title.chars().take(160).collect()
+                },
+                state: if completed {
+                    TaskState::Completed
+                } else {
+                    TaskState::Running
+                },
+                turn_id: turn_started.to_string(),
+                completed_at_ms: completed.then_some(now),
+                expires_at_ms: completed.then_some(now + 1_800_000),
                 project_path: None,
                 project_name: None,
-                detail: (state == TaskState::Unknown)
-                    .then(|| "无法从网页确认当前执行状态 · QDT-641".into()),
-            });
-    })?;
-    Ok(SourceTaskSnapshot {
-        tasks: tasks.into_values().collect(),
-        observed_at_ms,
-        diagnostic: (!readable)
-            .then(|| crate::capacity::Diagnostic::new("QDT-641", "打开 Gemini 网页聊天后读取状态")),
-    })
+                detail: None,
+            };
+            if completed {
+                self.completed
+                    .entry(id)
+                    .and_modify(|old| {
+                        if old.completed_at_ms.is_none_or(|ended| ended < turn_started) {
+                            *old = task.clone();
+                        }
+                    })
+                    .or_insert(task);
+            } else {
+                tasks.insert(id, task);
+            }
+        })?;
+        for (id, task) in &self.completed {
+            tasks.entry(id.clone()).or_insert_with(|| task.clone());
+        }
+        Ok(SourceTaskSnapshot {
+            tasks: tasks.into_values().collect(),
+            observed_at_ms: now,
+            diagnostic: (!readable).then(|| {
+                crate::capacity::Diagnostic::new("QDT-641", "打开 Gemini 网页聊天后读取状态")
+            }),
+        })
+    }
+}
+
+fn local_antigravity(url: &tauri::Url) -> bool {
+    url.scheme() == "https" && matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+}
+
+fn matches_conversation(url: &tauri::Url, id: uuid::Uuid) -> bool {
+    url.path()
+        .strip_prefix("/c/")
+        .and_then(|value| uuid::Uuid::parse_str(value).ok())
+        == Some(id)
+}
+
+pub(crate) fn open_antigravity_chat(id: uuid::Uuid) -> bool {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+    let mut launched = false;
+    let mut invoked = false;
+    let mut opened_sidebar = false;
+    loop {
+        let mut saw_app = false;
+        let mut opened = false;
+        let _ = visit_documents(true, |ui, doc, url, _, desktop, hwnd| unsafe {
+            if !desktop || !local_antigravity(url) {
+                return;
+            }
+            saw_app = true;
+            if matches_conversation(url, id) {
+                let _ = SetForegroundWindow(hwnd);
+                opened = true;
+                return;
+            }
+            if invoked {
+                return;
+            }
+            let Ok(condition) = ui.CreatePropertyCondition(
+                UIA_ControlTypePropertyId,
+                &VARIANT::from(UIA_HyperlinkControlTypeId.0),
+            ) else {
+                return;
+            };
+            let Ok(links) = doc.FindAll(TreeScope_Descendants, &condition) else {
+                return;
+            };
+            if let Ok(length) = links.Length() {
+                for index in 0..length {
+                    let Ok(link) = links.GetElement(index) else {
+                        continue;
+                    };
+                    let Some(target) = document_url(&link) else {
+                        continue;
+                    };
+                    if target.origin() != url.origin() || !matches_conversation(&target, id) {
+                        continue;
+                    }
+                    if let Ok(action) =
+                        link.GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId)
+                    {
+                        let _ = SetForegroundWindow(hwnd);
+                        invoked = action.Invoke().is_ok();
+                    }
+                    return;
+                }
+            }
+            if !opened_sidebar && by_name(ui, doc, &["Sidebar", "侧边栏", "側邊欄"]).is_none()
+            {
+                if let Some(toggle) =
+                    by_name(ui, doc, &["Toggle Sidebar", "切换侧边栏", "切換側邊欄"])
+                {
+                    if let Ok(action) = toggle
+                        .GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId)
+                    {
+                        opened_sidebar = action.Invoke().is_ok();
+                    }
+                }
+            }
+        });
+        if opened {
+            return true;
+        }
+        if !saw_app && !launched {
+            launched = true;
+            for base in [
+                std::env::var_os("LOCALAPPDATA")
+                    .map(|path| std::path::PathBuf::from(path).join("Programs")),
+                std::env::var_os("ProgramFiles").map(std::path::PathBuf::from),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let executable = base.join("antigravity/Antigravity.exe");
+                if executable.is_file() {
+                    let _ = std::process::Command::new(executable).spawn();
+                    break;
+                }
+            }
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+}
+
+#[cfg(test)]
+mod web_task_tests {
+    use super::*;
+
+    fn controls(prompts: usize, running: bool, response_ready: bool) -> WebControls {
+        WebControls {
+            prompts,
+            running,
+            response_ready,
+        }
+    }
+
+    #[test]
+    fn virtualized_prompt_ordinal_recovers_a_turn_that_finishes_between_polls() {
+        let route = Some("/app/example".into());
+        let old = query_ordinal("user-query-content-7").unwrap();
+        let next = query_ordinal("user-query-content-8").unwrap();
+        let (previous, _) = WebFrame::observe(None, route.clone(), controls(old, false, true), 100);
+        assert_eq!(
+            WebFrame::observe(Some(&previous), route, controls(next, false, true), 3_100).1,
+            Some(3_100)
+        );
+        assert_eq!(query_ordinal("not-user-query-content-8"), None);
+    }
+
+    #[test]
+    fn reloading_or_scrolling_an_existing_chat_does_not_reissue_success() {
+        let route = Some("/app/example".into());
+        let (loading, _) = WebFrame::observe(None, route.clone(), controls(0, false, false), 100);
+        let (ready, completed) = WebFrame::observe(
+            Some(&loading),
+            route.clone(),
+            controls(8, false, true),
+            3_100,
+        );
+        assert_eq!(completed, None);
+        let (older_view, completed) =
+            WebFrame::observe(Some(&ready), route.clone(), controls(5, false, true), 6_100);
+        assert_eq!(completed, None);
+        assert_eq!(
+            WebFrame::observe(Some(&older_view), route, controls(8, false, true), 9_100).1,
+            None
+        );
+    }
+
+    #[test]
+    fn completion_survives_a_poll_between_stop_and_final_actions() {
+        let route = Some("/app/example".into());
+        let (baseline, completed) =
+            WebFrame::observe(None, route.clone(), controls(1, false, true), 100);
+        assert_eq!(completed, None);
+        let (running, _) = WebFrame::observe(
+            Some(&baseline),
+            route.clone(),
+            controls(2, true, false),
+            3_100,
+        );
+        let (settling, completed) = WebFrame::observe(
+            Some(&running),
+            route.clone(),
+            controls(2, false, false),
+            6_100,
+        );
+        assert_eq!(completed, None);
+        let (finished, completed) = WebFrame::observe(
+            Some(&settling),
+            route.clone(),
+            controls(2, false, true),
+            9_100,
+        );
+        assert_eq!(completed, Some(3_100));
+        assert_eq!(
+            WebFrame::observe(Some(&finished), route, controls(2, false, true), 12_100).1,
+            None
+        );
+    }
+
+    #[test]
+    fn new_chat_keeps_pending_work_until_a_stable_route_exists() {
+        let (running, _) = WebFrame::observe(None, None, controls(1, true, false), 100);
+        let (settling, _) =
+            WebFrame::observe(Some(&running), None, controls(1, false, true), 3_100);
+        let route = Some("/app/new".into());
+        assert_eq!(
+            WebFrame::observe(
+                Some(&settling),
+                route.clone(),
+                controls(1, false, true),
+                6_100
+            )
+            .1,
+            Some(100)
+        );
+        assert_eq!(
+            WebFrame::observe(Some(&settling), route, controls(1, false, true), 21_100).1,
+            None
+        );
+    }
 }

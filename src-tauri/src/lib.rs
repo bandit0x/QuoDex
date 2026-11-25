@@ -165,13 +165,20 @@ fn open_codex_chat(id: String) -> Result<(), Diagnostic> {
 }
 
 #[tauri::command]
-fn open_task_chat(service: State<'_, TaskStatusService>, id: String) -> Result<(), Diagnostic> {
+async fn open_task_chat(service: State<'_, TaskStatusService>, id: String) -> Result<(), Diagnostic> {
     if let Some(route) = id.strip_prefix("gemini-web:") {
         let url = gemini_tasks::web_chat_url(route)
             .ok_or_else(|| Diagnostic::new("QDT-641", "Gemini 网页聊天链接无效；请打开聊天后刷新任务"))?;
         open::that(url.as_str()).map_err(|_| Diagnostic::new("QDT-641", "无法打开 Gemini 网页聊天；请检查默认浏览器"))
-    } else if id.starts_with("antigravity:") {
-        Err(Diagnostic::new("QDT-642", "请在 Antigravity 历史记录中按标题打开这段聊天"))
+    } else if let Some(id) = id.strip_prefix("antigravity:") {
+        let id = uuid::Uuid::parse_str(id).map_err(|_| Diagnostic::new("QDT-642", "Antigravity 聊天标识无效；请刷新任务"))?;
+        #[cfg(windows)]
+        if tauri::async_runtime::spawn_blocking(move || gemini_quota::windows_reader::open_antigravity_chat(id)).await.unwrap_or(false) {
+            return Ok(());
+        }
+        #[cfg(not(windows))]
+        let _ = id;
+        Err(Diagnostic::new("QDT-642", "无法在 Antigravity 侧栏定位原聊天；请展开侧栏并确认聊天属于当前账户"))
     } else if id.starts_with("zcode:") {
         let url = service.zcode_project_url(&id)?;
         open::that(url.as_str()).map_err(|_| {
