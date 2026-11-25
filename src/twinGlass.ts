@@ -79,7 +79,7 @@ export function drawBakedTwinGlass(
     const position = meniscusPosition(frame / 50, narrow);
     const meniscus = position * height;
     context.save();
-    context.globalAlpha = .82;
+    context.globalAlpha = .96;
     context.globalCompositeOperation = "source-atop";
     const cavityX = Number(violet) * tileWidth + sourceLeft;
     const cavityY = narrow ? tileHeight : 0;
