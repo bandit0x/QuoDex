@@ -1,5 +1,16 @@
 # Agent 任务圆环 · Windows 验证
 
+## 可见圆环水平居中
+
+2026-11-25，在 Windows 11、96 DPI 下验证源码 `ceed911` 的 QuoDex 0.4.12。发布程序的 SHA-256 为 `D77EA28F47093258EEC349E56CF57076C35A82591707EEDA4C277F9251DD01DA`。原生验收以窗口左右边缘到首尾按钮外缘的距离为准。
+
+| 窗口 | 三环总宽 | 左右留白 | 实拍 |
+| --- | --- | --- | --- |
+| 标准浮窗，300 px | 96 px | 各 102 px | [标准浮窗](centered/standard.png) · [Gemini 双舷窗](centered/gemini-window.png) |
+| 窄条，260 px | 84 px | 各 88 px | [窄条](centered/narrow.png) |
+
+Chrome 组件复验覆盖一至三个可见 Agent 的全部七种组合，以及上述两种尺寸、两种布局和 DPR 1、2。圆环间距为 4.5 px。指针进入圆环时命中对应按钮，移到首尾外侧 2 px 即离开任务栏。104 组同坐标截图和 720 个材质样本与透明环心批准稿逐像素一致。可用下节的原生与像素复验脚本重现结果。发布构建和 208 项前端测试均通过。
+
 ## 透明环心与双水纹
 
 2026-11-25，在 Windows 11 build 26200、96 DPI、WebView2 158.0.4370.33 上启动 QuoDex 0.4.12 发布程序。正式浮窗源码为 `69ca561`，透明环心批准稿为 `4d69120`。EXE 的 SHA-256 为 `9853D2296D4EA5FD3E1372E67ACAE81CFEA40875A2A2F6330733DADD5BD2D418`。[批准稿](../../design/gemini-taskbar/v0410-reference/overview.png) · [两种尺寸的同条件对照](water-rings/design-comparison.png)

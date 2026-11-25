@@ -92,9 +92,16 @@ try:
     hwnd=found[0]
     win32gui.SetWindowPos(hwnd,win32con.HWND_TOPMOST,215,92,0,0,win32con.SWP_NOSIZE|win32con.SWP_SHOWWINDOW)
     orb_name=find('查看 Gemini 全部')
+    def centered_group(layout,name):
+        rings=[item for item in layout['buttonBounds'] if item['name'].startswith('查看 ') and ' 全部 ' in item['name']]
+        assert len(rings)==3,('QDT-V14 expected three rings',name,len(rings))
+        left=min(item['x'] for item in rings)-layout['x']
+        right=layout['x']+layout['width']-max(item['x']+item['width'] for item in rings)
+        assert min(left,right)>=0 and abs(left-right)<=1,('QDT-V15 off-center task row',name,left,right)
+        print(f'{name} left={left:g}px right={right:g}px window={layout["width"]:g}px',flush=True)
+        return rings
     info=call()
-    orbs=[item for item in info['buttonBounds'] if item['name'].startswith('查看 ') and ' 全部 ' in item['name']]
-    assert len(orbs)==3, orbs
+    orbs=centered_group(info,'Gemini' if options.gemini_window else 'Standard')
     assert all(abs(item['height']-item['width']) <= 1 for item in orbs)
     win32api.SetCursorPos((30,40))
     def bounds(item):
@@ -106,12 +113,13 @@ try:
         return max(abs(p-q) for p,q in zip(a,b))
     def equal(a,b):
         return ImageChops.difference(a,b).getbbox() is None
-    def check_hollow(image,bg):
-        # Sample the clear middle of the hub to both sides of the glyph.
-        # Completion minutes occupy the lower half of this same aperture.
+    def check_hollow(image,bg,completion=False):
+        # The minute label is wider than a status glyph. Beside a single glyph
+        # sample nearer the center, clear of the moving 25px rim's soft edge.
+        inner,outer=(.24,.34) if completion else (.19,.27)
         cx,cy=(image.width-1)/2,(image.height-1)/2
         side=[image.getpixel((x,y)) for y in range(image.height) for x in range(image.width)
-              if .24*image.width<abs(x-cx)<.34*image.width and abs(y-cy)<.1*image.height]
+              if inner*image.width<abs(x-cx)<outer*image.width and abs(y-cy)<.1*image.height]
         hits=sum(distance(p,bg)<=2 for p in side)
         assert side and hits/len(side)>.85, ('QDT-V01 opaque ring interior',hits,len(side),bg)
     def rim_pixels(image):
@@ -124,7 +132,7 @@ try:
     def check_scene(palette):
         for item in orbs:
             img=ring_image(item)
-            check_hollow(img,palette)
+            check_hollow(img,palette,completion='ZCode' in item['name'])
             pixels=[p for _,_,p in rim_pixels(img)]
             if 'Codex' in item['name']:
                 present=sum(min(p)>204 and distance(p,palette)>25 for p in pixels)
@@ -166,6 +174,21 @@ try:
     gemini=next(b for b in orbs if b['name']==orb_name)
     dpi_scale=ctypes.windll.user32.GetDpiForWindow(hwnd)/96
     assert abs(gemini['width']-29*dpi_scale)<=1,(gemini['width'],dpi_scale,'QDT-V06 standard width')
+    def narrow_ring(name):
+        if options.gemini_window:
+            # Reuse the twin-window fixture's native WebView input path. It
+            # targets this process even while the offline Edge panels are open.
+            import runpy
+            twin=runpy.run_path(str(repo/'scripts/verify-gemini-twin.py'))
+            left,_,_,bottom=win32gui.GetWindowRect(hwnd)
+            twin['click'](hwnd,(left+round(40*dpi_scale),bottom-round(35*dpi_scale)),right=True)
+            twin['action'](hwnd,'收起为窄条')
+        else:
+            call('settings')
+            click('收起为窄条')
+        compact=ready(lambda x:abs(x['width']-260*dpi_scale)<=1 and any(abs(b['width']-25*dpi_scale)<=1 and abs(b['height']-b['width'])<=1
+              for b in x['buttonBounds'] if b['name'].startswith('查看 Gemini 全部')))
+        return next(b for b in centered_group(compact,name) if b['name']==orb_name)
     backgrounds={'light':(225,218,204),'dark':(66,77,87)}
     if options.gemini_window:
         expected={f'{agent} {period}，剩余 {value}%' for agent,pair in
@@ -177,6 +200,7 @@ try:
         time.sleep(.3)
         check_scene(backgrounds['dark'])
         capture('gemini-window',174)
+        narrow_ring('Gemini narrow')
         print('Three water rings and six anonymous Gemini quota readings appeared together.')
         raise SystemExit(0)
     for theme,palette in backgrounds.items():
@@ -236,14 +260,10 @@ try:
     capture('static-waiting',174)
     task_state('匿名桌面运行','CASCADE_RUN_STATUS_RUNNING')
     task_state('匿名桌面报错','CASCADE_RUN_STATUS_ERROR')
-    call('settings')
-    click('收起为窄条')
-    compact=ready(lambda x:abs(x['width']-260*dpi_scale)<=1 and any(abs(b['width']-25*dpi_scale)<=1 and abs(b['height']-b['width'])<=1
-          for b in x['buttonBounds'] if b['name'].startswith('查看 Gemini 全部')))
-    tiny=next(b for b in compact['buttonBounds'] if b['name']==orb_name)
-    check_hollow(wait_motion(tiny,True),backgrounds['dark'])
+    tiny=narrow_ring('Narrow')
     win32api.SetCursorPos((30,40))
     capture('narrow',92)
+    check_hollow(wait_motion(tiny,True),backgrounds['dark'])
     print('Native water rings, static material, hover, pointer exit and narrow layout passed.')
 
 finally:
