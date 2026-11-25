@@ -284,5 +284,29 @@
   background: linear-gradient(0deg, #5eacba14, #c0e8f515);
   box-shadow: inset 0 -1px #adddeb4d;
 }
-.dock-carousel-choices input { margin: 0; width: 20px; height: 20px; accent-color: #a3d3db; }
+.dock-carousel-choices input {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #95a7af;
+  border-radius: 5px;
+  background: #142d36;
+  cursor: pointer;
+}
+.dock-carousel-choices input:checked {
+  background: linear-gradient(#c2e6e9, #83bec9);
+  border-color: #bee7ed;
+}
+.dock-carousel-choices input:checked::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border: solid #10343e;
+  border-width: 0 0 3px 3px;
+  transform: translateY(-1px) rotate(-45deg);
+}
 .dock-carousel-choices label:focus-within { outline: 2px solid #bceafa; }
