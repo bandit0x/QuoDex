@@ -108,3 +108,21 @@ for y in range(21):
                 break
         footer.putpixel((x, y), (red, green, blue, round(255 * opacity)))
 footer.save(root / "src/twin-glass-footer.webp", lossless=True, method=6)
+
+shell = Image.new("RGBA", (300, 130))
+for y in range(90):
+    for x in range(300):
+        rgb = panel.getpixel((x, y))
+        radius = min(math.hypot((x+.5-center)/72, (y+.5-45)/43) for center in (77, 223))
+        opacity = ramp(radius, 1.02, 1.10) * (1-ramp(sum(rgb)/3, 100, 138))
+        shell.putpixel((x, y), (*rgb, round(255 * opacity)))
+shell.save(root / "src/twin-glass-shell.webp", lossless=True, method=6)
+
+compact = sheet.crop((194, 626, 1577, 852)).resize((260, 48), Image.Resampling.LANCZOS)
+plaque = compact.crop((194, 1, 258, 47))
+for y in range(1, 44):
+    start, end = plaque.getpixel((7, y)), plaque.getpixel((57, y))
+    for x in range(8, 57):
+        pos = (x-7)/50
+        plaque.putpixel((x, y), tuple(round(a+(b-a)*pos) for a,b in zip(start, end)))
+plaque.save(root / "src/twin-glass-plaque-narrow.webp", lossless=True, method=6)

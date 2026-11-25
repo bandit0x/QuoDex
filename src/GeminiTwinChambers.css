@@ -133,7 +133,7 @@
 }
 .gemini-twin--narrow .twin-old { color: #ffe7b8; font: 550 8px/1 "Microsoft YaHei UI", sans-serif; vertical-align: 1px }
 .gemini-twin--narrow .twin-plaque {
-  border-radius: 3px 7px 7px 3px; background: linear-gradient(110deg, #344451, #233442 38%, #1c2b38 78%, #344452);
-  box-shadow: inset 1px 0 #c8b487, inset 0 1px #84939caa, inset 0 -1px #576671aa;
+  border-radius: 3px 7px 7px 3px;
+  background: #202629 url("./twin-glass-plaque-narrow.webp") center / 100% 100% no-repeat;
 }
 .gemini-twin--narrow .twin-plaque .twin-source { color: #f1e5cd }
