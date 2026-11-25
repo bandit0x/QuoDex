@@ -58,11 +58,12 @@
   line-height: 1; white-space: nowrap; text-shadow: 0 1px 2px #090e1b, 0 0 3px #090e1b;
 }
 .gemini-twin--standard .twin-dial .twin-source {
-  top: 18px; color: #f1e8d8; font: 600 10.5px/1.1 Georgia, "Segoe UI", serif;
+  top: 17px; color: #f1e8d8; font: 600 10.5px/1.1 Georgia, "Segoe UI", serif;
   text-shadow: 0 1px 2px #08111a, 0 0 3px #08111a;
 }
+.gemini-twin--standard .twin-dial[data-pool="gemini"] .twin-source { margin-left: -1px }
 .gemini-twin--standard :is(.twin-five, .twin-week) { display: inline-flex; align-items: baseline; gap: 4px }
-.gemini-twin--standard .twin-dial > .twin-five { top: 34px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
+.gemini-twin--standard .twin-dial > .twin-five { top: 34px; margin-left: 3px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
 .gemini-twin--standard .twin-five .twin-value { font: italic 21.5px/1 Georgia, serif; color: #fff8e9; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 8.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
 .gemini-twin--standard .twin-dial .twin-week {
@@ -81,6 +82,7 @@
   box-shadow: 0 1px 2px #040810; white-space: nowrap;
 }
 .gemini-twin--standard .twin-plaque .twin-source { color: #f1e7d3; font: 600 10.5px/1 Georgia, serif }
+.gemini-twin--standard .twin-plaque > * { transform: translateY(1px) }
 .gemini-twin--standard .twin-plaque > span { justify-content: flex-end }
 .gemini-twin--standard .twin-plaque .twin-value { color: #fff4e2; font: italic 12.5px/1 Georgia, serif; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-plaque .twin-week .twin-value { color: #ffe0a6 }
@@ -98,8 +100,8 @@
   padding-right: 2px; text-align: right; color: #edf3f7;
   font: 600 9px/16px "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap;
 }
-.gemini-twin--narrow .twin-periods > :first-child { grid-row: 2; position: relative; top: -1px; color: #ffe0a2 }
-.gemini-twin--narrow .twin-periods > :last-child { grid-row: 3; position: relative; top: -3px }
+.gemini-twin--narrow .twin-periods > :first-child { grid-row: 2; position: relative; top: -3px; left: -1px; color: #ffe0a2 }
+.gemini-twin--narrow .twin-periods > :last-child { grid-row: 3; position: relative; top: -4px; left: -1px }
 .gemini-twin--narrow .twin-dial {
   border-radius: 13% 13% 42% 42% / 26% 26% 36% 36%;
   background: conic-gradient(from 156deg, #243443, #a0aeb5 15%, #344958 29%, #b6c2c7 43%, #566b78 52%, #243442 70%, #768b95 81%, #222f40);
@@ -126,15 +128,17 @@
 .gemini-twin--narrow .twin-fill { stroke: #efb85c; stroke-width: 1.5 }
 .gemini-twin--narrow .twin-marker { stroke: #fff0b8; stroke-width: 2.6; stroke-linecap: round }
 .gemini-twin--narrow .twin-source {
-  position: relative; align-self: center; top: 1px; white-space: nowrap;
+  position: relative; align-self: center; white-space: nowrap;
   font: 650 9px/11px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: #f7ebd6;
   text-shadow: 0 1px 2px #071222, 0 0 2px #071222;
 }
+.gemini-twin--narrow .twin-dial[data-pool="gemini"] .twin-source { left: -3px }
 .gemini-twin--narrow :is(.twin-five, .twin-week) {
   position: relative; display: grid; place-items: center; min-width: 0; color: #fff8e8;
   text-shadow: 0 1px 2px #07101e, 0 0 3px #07101e;
 }
-.gemini-twin--narrow .twin-week { top: -1px; color: #ffdfa5 }
+.gemini-twin--narrow .twin-week { top: 2px; left: 1px; color: #ffdfa5 }
+.gemini-twin--narrow .twin-plaque .twin-week { top: 0 }
 .gemini-twin--narrow .twin-five { top: -3px; left: 1px }
 .gemini-twin--narrow .twin-value {
   color: inherit; font: 600 13px/16px Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
