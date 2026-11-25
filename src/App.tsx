@@ -1243,7 +1243,8 @@ export function App({
     >
       <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} compact={collapsed} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       {activeIsGemini ? <GeminiQuotaSurface {...gemini} motion={fluidMotion} reducedMotion={preferences.reducedMotion}
-        collapsed={collapsed} onRestore={restoreCollapsedLayout}
+        collapsed={collapsed} settingsOpen={settingsOpen} restoredHeight={overlayLayoutSizes[visibleLayout].height + taskSpace}
+        onRestore={restoreCollapsedLayout}
         onDetails={() => { setSettingsDetailsOpen(true); void openSettings(); }} /> : (
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell

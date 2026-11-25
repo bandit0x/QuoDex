@@ -972,6 +972,48 @@ describe("Gemini quota source", () => {
     opacity: .92, reducedMotion: true, x: null, y: null, source: "gemini",
   });
 
+  it.each(["before", "after"])("restores the gauge once when the viewport returns %s settings close resolves", async order => {
+    let finishClose!: () => void;
+    const closeSettingsWindow = vi.fn().mockRejectedValueOnce(new Error("fixture close failed"))
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishClose = resolve; }));
+    const host = render(<App {...inertPreferences} loadSnapshot={async () => healthySnapshot}
+      loadZcodeSnapshot={async () => healthyZcodeSnapshot} loadPreferences={preferences} closeSettingsWindow={closeSettingsWindow}
+      loadGeminiSnapshot={async () => ({ observedAtMs: Date.now(), pools: [available(55, 68), available(16, 82), available(90, 24)] })} />);
+    const surface = () => host.container.querySelector(".gemini-twin-surface");
+    const resize = (height: number) => { vi.stubGlobal("innerHeight", height); fireEvent.resize(window); };
+    const nextFrame = () => act(() => new Promise<void>(resolve => window.requestAnimationFrame(() => resolve())));
+    try {
+      await screen.findByText("6/6 已读取");
+      const original = surface();
+      fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+      await screen.findByText("6/6 已更新");
+      expect(surface()).toBe(original);
+      fireEvent.click(screen.getByRole("button", { name: "查看 Gemini 额度详情" }));
+      const close = await screen.findByRole("button", { name: "关闭设置" });
+      resize(130 + SETTINGS_WINDOW_EXTRA_HEIGHT);
+      fireEvent.click(close);
+      await screen.findByText("设置窗口未能复位 · CRV-302");
+      expect(surface()).toBe(original);
+      fireEvent.click(close);
+      await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledTimes(2));
+      if (order === "before") { resize(130); await nextFrame(); }
+      expect(surface()).toBe(original);
+      await act(async () => finishClose());
+      if (order === "after") {
+        await nextFrame();
+        expect(surface()).toBe(original);
+        resize(130);
+      }
+      await waitFor(() => expect(surface()).not.toBe(original));
+      expect(screen.getByText("6/6 已更新")).toBeVisible();
+      expect(screen.getByRole("img", { name: "AG Gemini 5 小时，剩余 82%" })).toBeVisible();
+      const restored = surface();
+      resize(130);
+      await nextFrame();
+      expect(surface()).toBe(restored);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("mounts the two materials on the first result and keeps them during refresh", async () => {
     let finishRead!: (snapshot: GeminiSnapshot) => void;
     const load = () => new Promise<GeminiSnapshot>(resolve => { finishRead = resolve; });

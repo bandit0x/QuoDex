@@ -3,7 +3,7 @@ import { geminiPoolNotes, getGeminiReading, summarizeGeminiReadings } from "./ge
 import "./GeminiQuotaSurface.css";
 import type { FluidMotionSample } from "./fluidPhysics";
 import type { GeminiPool } from "./geminiQuota";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const names = ["Web", "AG Gemini", "AG Claude/GPT"];
 const itemCounts = ["零", "一", "两", "三", "四", "五", "六"];
@@ -27,17 +27,45 @@ function narrowDescription(pools: GeminiPool[]) {
   })).join("，");
 }
 
-export function GeminiQuotaSurface({ pools, firstReadPending, reading, refresh, motion, reducedMotion, collapsed, onRestore, onDetails }: {
+export function GeminiQuotaSurface({ pools, firstReadPending, reading, refresh, motion, reducedMotion, collapsed,
+  settingsOpen, restoredHeight, onRestore, onDetails }: {
   pools: GeminiPool[]; firstReadPending: boolean; reading: boolean; refresh: () => void; motion: FluidMotionSample;
-  reducedMotion: boolean; collapsed: boolean; onRestore: () => void; onDetails: () => void;
+  reducedMotion: boolean; collapsed: boolean; settingsOpen: boolean; restoredHeight: number;
+  onRestore: () => void; onDetails: () => void;
 }) {
   const [refreshed, setRefreshed] = useState(false);
+  const [surfaceRevision, setSurfaceRevision] = useState(0);
+  const returningFromSettings = useRef(false);
+  useEffect(() => {
+    if (settingsOpen) {
+      returningFromSettings.current = true;
+      return;
+    }
+    if (!returningFromSettings.current) return;
+    let frame = 0;
+    // The native close promise and the WebView viewport resize can arrive in either order.
+    function repaintWhenRestored() {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (Math.abs(window.innerHeight - restoredHeight) > 1) return;
+        window.removeEventListener("resize", repaintWhenRestored);
+        returningFromSettings.current = false;
+        setSurfaceRevision(previous => previous + 1);
+      });
+    }
+    window.addEventListener("resize", repaintWhenRestored);
+    repaintWhenRestored();
+    return () => {
+      window.removeEventListener("resize", repaintWhenRestored);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [settingsOpen, restoredHeight]);
   const chambers = <GeminiTwinChambers pools={pools} firstReadPending={firstReadPending}
     collapsed={collapsed} motion={motion} reducedMotion={reducedMotion} />;
-  if (collapsed) return <button className="gemini-twin-surface gemini-twin-surface--narrow" type="button" data-window-drag-surface
+  if (collapsed) return <button key={surfaceRevision} className="gemini-twin-surface gemini-twin-surface--narrow" type="button" data-window-drag-surface
     aria-label="恢复标准视图" aria-description={narrowDescription(pools)} onClick={onRestore}>{chambers}</button>;
   const feedback = quotaFeedback(pools, refreshed);
-  return <div className="gemini-twin-surface">
+  return <div key={surfaceRevision} className="gemini-twin-surface">
     {chambers}
     <footer className="gemini-twin-footer">
       <button type="button" aria-label="查看 Gemini 额度详情" onClick={onDetails}

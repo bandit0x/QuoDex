@@ -1,11 +1,13 @@
+import { useLayoutEffect, useRef } from "react";
 import { FluidReservoir } from "./FluidReservoir";
 import type { FluidMotionSample } from "./fluidPhysics";
 import type { GeminiPool } from "./geminiQuota";
-import { getGeminiReading, type GeminiPeriod, type GeminiReading } from "./geminiQuotaReadout";
+import { geminiPeriods, getGeminiReading, type GeminiPeriod, type GeminiReading } from "./geminiQuotaReadout";
 import "./GeminiTwinChambers.css";
 
 const agGemini = { key: "gemini", name: "AG Gemini", index: 1, accent: "indigo", seed: 0.46 } as const;
 const agPartner = { key: "partner", name: "AG Claude/GPT", index: 2, accent: "orchid", seed: 0.72 } as const;
+const agSources = [agGemini, agPartner] as const;
 const geminiWeb = { key: "web", name: "Gemini Web", index: 0 } as const;
 type Source = typeof agGemini | typeof agPartner | typeof geminiWeb;
 const periodLabel: Record<GeminiPeriod, string> = { fiveHour: "5 小时", weekly: "一周" };
@@ -84,11 +86,31 @@ function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, 
 }
 
 export function GeminiTwinChambers(props: GeminiTwinChambersProps) {
-  const dials = [agGemini, agPartner].map(source => <SourceInstrument key={source.key} source={source} {...props} />);
+  const pairRef = useRef<HTMLSpanElement>(null);
+  const previousReadings = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const pair = pairRef.current;
+    const parent = pair?.parentNode;
+    if (!pair || !parent) {
+      previousReadings.current = null;
+      return;
+    }
+    const readings = JSON.stringify(agSources.flatMap(({ index }) =>
+      geminiPeriods.map(period => props.pools[index] ? getGeminiReading(props.pools[index], period) : missingReading)));
+    const previous = previousReadings.current;
+    previousReadings.current = readings;
+    if (previous === null || previous === readings) return;
+    // WebView2 can retain part of the old metal gradient after a partial repaint.
+    // Invalidate the whole pair before paint, preserving both live liquid canvases.
+    const next = pair.nextSibling;
+    parent.removeChild(pair);
+    parent.insertBefore(pair, next);
+  }, [props.collapsed, props.pools]);
+  const dials = agSources.map(source => <SourceInstrument key={source.key} source={source} {...props} />);
   return <span className={`gemini-twin ${props.collapsed ? "gemini-twin--narrow" : "gemini-twin--standard"}`}>
     <span className="twin-instruments">
       {props.collapsed && <span className="twin-periods" aria-hidden="true"><span>一周</span><span>5 小时</span></span>}
-      {props.collapsed ? dials : <span className="twin-pair">{dials}</span>}
+      {props.collapsed ? dials : <span className="twin-pair" ref={pairRef}>{dials}</span>}
       <SourceInstrument source={geminiWeb} {...props} />
     </span>
   </span>;
