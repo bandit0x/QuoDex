@@ -33,6 +33,8 @@ from playwright.sync_api import sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HELPER = ROOT / "scripts/gemini-twin-windows.ps1"
+OPTICAL_STUDY = ROOT / "docs/design/gemini-quota-windows/liquid/twin/material/optical-glass-study.png"
+OPTICAL_CROPS = {"standard": (194, 17, 1577, 601), "narrow": (194, 626, 1577, 852)}
 NORMAL = {"gemini": (82, 16), "partner": (24, 90), "web": (68, 55)}
 NAMES = {"gemini": "AG Gemini", "partner": "AG Claude/GPT", "web": "Gemini Web"}
 HINTS = {"gemini": ("2 小时后重置", "3 天后重置"), "partner": ("1 小时后重置", None),
@@ -257,6 +259,15 @@ def render_reference(args, profile, layout, scenario, env, product_geometry, red
                 p.terminate()
 
 
+def optical_reference(layout, size):
+    with Image.open(OPTICAL_STUDY) as sheet:
+        checked(sheet.size == (1774, 887), "QGT-127: optical study dimensions changed, verify the panel crops")
+        crop = OPTICAL_CROPS[layout]
+        image = sheet.convert("RGB").crop(crop).resize(size, Image.Resampling.LANCZOS)
+    return image, {"file": str(OPTICAL_STUDY.relative_to(ROOT)), "sha256": sha256(OPTICAL_STUDY),
+                   "crop": crop, "size": size, "resampling": "Lanczos"}
+
+
 def compare(out, name, product, reference):
     checked(product.size == reference.size, "QGT-110: raster dimensions differ")
     checked(len(product.convert("RGB").getcolors(1000000)) > 100 and
@@ -464,9 +475,12 @@ def measure_case(args, scenario, env, ag_page, report, reduced=True, label=None)
                     later, _ = snapshot(hwnd, size)
                     diff = ImageChops.difference(initial, later.convert("RGB"))
                     changes.append(sum(n for n, rgb in diff.getcolors(initial.width*initial.height) if any(rgb)))
-            ref, reference = render_reference(args, folder/f"ref-{layout}", layout, scenario, env, geometry, reduced, settings_height)
-            checked(all(geometry[k] == reference[k] for k in ("hwndSize","crop","origin","dpi")) and
-                    reference["metrics"]["dpr"] == geometry["dpi"]/96, "QGT-116: native reference geometry differs")
+            if args.optical_study:
+                ref, reference = optical_reference(layout, image.size)
+            else:
+                ref, reference = render_reference(args, folder/f"ref-{layout}", layout, scenario, env, geometry, reduced, settings_height)
+                checked(all(geometry[k] == reference[k] for k in ("hwndSize","crop","origin","dpi")) and
+                        reference["metrics"]["dpr"] == geometry["dpi"]/96, "QGT-116: native reference geometry differs")
             name = label + "-" + layout
             metrics = compare(args.output, name, image, ref)
             report["cases"][name] = {"product": geometry, "reference": reference, "reducedMotion":reduced,
@@ -536,6 +550,7 @@ def arguments():
     parser.add_argument("--loader", type=pathlib.Path, required=True, help="Directory containing the x64 WebView2Loader.dll")
     parser.add_argument("--output", type=pathlib.Path, required=True)
     coverage = parser.add_mutually_exclusive_group()
+    coverage.add_argument("--optical-study", action="store_true", help="Compare the normal sample to the approved thick-glass image in both layouts")
     coverage.add_argument("--states", action="store_true", help="Include normal motion, depleted, missing, stale, five-hour extremes and a real reader diagnostic")
     coverage.add_argument("--repeat-extremes", type=int, metavar="RUNS", help="Independently cold-start and compare only a normal to 0/100 update")
     parser.add_argument("--source-revision", help="Known source commit for the supplied executable")
@@ -558,9 +573,14 @@ if __name__ == "__main__":
     report = {"status":"Blocked","executableSHA256":sha256(args.executable),
               "productSourceRevision":args.source_revision,"windowsVersion":platform.version(),
               "pythonVersion":platform.python_version(),"normalFiveHourWeekly":NORMAL,
-              "capture":"Win32 PrintWindow PW_RENDERFULLCONTENT, RGB on black backing; entire quota surface including footer; no resampling, no mask, zero tolerance",
+              "capture":"Win32 PrintWindow PW_RENDERFULLCONTENT, RGB on black backing; entire quota surface including footer; no actual image resampling, no mask, zero tolerance",
               "designGitRevision":subprocess.check_output(["git","log","-1","--format=%H","--","docs/design/gemini-quota-windows/liquid/twin"],cwd=ROOT,text=True).strip(),
               "runtimeSHA256":sha256(args.runtime/"msedgewebview2.exe"),"cases":{}}
+    if args.optical_study:
+        report["designGitRevision"] = subprocess.check_output(
+            ["git", "log", "-1", "--format=%H", "--", str(OPTICAL_STUDY.relative_to(ROOT))], cwd=ROOT, text=True
+        ).strip()
+        report["visualCoverage"] = "normal readings in both layouts; the optical study contains only this state"
     try:
         manifest = args.executable.with_name("manifest.json")
         if manifest.is_file():

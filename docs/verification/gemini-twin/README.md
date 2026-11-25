@@ -32,6 +32,8 @@ Windows UI Automation 从匿名面板读取六项额度，QuoDex 将读数绘制
 
 ## 复现
 
+最新的厚玻璃效果图使用 `--optical-study` 对照。它只包含标准窗和窄条的正常读数画面，因此该参数只检查两个固定样本。脚本记录效果图的裁切坐标和 SHA-256，以 Lanczos 将效果图映射到实机尺寸，保留实机原始像素并逐通道比较。此模式与下文针对旧交互定稿的 `--states` 和 `--repeat-extremes` 分开运行。
+
 在 Windows 11、PowerShell 7、Python 3.11 环境下运行。Python 依赖为 pywin32、Pillow、psutil 和 Playwright。电脑需要 Edge、随便携包提供的 WebView2 运行时、Microsoft.Web.WebView2.Core.dll 以及同架构的 WebView2Loader.dll。
 
 ```powershell
@@ -41,6 +43,8 @@ $sdkDll = 'C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/Common
 $loaderDir = (Get-ChildItem '.scratch/gemini-liquid/target/release/build/webview2-com-sys-*/out/x64/WebView2Loader.dll' | Select-Object -First 1).DirectoryName
 $env:PYTHONIOENCODING = 'utf-8'
 $qa = @('scripts/verify-gemini-twin.py', '--executable', "$packageDir/QuoDex.exe", '--runtime', "$packageDir/webview2-runtime", '--source-revision', $revision, '--sdk', $sdkDll, '--loader', $loaderDir)
+# 对照厚玻璃效果图时，先将 $packageDir 指向待验证的实际版本。
+python @qa --optical-study --output .scratch/gemini-twin/recheck-optical
 python @qa --repeat-extremes 3 --output .scratch/gemini-twin/recheck-extremes
 python @qa --states --output .scratch/gemini-twin/recheck-a
 python @qa --states --output .scratch/gemini-twin/recheck-b
