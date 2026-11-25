@@ -24,6 +24,7 @@ pub struct Pool {
     pub observed_at_ms: Option<i64>,
     pub diagnostic: Option<Diagnostic>,
     pub source: &'static str,
+    pub account_key: Option<String>,
 }
 
 impl Pool {
@@ -34,6 +35,7 @@ impl Pool {
             observed_at_ms: None,
             diagnostic: None,
             source: "panel",
+            account_key: None,
         }
     }
     fn background(windows: Vec<Window>, observed_at_ms: i64) -> Self {
@@ -71,38 +73,124 @@ pub struct GeminiQuota {
 }
 
 #[tauri::command]
-pub async fn read_gemini_quota() -> Result<GeminiQuota, Diagnostic> {
+pub async fn read_gemini_quota(source: Option<String>) -> Result<GeminiQuota, Diagnostic> {
     #[cfg(windows)]
-    let pools = {
-        let (web, panels) = tokio::join!(
-            web_session::read(),
-            tauri::async_runtime::spawn_blocking(windows_reader::read)
-        );
-        let mut pools = panels
-            .ok()
-            .and_then(Result::ok)
-            .unwrap_or_else(|| std::array::from_fn(|_| Pool::unavailable("failed")));
-        if web.state != "notConnected" || pools[0].state != "available" {
-            pools[0] = web;
+    let pools = match source.as_deref() {
+        Some("web") => [
+            web_session::read().await,
+            Pool::unavailable("absent"),
+            Pool::unavailable("absent"),
+        ],
+        Some("desktop") => {
+            let ag = tauri::async_runtime::spawn_blocking(desktop_status)
+                .await
+                .unwrap_or_else(|_| {
+                    desktop_pool("failed", "QGM-234", "无法确认 Antigravity 桌面状态")
+                });
+            [Pool::unavailable("absent"), ag.clone(), ag]
         }
-        pools
+        Some("panel") => read_panels().await,
+        None => {
+            let (web, mut pools) = tokio::join!(web_session::read(), read_panels());
+            if web.state != "notConnected" || pools[0].state != "available" {
+                pools[0] = web;
+            }
+            pools
+        }
+        _ => return Err(Diagnostic::new("QGM-233", "无法识别 Gemini 额度来源")),
     };
     #[cfg(not(windows))]
-    let pools = std::array::from_fn(|_| Pool::unavailable("unsupported"));
+    let pools = {
+        let _ = source;
+        std::array::from_fn(|_| Pool::unavailable("unsupported"))
+    };
     Ok(GeminiQuota {
         pools,
         observed_at_ms: chrono::Utc::now().timestamp_millis(),
     })
 }
 
+#[cfg(windows)]
+async fn read_panels() -> [Pool; 3] {
+    tauri::async_runtime::spawn_blocking(windows_reader::read)
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .unwrap_or_else(|| std::array::from_fn(|_| Pool::unavailable("failed")))
+}
+
+#[cfg(windows)]
+fn desktop_pool(state: &'static str, code: &'static str, message: &'static str) -> Pool {
+    Pool {
+        source: "desktop",
+        ..Pool::error(state, code, message)
+    }
+}
+
+#[cfg(windows)]
+fn desktop_status() -> Pool {
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            RemoteDesktop::ProcessIdToSessionId,
+            Threading::GetCurrentProcessId,
+        },
+    };
+    let running = unsafe {
+        let mut current_session = 0;
+        if ProcessIdToSessionId(GetCurrentProcessId(), &mut current_session).is_err() {
+            return desktop_pool("failed", "QGM-234", "无法确认当前 Windows 会话");
+        }
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+            return desktop_pool("failed", "QGM-234", "无法确认 Antigravity 桌面状态");
+        };
+        let mut entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        let mut found = false;
+        let mut has_entry = Process32FirstW(snapshot, &mut entry).is_ok();
+        while has_entry {
+            let name = String::from_utf16_lossy(&entry.szExeFile);
+            let mut session = 0;
+            if name
+                .trim_end_matches('\0')
+                .eq_ignore_ascii_case("Antigravity.exe")
+                && ProcessIdToSessionId(entry.th32ProcessID, &mut session).is_ok()
+                && session == current_session
+            {
+                found = true;
+                break;
+            }
+            has_entry = Process32NextW(snapshot, &mut entry).is_ok();
+        }
+        let _ = CloseHandle(snapshot);
+        found
+    };
+    if running {
+        desktop_pool(
+            "blocked",
+            "QGM-232",
+            "桌面版已运行，尚无已验证的只读额度连接",
+        )
+    } else {
+        desktop_pool("absent", "QGM-231", "Antigravity 桌面版未运行")
+    }
+}
+
 #[tauri::command]
-pub fn connect_gemini_web() -> Result<(), Diagnostic> {
+pub fn connect_gemini_web(app: tauri::AppHandle) -> Result<(), Diagnostic> {
     #[cfg(windows)]
     {
-        web_session::connect()
+        web_session::connect(app)
     }
     #[cfg(not(windows))]
     {
+        let _ = app;
         Err(Diagnostic::new("QGM-206", "当前系统尚未支持独立网页登录"))
     }
 }

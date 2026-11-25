@@ -44,7 +44,7 @@ export function geminiPoolNotes(pool: GeminiPool, index: number): string[] {
       }
     }
   }
-  if (pool.source) notes.push(pool.source === "panel" ? "来源：可见面板" : "来源：独立网页登录");
+  if (pool.source) notes.push(`来源：${{ panel: "可见面板", background: "独立网页登录", desktop: "AG 桌面" }[pool.source]}`);
   if (pool.diagnostic) {
     notes.push(`${pool.diagnostic.message} · ${pool.diagnostic.code}`);
     return notes;

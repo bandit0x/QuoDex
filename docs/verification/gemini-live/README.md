@@ -4,6 +4,14 @@ Windows 主程序的右键设置提供 Gemini 来源。首次选择后，轮播�
 
 ## 数据来源
 
+### 后台探针开发构建
+
+本轮 Windows 开发构建已将正常刷新拆成 Web 和 AG 两路。Web 登录入口为 Gemini 首页，专用窗口关闭后触发首读。网页必须报告可确认的 Google 账号，才会接收额度值。五小时和每周独立更新；在同一运行会话中，已确认账号的旧值沿用原成功时间。详情提供“对照已打开的面板”作为人工采样入口。
+
+整体状态为 **Blocked**。Windows 桌面版退出时，AG 两仓返回 `QGM-231`；桌面运行但缺少已验证的只读额度连接时，返回 `QGM-232`。参考项目使用内部会话和放宽的 TLS 校验。按已确认方案，真实账号阶段停在可信连接的边界。Web 的 AI Plus 真账号、跨重启读数缓存和 HTTP 限流退避仍待完成或验证。本轮没有替换现有 0.4.15 安装包。[开发方案](../../design/gemini-quota-windows/background-probe.md) · [源码审计](../../research/gemini-background-probe/github-source-audit.md)
+
+### 已发行的 0.4.15
+
 Windows 单包测试版中，点击浮窗底部 GEMINI →「连接 Gemini 网页账号」。QuoDex 用已安装的 Chrome 或 Edge 新建专用配置，用户在普通浏览器窗口登录并自行关闭。随后 QuoDex 每五分钟尝试读取一次网页双周期，也可手动刷新。每次采样使用同一个专用配置，运行时不依赖扩展、驱动或额外 CLI。使用本机模拟站点已验证窗口关闭、额度变化和会话撤销；Google 真实账号的关窗自动刷新仍待验收。[实验记录](../../research/gemini-background-probe/verify-browser-session.md)
 
 未连接独立会话时，网页仓可从已打开的官方用量页读取。AG 两仓继续从桌面「设置 → 模型」的两个模型组取数；关掉 Antigravity 后只能显示此前读数及其时间。详情标注数据来源，周期或账号不可确认时报告未知。下方较早的真实读数和截图对应页面探针。[Gemini 官方帮助](https://support.google.com/gemini/answer/16275805?hl=en) · [Antigravity 模型面板](https://antigravity.google/docs/models)

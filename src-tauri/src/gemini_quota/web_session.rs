@@ -2,6 +2,7 @@ use super::{Pool, Window};
 use crate::capacity::Diagnostic;
 use dom_query::Document;
 use regex::Regex;
+use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
     io,
@@ -11,8 +12,10 @@ use std::{
     sync::LazyLock,
     time::Duration,
 };
+use tauri::Emitter;
 use tokio::io::AsyncReadExt;
 
+const HOME_PAGE: &str = "https://gemini.google.com/app";
 const USAGE: &str = "https://gemini.google.com/usage";
 const MAX_DOM: usize = 12 * 1024 * 1024;
 const COMMON: [&str; 5] = [
@@ -79,7 +82,7 @@ fn command(exe: &Path, profile: &Path) -> Command {
     cmd
 }
 
-pub(crate) fn connect() -> Result<(), Diagnostic> {
+pub(crate) fn connect(app: tauri::AppHandle) -> Result<(), Diagnostic> {
     let exe = browser()
         .ok_or_else(|| Diagnostic::new("QGM-216", "请安装 Chrome 或 Edge 以连接 Gemini Web"))?;
     let path = profile().ok_or_else(|| Diagnostic::new("QGM-217", "找不到本地用户配置目录"))?;
@@ -91,13 +94,15 @@ pub(crate) fn connect() -> Result<(), Diagnostic> {
         return Err(Diagnostic::new("QGM-218", "请在已打开的专用浏览器完成连接"));
     }
     let mut child = command(&exe, &path)
-        .args(["--new-window", USAGE])
+        .args(["--new-window", HOME_PAGE])
         .stdout(Stdio::null())
         .spawn()
         .map_err(|_| Diagnostic::new("QGM-217", "无法启动 Web 专用登录窗口"))?;
+    let _ = app.emit("gemini-web-session", true);
     std::thread::spawn(move || {
         let _ = child.wait();
         drop(lease);
+        let _ = app.emit("gemini-web-session", false);
     });
     Ok(())
 }
@@ -106,13 +111,17 @@ static USED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)已使用|已用|已消耗|\bused\b|\bconsumed\b").unwrap());
 static LEFT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)剩余|剩餘|可用|\bremaining\b|\bleft\b").unwrap());
+static ACCOUNT_EMAIL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)[a-z0-9.!#$%&'*+/=?^_{}|~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+").unwrap()
+});
+static ACCOUNT_SALT: LazyLock<uuid::Uuid> = LazyLock::new(uuid::Uuid::new_v4);
 static RESET: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
     r"(?i)(重置(?:时间|時間)?[：:]?\s*(?:\d{1,2}月\d{1,2}日\s*)?\d{1,2}:\d{2}|resets?\s+(?:in|at|on)\s+[^%]{1,48}?)\s*(?:$|已使用|\d+(?:\.\d+)?\s*%\s*used)"
 ).unwrap()
 });
 
-fn parse_window(label: &str) -> Option<Window> {
+fn period(label: &str) -> Option<usize> {
     let lower = label.to_lowercase();
     let weekly = ["weekly", "week limit", "每周", "每週", "本周", "本週"]
         .iter()
@@ -121,7 +130,11 @@ fn parse_window(label: &str) -> Option<Window> {
         .iter()
         .any(|s| lower.contains(s))
         || super::FIVE.is_match(&lower);
-    if weekly == current || USED.is_match(label) == LEFT.is_match(label) {
+    (weekly != current).then_some(usize::from(weekly))
+}
+
+fn parse_window(label: &str, period: usize) -> Option<Window> {
+    if USED.is_match(label) == LEFT.is_match(label) {
         return None;
     }
     let mut values = super::PERCENT.find_iter(label);
@@ -141,7 +154,7 @@ fn parse_window(label: &str) -> Option<Window> {
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().trim().to_string());
     Some(Window {
-        period: if weekly { "weekly" } else { "fiveHour" },
+        period: ["fiveHour", "weekly"][period],
         remaining_percent: if USED.is_match(label) {
             100.0 - pct
         } else {
@@ -153,6 +166,9 @@ fn parse_window(label: &str) -> Option<Window> {
 
 fn parse_dom(html: &str) -> Pool {
     let doc = Document::from(html);
+    if doc.select("body.neterror, #main-frame-error").length() > 0 {
+        return Pool::error("failed", "QGM-219", "网页采样未成功，请检查网络或稍后刷新");
+    }
     let lists = doc.select(
         r#"[aria-label="Usage cycles" i], [aria-label="用量周期"], [aria-label="用量週期"]"#,
     );
@@ -171,8 +187,24 @@ fn parse_dom(html: &str) -> Pool {
             "未取得网页用量周期，请在专用浏览器核对账号或网页状态",
         );
     }
+    let accounts = doc.select(r#"[aria-label^="Google Account" i], [aria-label^="Google 账号"], [aria-label^="Google 帐号"], [aria-label^="Google 帳戶"], [aria-label^="Google 帳號"]"#);
+    let identities: std::collections::BTreeSet<_> = accounts
+        .nodes()
+        .iter()
+        .filter_map(|node| node.attr("aria-label"))
+        .flat_map(|label| {
+            ACCOUNT_EMAIL
+                .find_iter(&label)
+                .map(|m| m.as_str().to_ascii_lowercase())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    if identities.len() != 1 {
+        return Pool::error("ambiguous", "QGM-230", "无法确认 Gemini 网页用量对应的账号");
+    }
     let rows = lists.select("li, [role=listitem]");
-    let mut windows = Vec::new();
+    let mut windows = [None, None];
+    let mut seen = [false; 2];
     for row in rows.nodes() {
         let label = row
             .attr("aria-label")
@@ -185,26 +217,46 @@ fn parse_dom(html: &str) -> Pool {
                     .collect::<Vec<_>>()
                     .join(" ")
             });
-        let Some(window) = parse_window(&label) else {
-            return Pool::error(
-                "unreadable",
-                "QGM-213",
-                "网页用量行缺少明确的周期、数值或方向",
-            );
+        let Some(index) = period(&label) else {
+            continue;
         };
-        if windows.iter().any(|w: &Window| w.period == window.period) {
-            return Pool::error("unreadable", "QGM-213", "网页出现重复额度周期");
+        if seen[index] {
+            windows[index] = None;
+            continue;
         }
-        windows.push(window);
+        seen[index] = true;
+        windows[index] = parse_window(&label, index).map(|mut window| {
+            let reset = row
+                .descendants_it()
+                .filter(|time| time.node_name().as_deref() == Some("time"))
+                .filter_map(|time| time.attr("datetime"))
+                .filter_map(|value| chrono::DateTime::parse_from_rfc3339(&value).ok())
+                .collect::<Vec<_>>();
+            if let [reset] = reset.as_slice() {
+                window.reset = Some(reset.to_rfc3339());
+            }
+            window
+        });
     }
-    if windows.len() != 2 {
+    let windows: Vec<_> = windows.into_iter().flatten().collect();
+    if windows.is_empty() {
         return Pool::error(
             "unreadable",
             "QGM-213",
             "网页未显示五小时与每周两个额度周期",
         );
     }
-    Pool::background(windows, chrono::Utc::now().timestamp_millis())
+    let partial = windows.len() < 2;
+    let email = identities.first().expect("exactly one recognized account");
+    let mut hash = Sha256::new();
+    hash.update(ACCOUNT_SALT.as_bytes());
+    hash.update(email.as_bytes());
+    let mut pool = Pool::background(windows, chrono::Utc::now().timestamp_millis());
+    pool.account_key = Some(format!("{:x}", hash.finalize()));
+    if partial {
+        pool.diagnostic = Some(Diagnostic::new("QGM-213", "网页只提供了一个可信额度周期"));
+    }
+    pool
 }
 
 pub(super) async fn read() -> Pool {
@@ -262,13 +314,13 @@ mod tests {
     #[test]
     fn extracts_only_labeled_quota_rows() {
         let english = parse_dom(
-            r#"<ul aria-label="Usage cycles">
+            r#"<button aria-label="Google Account: user (person@example.test)"></button><ul aria-label="Usage cycles">
             <li><b>Current usage</b><span>5% used</span><span>Resets at 1:00 PM</span></li>
             <li><b>Weekly limit</b><span>1% used</span></li></ul>"#,
         );
         assert_eq!(english.windows[0].remaining_percent, 95.0);
         let p = parse_dom(
-            r#"<script>let bait='Weekly remaining 2%';</script><ul aria-label="用量周期">
+            r#"<script>let bait='Weekly remaining 2%';</script><button aria-label="Google 账号：用户 (person@example.test)"></button><ul aria-label="用量周期">
             <li aria-label="当前用量已使用 2%重置时间：13:26"></li>
             <li aria-label="每周限额重置时间：11月30日14:26已使用 0%"></li></ul>"#,
         );
@@ -281,5 +333,25 @@ mod tests {
             "unreadable"
         );
         assert_eq!(parse_dom("<input type=email>").state, "authRequired");
+    }
+
+    #[test]
+    fn isolates_duplicate_periods_and_unconfirmed_accounts() {
+        let usage = r#"<ul aria-label="Usage cycles">
+            <li>Current usage 100% used</li>
+            <li>Weekly limit 1% used</li><li>Weekly limit 2% used</li>
+            </ul>"#;
+        let known = parse_dom(&format!(
+            r#"<button aria-label="Google Account: First (first@example.test)"></button>{usage}"#,
+        ));
+        assert_eq!(known.state, "available");
+        assert_eq!(known.windows.len(), 1);
+        assert_eq!(known.windows[0].remaining_percent, 0.);
+        assert!(known.account_key.is_some());
+        assert_eq!(parse_dom(usage).state, "ambiguous");
+        let other = parse_dom(&format!(
+            r#"<button aria-label="Google Account: Second (second@example.test)"></button>{usage}"#,
+        ));
+        assert_ne!(known.account_key, other.account_key);
     }
 }

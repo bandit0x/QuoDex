@@ -1203,7 +1203,7 @@ export function App({
       .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
   };
 
-  const detailContent = activeIsGemini ? <GeminiQuotaDetails pools={gemini.pools} /> : activeSnapshot ? (
+  const detailContent = activeIsGemini ? <GeminiQuotaDetails pools={gemini.pools} refresh={gemini.refresh} /> : activeSnapshot ? (
     <div className="detail-strip">
       {activeIsZcode && zcodeSnapshot ? (
         <>

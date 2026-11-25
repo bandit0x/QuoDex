@@ -11,6 +11,17 @@ const complete: GeminiPool = {
 };
 
 describe("Gemini readings by period", () => {
+  it("keeps only same-account background history, with its original success time", () => {
+    const web: GeminiPool = { ...complete, source: "background", accountKey: "first" };
+    const partial = { ...web, observedAtMs: 200, windows: [web.windows[0]] };
+    const snapshot = { observedAtMs: 200, pools: [partial, complete, complete] } as const;
+    const merge = (pool: GeminiPool, observedAtMs: number, next = partial) =>
+      mergeGeminiSnapshot([pool], { observedAtMs, pools: [next, snapshot.pools[1], snapshot.pools[2]] })[0];
+    expect(merge(web, 200).windows.find(w => w.period === "fiveHour")).toMatchObject({
+      remainingPercent: 99.9, stale: true, observedAtMs: 100,
+    });
+    expect(merge(web, 200, { ...partial, accountKey: "other" }).windows).toHaveLength(1);
+  });
   it("uses just the reported periods after a successful read and keeps a prior panel read after it closes", () => {
     const weeklyOnly = { ...complete, windows: complete.windows.slice(0, 1) };
     const pools = mergeGeminiSnapshot([complete, weeklyOnly, complete], {
