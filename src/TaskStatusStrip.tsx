@@ -1,9 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import "./TaskStatusStrip.css";
 import { readyTaskSources, taskSourceNames, type ChatTask, type TaskSourceStatus } from "./taskStatusTypes";
 import { isOverlayTaskPointerInside } from "./windowClient";
 import { TaskWaterFlow } from "./TaskWaterFlow";
-import prismTexture from "./task-prism.webp";
 import type { Diagnostic } from "./capacityTypes";
 
 interface TaskStatusStripProps {
@@ -69,18 +68,10 @@ const taskGroups = [
   { name: "Gemini", entries: ["geminiWeb", "antigravity"], color: "#d2a0fa" },
 ];
 const statePriority = { failed: 0, waiting: 1, running: 2, unknown: 3, completed: 4 };
-const glyphs = { running: "›", waiting: "Ⅱ", failed: "!", unknown: "?", completed: "✓" };
-const fibers = [
-  ["M21 16 C40 16 43 1 65 1 H185 L181 11 H65 C48 11 42 17 21 18 Z", "M21 16 C41 16 43 2 65 2 H183"],
-  ["M21 17 C39 17 45 13 65 13 H185 L181 23 H65 C46 23 39 19 21 19 Z", "M21 17 C43 17 46 14 65 14 H183"],
-  ["M21 18 C40 18 47 25 65 25 H185 L181 35 H65 C44 35 41 21 21 20 Z", "M21 19 C41 19 49 26 65 26 H183"],
-];
-
 export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), diagnostic = null, reducedMotion = false, compact = false, onOpen, onDismiss, onPopoverChange, isPointerInside = isOverlayTaskPointerInside }: TaskStatusStripProps) {
   const [selection, setSelection] = useState<string | null>(null);
   const closeTimer = useRef<number | null>(null);
   const closeGeneration = useRef(0);
-  const fiberId = useId();
   const key = (task: ChatTask) => `${task.source}:${task.id}`;
   const visible = visibleChatTasks(tasks, now);
   const groups = taskGroups.map(group => ({
@@ -88,12 +79,10 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     statuses: sources.filter(source => group.entries.includes(source.source)),
     tasks: visible.filter(task => group.entries.includes(task.source)).sort((a, b) => statePriority[a.state] - statePriority[b.state] || (b.completedAtMs ?? 0) - (a.completedAtMs ?? 0) || a.id.localeCompare(b.id)),
   }));
-  const issues = visible.filter(task => task.state === "failed" || task.state === "waiting");
-  const activeGroup = groups.find(group => group.name === selection);
-  const hasArea = visible.length > 0 || sources.some(source => source.health !== "ready") || diagnostic !== null;
-  const showAttention = selection === "attention";
-  const showDiagnostic = selection === "diagnostic" && diagnostic !== null;
-  const isOpen = hasArea && Boolean(activeGroup || showAttention || showDiagnostic);
+  const shown = groups.filter(group => group.tasks.length || group.statuses.some(s => s.health !== "ready"));
+  if (!shown.length && diagnostic) shown.push(groups[0]);
+  const activeGroup = shown.find(group => group.name === selection);
+  const isOpen = Boolean(activeGroup);
   const cancelClose = () => { closeGeneration.current += 1; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };
   const close = () => setSelection(null);
   const scheduleClose = () => {
@@ -113,7 +102,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     };
     closeTimer.current = window.setTimeout(confirmClose, 160);
   };
-    useEffect(() => { onPopoverChange?.(isOpen); }, [isOpen, onPopoverChange]);
+  useEffect(() => { onPopoverChange?.(isOpen); }, [isOpen, onPopoverChange]);
   // 非激活窗口收不到 mouseleave（光标离开后事件投给前台 app），打开期间
   // 由原生光标查询主动仲裁；补偿轮询会把标志/坐标维护为最新值。
   const scheduleCloseRef = useRef(scheduleClose);
@@ -134,57 +123,35 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
     window.addEventListener("pointerdown", onOutside);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", onOutside); };
   }, [isOpen]);
-  if (!hasArea) return null;
-  const toggle = (name: string) => {
+  if (!shown.length) return null;
+  const reveal = (name: string) => {
     cancelClose();
-    setSelection(previous => previous === name ? null : name);
+    setSelection(name);
   };
-  const limit = compact ? 3 : 4;
-  const listed = activeGroup?.tasks ?? (showAttention ? issues : []);
-  const listedStatuses = activeGroup?.statuses ?? (showAttention ? sources.filter(source => source.health !== "ready") : []);
-  const listTitle = activeGroup ? `${activeGroup.name} 任务列表` : showAttention ? "报错和等待" : "公共任务诊断";
   return <>
-    <section className={`task-strip${compact ? " task-strip--compact" : ""}`} aria-label="聊天任务" onMouseEnter={cancelClose} onMouseLeave={scheduleClose}>
-      <svg className="task-fibers" viewBox="0 0 186 36" preserveAspectRatio="none" aria-hidden="true">
-        <defs>{groups.map(({ name, color }, index) => <linearGradient key={name} id={`${fiberId}-${index}`} x2=".12" y2="1">
-          <stop stopColor={color} /><stop offset=".18" stopColor="#405563" /><stop offset=".45" stopColor="#182c39" />
-          <stop offset=".76" stopColor="#172d38" /><stop offset="1" stopColor={color} />
-        </linearGradient>)}</defs>
-        {fibers.map(([body, edge], index) => <g key={body}>
-          <path d={body} fill={`url(#${fiberId}-${index})`} stroke="#43525b" strokeWidth=".45" />
-          <path d={edge} fill="none" stroke={groups[index].color} strokeWidth=".75" />
-          {!reducedMotion && groups[index].tasks.some(task => task.state === "running") &&
-            <path className={`task-fiber-pulse task-fiber-pulse--${index}`} d={edge} pathLength="100" fill="none" stroke="#fff" strokeWidth=".95" />}
-        </g>)}
-      </svg>
-      <button type="button" className="task-prism" aria-label={`查看 ${issues.length} 项已知报错和等待`} aria-expanded={showAttention} onClick={() => toggle("attention")}>
-        <img src={prismTexture} alt="" /><span aria-hidden="true">{issues.length > 99 ? "99+" : issues.length}</span>
-      </button>
-      <div className="task-fiber-rows">
-        {groups.map(group => {
-          const extra = group.tasks.length - limit;
-          const unknown = group.statuses.some(status => status.health !== "ready");
-          return <button key={group.name} type="button" className="task-strand" aria-expanded={selection === group.name}
-            aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unknown ? "，部分或全部来源状态未知" : ""}`}
-            onClick={() => toggle(group.name)}>
-            <span className="task-strand-name">{group.name}</span>
-            <span className="task-strand-marks" aria-hidden="true">
-              {group.tasks.slice(0, limit).map(task => <i key={key(task)} className={`task-mark task-mark--${task.state}`}>{glyphs[task.state]}</i>)}
-              {extra > 0 && <small>{extra > 99 ? "99+" : `+${extra}`}</small>}
-              {unknown && <small>?</small>}
-            </span>
-          </button>;
-        })}
-      </div>
-      {diagnostic && <button type="button" className="task-common-diagnostic" aria-label="公共任务诊断" title={`${diagnostic.message} · ${diagnostic.code}`} aria-expanded={showDiagnostic} onClick={() => toggle("diagnostic")}>!</button>}
+    <section className={`task-strip${compact ? " task-strip--compact" : ""}`} aria-label="聊天任务" onMouseLeave={scheduleClose}>
+      {shown.map(group => {
+        const states = group.tasks.map(task => task.state);
+        const unavailable = group.statuses.some(status => status.health !== "ready");
+        const spinning = states.includes("running") && !reducedMotion;
+        const mark = states.includes("failed") ? "!" : states.includes("waiting") ? "Ⅱ"
+          : states.includes("completed") ? "✔" : states.includes("unknown") || unavailable || diagnostic ? "?" : "";
+        return <button type="button" key={group.name} className="task-agent-orb"
+          style={{ "--agent-color": group.color } as CSSProperties} data-agent={group.name}
+          data-spinning={spinning || undefined} aria-expanded={selection === group.name}
+          aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
+          onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>
+          <span aria-hidden="true">{mark}</span>
+        </button>;
+      })}
     </section>
-    {isOpen && <aside className="task-popover" role="dialog" aria-label={listTitle} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
-      {showDiagnostic && diagnostic && <div className="task-details"><strong>任务提醒记录异常</strong><p className="task-detail-reason" role="status">{diagnostic.message} · {diagnostic.code}</p></div>}
-      {!showDiagnostic && <div className="task-list">
-        <strong>{activeGroup ? `${activeGroup.name} · 全部 ${listed.length} 项` : listTitle}</strong>
-        {listedStatuses.map(status => status.diagnostic && <p className="task-detail-reason" key={status.source} role="status">{taskSourceNames[status.source]} · {status.diagnostic.message} · {status.diagnostic.code}</p>)}
-        {listed.length === 0 && !listedStatuses.some(status => status.health !== "ready") && <span>{showAttention ? "暂无报错或等待" : "暂无任务"}</span>}
-        {listed.map(task => <div className="task-list-row" key={key(task)}>
+    {activeGroup && <aside className="task-popover" role="dialog" aria-label={`${activeGroup.name} 任务列表`} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocusCapture={cancelClose} onBlurCapture={scheduleClose}>
+      <div className="task-list">
+        <strong>{activeGroup.name} · 全部 {activeGroup.tasks.length} 项</strong>
+        {diagnostic && <p className="task-detail-reason" role="status">{diagnostic.message} · {diagnostic.code}</p>}
+        {activeGroup.statuses.map(status => status.diagnostic && <p className="task-detail-reason" key={status.source} role="status">{taskSourceNames[status.source]} · {status.diagnostic.message} · {status.diagnostic.code}</p>)}
+        {activeGroup.tasks.length === 0 && !diagnostic && activeGroup.statuses.every(status => status.health === "ready") && <span>暂无任务</span>}
+        {activeGroup.tasks.map(task => <div className="task-list-row" key={key(task)}>
           <button type="button" className="task-list-entry" aria-label={taskLabel(task, now)} onClick={() => { onOpen(task); close(); }}>
             <TaskCircle task={task} now={now} reducedMotion={reducedMotion} />
             <span>{taskTitle(task)}<small>{taskSourceNames[task.source]} · {taskStateLabel(task, now)}</small>
@@ -194,7 +161,7 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
           </button>
           {dismissible(task.state) && <button type="button" className="task-list-dismiss" aria-label={dismissAriaLabel(task)} onClick={() => onDismiss(task)}>移除提醒</button>}
         </div>)}
-      </div>}
+      </div>
     </aside>}
   </>;
 }

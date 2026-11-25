@@ -1,6 +1,14 @@
-# D 汇流棱镜 · Windows 验证
+# Agent 任务圆环 · Windows 验证
 
-QuoDex 0.4.12 主浮窗使用左置棱镜。点棱镜打开跨来源的报错和等待，点光纤打开完整来源列表。Gemini 行合并 Web 与 Antigravity，详情逐项显示入口。Antigravity 按聊天 ID 归组，模型切换不增加任务位。一个入口不可用时，行尾出现问号，另一个入口已知的任务仍可展开。
+主任务栏最多显示三个圆环，依次为 Codex 青色、ZCode 绿色和 Gemini 紫色。运行任务使品牌色外圈旋转；开启「减少动效」后外圈静止。中心优先显示报错 `!`、等待 `Ⅱ`，随后显示近 30 分钟完成 `✔`。同一个 Agent 可以同时显示旋转和中心标记。悬停或用键盘聚焦圆环可展开详情，点击条目按其来源和聊天 ID 跳转。Gemini Web 和 Antigravity 的同名聊天分别保留各自的目标。
+
+2026-11-25，在独立配置的 Windows 发布程序中通过 UI Automation 确认上方有三个圆按钮。测试库含一个近期完成的 ZCode 聊天，以及运行、等待和报错各一个的 Antigravity 聊天。ZCode 显示 ✔，Gemini 显示 !，中心标记可与外圈旋转并存。悬停 Gemini 后显示三个匿名聊天，移开后详情收起。连续采样期间 Gemini 圆环中有 322 个像素的任一 RGB 通道变化超过 4。标准和窄条均显示三个来源。[标准](orbs/standard.png) · [悬停](orbs/origins.png) · [窄条](orbs/narrow.png)
+
+上述截图使用匿名数据，发布 EXE 的 SHA-256 为 `E166CBA1BD39ED6FD8D23083F7E48C782D62C9A324B4DE7A3C6B54C15335FF3E`。将 `QUODEX_EXECUTABLE` 指向发布文件，再运行 `python scripts/verify-gemini-taskbar.py` 可复验。Codex、Gemini Web、Antigravity 分别按自己的聊天标识打开，ZCode 当前通过已注册的工作区链接打开对应项目。
+
+## 旧版 D 稿验证
+
+此前的 D 稿使用左置棱镜。点棱镜打开跨来源的报错和等待，点光纤打开完整来源列表。Gemini 行合并 Web 与 Antigravity，详情逐项显示入口。Antigravity 按聊天 ID 归组，模型切换不增加任务位。一个入口不可用时，行尾出现问号，另一个入口已知的任务仍可展开。
 
 | 对照项 | D 设计稿 | Windows 实际产物 |
 | --- | --- | --- |

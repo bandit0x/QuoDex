@@ -7,8 +7,8 @@ const success = { source: "codex" as const, id: "chat-1", turnId: "turn-1", titl
 
 const openCodex = () => fireEvent.click(screen.getByRole("button", { name: /^查看 Codex 全部/ }));
 
-describe("chat task fibers and details", () => {
-  it("opens a source list for the whole strand and preserves the project-qualified chat identity", () => {
+describe("agent rings and chat details", () => {
+  it("opens a source list for the agent ring and preserves the project-qualified chat identity", () => {
     const task = { ...success, projectName: "QuoDex", title: "任务状态显示" };
     const onOpen = vi.fn();
     render(<TaskStatusStrip tasks={[task]} now={now} onOpen={onOpen} onDismiss={vi.fn()} />);
@@ -71,13 +71,13 @@ describe("chat task fibers and details", () => {
     const running = { ...success, state: "running" as const, completedAtMs: null };
     const props = { now, onOpen: vi.fn(), onDismiss: vi.fn(), onPopoverChange: vi.fn() };
     const { rerender } = render(<TaskStatusStrip {...props} tasks={[running]} />);
-    expect(document.querySelector(".task-fiber-pulse")).not.toBeNull();
+    expect(document.querySelector(".task-agent-orb[data-spinning]")).not.toBeNull();
     openCodex();
     const button = screen.getByRole("button", { name: "整理文档 · 运行中" });
     expect(button.querySelector("canvas")).not.toBeNull();
     expect(within(button).queryByText("10m")).toBeNull();
     rerender(<TaskStatusStrip {...props} tasks={[success]} />);
-    expect(document.querySelector(".task-fiber-pulse")).toBeNull();
+    expect(document.querySelector(".task-agent-orb[data-spinning]")).toBeNull();
     const completed = screen.getByRole("button", { name: "整理文档 · 已完成 · 10 分钟前" });
     expect(completed.querySelector("canvas")).toBeNull();
     expect(within(completed).getByText("10m")).toBeInTheDocument();
@@ -135,15 +135,15 @@ describe("chat task fibers and details", () => {
     fireEvent.click(circle);
   });
 
-  it("folds overflow within the strand and retains all entries in the list", () => {
+  it("uses one ring for an agent and keeps every chat in its hover list", () => {
     const tasks = Array.from({ length: 13 }, (_, i) => ({ ...success, id: `chat-${i}`, title: `聊天 ${i}` }));
     const onOpen = vi.fn();
     const props = { tasks, now, onOpen, onDismiss: vi.fn() };
     const { rerender } = render(<TaskStatusStrip {...props} />);
-    expect(screen.getByText("+9")).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
     rerender(<TaskStatusStrip {...props} compact />);
-    expect(screen.getByText("+10")).toBeInTheDocument();
-    openCodex();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: /^查看 Codex/ }));
     const popup = screen.getByRole("dialog", { name: "Codex 任务列表" });
     expect(within(popup).getAllByText("10m")).toHaveLength(13);
     fireEvent.click(within(popup).getByRole("button", { name: "聊天 12 · 已完成 · 10 分钟前" }));

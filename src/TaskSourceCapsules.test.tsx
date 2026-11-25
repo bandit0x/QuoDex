@@ -30,17 +30,36 @@ it("shows an unavailable Web source beside an available Antigravity task", () =>
   expect(screen.getByText("检查布局")).toBeInTheDocument();
 });
 
-it("counts and filters attention across sources and keeps shared diagnostics accessible", () => {
+it("opens the selected chat when the Web and Antigravity titles are identical", () => {
+  const onOpen = vi.fn();
+  const webChat = { ...web, title: "同名聊天" };
+  const agChat = { ...ag, title: "同名聊天" };
+  render(<TaskStatusStrip tasks={[webChat, agChat]} now={now} onOpen={onOpen} onDismiss={vi.fn()} />);
+  for (const [origin, expected] of [["Antigravity", agChat], ["Web", webChat]] as const) {
+    fireEvent.click(gemini());
+    const list = screen.getByRole("dialog", { name: "Gemini 任务列表" });
+    fireEvent.click(within(list).getByRole("button", { name: new RegExp(`同名聊天.+Gemini / ${origin}`) }));
+    expect(onOpen).toHaveBeenLastCalledWith(expected);
+  }
+});
+
+it("keeps each agent's status and its diagnostics together when a running chat also needs attention", () => {
   const dismiss = vi.fn();
-  render(<TaskStatusStrip tasks={[web, ag, zcode]} now={now} diagnostic={{ code: "QDT-613", message: "检查配置目录权限", detail: null }} onOpen={vi.fn()} onDismiss={dismiss} />);
-  const region = screen.getByRole("region", { name: "聊天任务" });
-  expect(within(region).getAllByRole("button")[0]).toHaveAccessibleName("查看 2 项已知报错和等待");
-  fireEvent.click(within(region).getAllByRole("button")[0]);
-  const attention = screen.getByRole("dialog", { name: "报错和等待" });
-  expect(within(attention).getByText("检查布局")).toBeInTheDocument();
-  expect(within(attention).queryByText("整理资料")).toBeNull();
-  fireEvent.click(within(attention).getByRole("button", { name: "移除 应用异常 的报错提醒" }));
-  expect(dismiss).toHaveBeenCalledWith(zcode);
-  fireEvent.click(screen.getByRole("button", { name: "公共任务诊断" }));
-  expect(within(screen.getByRole("dialog", { name: "公共任务诊断" })).getByText(/检查配置目录权限 · QDT-613/)).toBeInTheDocument();
+  const failed = { ...ag, id: "failed", state: "failed" as const, title: "应用异常" };
+  const completed = { ...ag, id: "done", state: "completed" as const, completedAtMs: now };
+  const props = { now, diagnostic: { code: "QDT-613", message: "检查配置目录权限", detail: null }, onOpen: vi.fn(), onDismiss: dismiss };
+  const { rerender } = render(<TaskStatusStrip {...props} tasks={[web, ag, failed, zcode]} />);
+  const strip = screen.getByRole("region", { name: "聊天任务" });
+  expect(within(strip).getAllByRole("button")).toHaveLength(2);
+  expect(strip.textContent).not.toMatch(/\p{Script=Han}/u);
+  expect(gemini()).toHaveAttribute("data-spinning");
+  expect(gemini()).toHaveTextContent("!");
+  fireEvent.mouseEnter(gemini());
+  const list = screen.getByRole("dialog", { name: "Gemini 任务列表" });
+  expect(within(list).getByText(/检查配置目录权限 · QDT-613/)).toBeInTheDocument();
+  fireEvent.click(within(list).getByRole("button", { name: "移除 应用异常 的报错提醒" }));
+  expect(dismiss).toHaveBeenCalledWith(failed);
+  rerender(<TaskStatusStrip {...props} tasks={[web, completed]} reducedMotion />);
+  expect(gemini()).not.toHaveAttribute("data-spinning");
+  expect(gemini()).toHaveTextContent("✔");
 });

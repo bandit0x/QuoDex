@@ -21,7 +21,7 @@ QuoDex 常驻桌面角落，不用切窗口就能确认 Codex / ZCode 还剩多�
 
 - **额度与重置** — 5 小时、周额度或单池套餐，Codex / ZCode 切换与轮播，可用重置次数一目了然。
 - **Gemini 三仓（Windows）** — 右键浮窗选择 Gemini，分别查看 Web、Antigravity Gemini 和 Antigravity Claude/GPT。打开对应的用量面板可自动更新，点击浮窗底部的 GEMINI 可查看各窗口和上次读取时间。[使用与验证](docs/verification/gemini-live/README.md)
-- **聊天任务** — 左置棱镜汇总报错和等待，三条光纤分别显示 Codex、ZCode 和 Gemini。Gemini 聊天合并自 Web 与 Antigravity，详情标注入口。[任务栏验证](docs/verification/gemini-taskbar/README.md)
+- **聊天任务** — Codex、ZCode 和 Gemini 各用一个品牌色圆环。运行时外圈旋转，中心显示报错、等待或近期完成标记。悬停展开该 Agent 的聊天，Gemini 详情标注 Web 或 Antigravity。[任务栏验证](docs/verification/gemini-taskbar/README.md)
 - **液态玻璃** — 液面随余额涨落，拖动自然晃动；标准和窄条两种视图，背景透明度可调。
 - **用量统计** — 设置面板一键打开本机网页：7 天到 1 年六区间、合并 / 分开视图、月度热力墙与趋势图，本地账本长期留存。
 - **跨 PC 账本** — 连接自有百度网盘应用，查看全部设备已记录 token 用量；每 6 小时自动同步，同一请求去重，冲突明确提示。首期 Windows 单机实网已验证，双 PC 与 macOS 同步仍待验证。[接入与验证说明](docs/research/remote-record/README.md)

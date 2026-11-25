@@ -672,7 +672,7 @@ fn matches_conversation(url: &tauri::Url, id: uuid::Uuid) -> bool {
 }
 
 pub(crate) fn open_antigravity_chat(id: uuid::Uuid) -> bool {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+    let mut deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut launched = false;
     let mut invoked = false;
     let mut opened_sidebar = false;
@@ -749,7 +749,11 @@ pub(crate) fn open_antigravity_chat(id: uuid::Uuid) -> bool {
             {
                 let executable = base.join("antigravity/Antigravity.exe");
                 if executable.is_file() {
-                    let _ = std::process::Command::new(executable).spawn();
+                    if std::process::Command::new(executable).spawn().is_ok() {
+                        // A cold Electron launch has to restore the account and paint
+                        // its conversation list before an exact link can be invoked.
+                        deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+                    }
                     break;
                 }
             }
