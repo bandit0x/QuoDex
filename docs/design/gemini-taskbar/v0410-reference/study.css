@@ -27,11 +27,11 @@ td {height:71px}
 .ring.gemini {--brand:#2468ce; --edge:#deeeff}
 #sheet.core .ring {border-radius:50%;background:rgba(3,15,22,.75)}
 #sheet.core .ring:is([data-state=running],[data-state=mixed],[data-state=completed]) {background:#071723}
-#sheet.core .zcode {--reading:#e1e8ed}
+#sheet:is(.core,.dark) .zcode {--reading:#e1e8ed}
 #sheet.core .zcode:not([data-state=unknown]) {box-shadow:0 0 0 .55px rgb(225 233 238 / 74%)}
-#sheet.core .gemini {--reading:#a4cbff}
-#sheet.core .glyph,#sheet.core .completion :is(path,text) {color:var(--reading,var(--brand))}
-.ring canvas,.ring .outline,.ring .completion {width:100%;height:100%;position:absolute;inset:0}
+#sheet:is(.core,.dark) .gemini {--reading:#a4cbff}
+.ring .glyph,.ring .completion :is(path,text) {color:var(--reading,var(--brand))}
+.ring canvas,.ring .completion {width:100%;height:100%;position:absolute;inset:0}
 .ring svg {fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
 .glyph {width:56.37%;height:56.37%;position:relative;stroke-width:2.6}
 .ring text {fill:currentColor;stroke:none;font:650 14px "Segoe UI",sans-serif; font-variant-numeric:tabular-nums}

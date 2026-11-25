@@ -3,7 +3,7 @@ const agents = {
   zcode: {name:"ZCode", stops:[[4,7,10],[19,25,31],[133,148,157]]},
   gemini: {name:"Gemini", stops:[[16,51,112],[36,113,231],[184,229,255]]},
 };
-const labels = {running:"运行", waiting:"等待", completed:"3 分钟前完成", failed:"报错", unknown:"未知", mixed:"运行与报错"};
+const labels = {running:"运行", idle:"静置", waiting:"等待", completed:"3 分钟前完成", failed:"报错", unknown:"未知", mixed:"运行与报错"};
 const paths = {
   waiting:"M8 5v14M16 5v14",
   failed:"M12 4v10m0 4v2",
@@ -46,8 +46,17 @@ function measure(stream) {
     const dx=(x+.5)/stream.scale-diameter/2;
     const dy=(y+.5)/stream.scale-diameter/2;
     const radius=Math.hypot(dx,dy);
-    if(radius>=diameter/2-.34-2.4-.5/stream.scale && radius<=diameter/2+.5/stream.scale)
-      stream.band.push({offset:4*(y*n+x),radius,angle:Math.atan2(dy,dx)});
+    if(radius>=diameter/2-.34-2.4-.5/stream.scale && radius<=diameter/2+.5/stream.scale) {
+      const angle=Math.atan2(dy,dx);
+      let coverage=1;
+      if(stream.dashed) {
+        // Twelve breaks in the water rim. Soften each cut by one device pixel.
+        const phase=(angle/tau+1.25)*12;
+        const gapDistance=Math.abs(phase-Math.round(phase))-.15;
+        coverage=clamp(gapDistance*tau*radius/12*stream.scale+.5);
+      }
+      stream.band.push({offset:4*(y*n+x),radius,angle,coverage});
+    }
   }
 }
 function paint(stream,time) {
@@ -55,7 +64,7 @@ function paint(stream,time) {
   if(!stream.image) return;
   const rgba=stream.image.data;
   const scale=stream.scale;
-  for(const {offset,radius,angle} of stream.band) {
+  for(const {offset,radius,angle,coverage} of stream.band) {
     const {outer,inner,energy}=waveAt(angle,time,stream.seed);
     // Same two pigment intervals and crest exponent as 0.4.10. The centre stays transparent.
     const step=energy<.45?0:1;
@@ -64,7 +73,7 @@ function paint(stream,time) {
       const a=stream.stops[step][c],b=stream.stops[step+1][c];
       rgba[offset+c]=Math.round(a+(b-a)*mix);
     }
-    rgba[offset+3]=Math.round(255*clamp((outer-radius)*scale+.5)*clamp((radius-inner)*scale+.5));
+    rgba[offset+3]=Math.round(255*coverage*clamp((outer-radius)*scale+.5)*clamp((radius-inner)*scale+.5));
   }
   stream.ctx.putImageData(stream.image,0,0);
 }
@@ -74,15 +83,14 @@ function ring(agent,state) {
   result.dataset.state=state;
   result.setAttribute("role","img");
   result.setAttribute("aria-label",agents[agent].name+" · "+labels[state]);
-  if(state==="running" || state==="mixed") {
-    const canvas=document.createElement("canvas");
-    result.append(canvas);
-    streams.push({canvas,ctx:canvas.getContext("2d"),stops:agents[agent].stops,seed:phaseSeed(agent)});
-  } else if(state==="completed") {
-    result.innerHTML='<svg class="completion" viewBox="0 0 40.8 40.8"><circle cx="20.4" cy="20.4" r="19.2" stroke-width="2.4"/><path d="m5 12 4 4 10-10" transform="translate(10.8 3.5) scale(.8)" stroke-width="2.8"/><text x="20.4" y="29.8" text-anchor="middle">3m</text></svg>';
-  } else {
-    const dashed=state==="unknown"?' stroke-dasharray="4.2 3.4"':'';
-    result.innerHTML='<svg class="outline" viewBox="0 0 40.8 40.8"><circle cx="20.4" cy="20.4" r="19.2" stroke-width="2.4"'+dashed+'/></svg>';
+  const canvas=document.createElement("canvas");
+  result.append(canvas);
+  streams.push({
+    canvas,ctx:canvas.getContext("2d"),stops:agents[agent].stops,seed:phaseSeed(agent),
+    moving:state==="running" || state==="mixed",dashed:state==="unknown"
+  });
+  if(state==="completed") {
+    result.insertAdjacentHTML("beforeend",'<svg class="completion" viewBox="0 0 40.8 40.8"><path d="m5 12 4 4 10-10" transform="translate(10.8 3.5) scale(.8)" stroke-width="2.8"/><text x="20.4" y="29.8" text-anchor="middle">3m</text></svg>');
   }
   const path=paths[state==="mixed"?"failed":state];
   if(path) result.insertAdjacentHTML("beforeend",'<svg class="glyph" viewBox="0 0 24 24"><path d="'+path+'"/></svg>');
@@ -99,6 +107,7 @@ for(const [agent,details] of Object.entries(agents)) {
 }
 const strip=document.getElementById("strip");
 strip.append(ring("codex","running"),ring("zcode","completed"),ring("gemini","mixed"));
+const movingStreams=streams.filter(stream=>stream.moving);
 const pref=matchMedia("(prefers-reduced-motion: reduce)");
 const reduce=document.getElementById("reduce");
 let manualReduce=false;
@@ -110,7 +119,7 @@ function frame(now) {
   if(now-previous>=1000/30) {
     time+=(now-previous)/1000;
     previous=now;
-    streams.forEach(stream=>paint(stream,time));
+    movingStreams.forEach(stream=>paint(stream,time));
   }
   request=requestAnimationFrame(frame);
 }
@@ -118,7 +127,7 @@ function refresh() {
   if(request) cancelAnimationFrame(request);
   request=0;
   previous=null;
-  streams.forEach(stream=>paint(stream,time));
+  streams.forEach(stream=>paint(stream,stream.moving?time:0));
   reduce.setAttribute("aria-pressed",String(manualReduce||pref.matches));
   reduce.disabled=pref.matches;
   if(!manualReduce && !pref.matches && !document.hidden) request=requestAnimationFrame(frame);
