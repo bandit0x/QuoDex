@@ -1,0 +1,50 @@
+* { box-sizing: border-box }
+body { margin: 0; color: #1c342f; background: #f6f5f1; font: 14px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif }
+#sheet { max-width: 1160px; margin: auto; padding: 30px clamp(14px,3vw,40px) 18px }
+header, header > div { display: flex; align-items: center }
+header { justify-content: space-between; gap: 15px; padding-bottom: 16px; border-bottom: 1px solid #a9b0aa; flex-wrap: wrap }
+header > div { gap: 16px }
+.wordmark { font: italic 32px Georgia,serif; letter-spacing: -1.8px }
+h1 { margin: 3px 0 0; font-size: 18px; font-weight: 600 }
+.states { gap: 2px; flex-wrap: wrap }
+.states button { background: transparent; color: #40504c; border: 0; border-radius: 22px; font: inherit; padding: 5px 12px; cursor: pointer }
+.states button[aria-pressed=true] { color: #fff; background: #2e453e }
+.directions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px }
+article { min-width: 0 }
+h2 { margin: 21px 0 0; font-size: 22px; letter-spacing: -.7px; font-weight: 620 }
+h2 i { display: inline-block; margin-right: 10px; color: #63766c; font: italic 25px Georgia,serif }
+.desc { font-size: 13px; margin: 4px 0 16px; color: #4c5b55 }
+.plate { background: #e7ebe6; display: flex; justify-content: space-evenly; padding: 24px 4px 15px }
+.plate figure { display: grid; justify-items: center; gap: 8px; margin: 0 }
+figcaption { font: 12px/1.5 "Segoe UI",sans-serif; color: #34433c }
+.cap { margin: 16px 0 6px; font-size: 12px; color: #4b5c55; display: flex; align-items: baseline; justify-content: space-between; gap: 5px }
+.cap small { font: 11px/1.4 "Segoe UI","Microsoft YaHei UI",sans-serif }
+.panel { background:#eff2f6; display: grid; justify-items: center; overflow: auto }
+.panel .window { position: relative; width: 300px; height: 174px; background: url("../../../verification/gemini-taskbar/porcelain/standard.png") center bottom / 300px 174px no-repeat }
+.panel.compact .window { width: 260px; height: 92px; background-image: url("../../../verification/gemini-taskbar/porcelain/narrow.png"); background-size: 260px 92px }
+.strip { display: flex; gap: 4.5px; position: absolute; inset: 0 0 auto; height: 51px; padding: 22px 0 0 17px; background: #eff2f6 }
+.compact .strip { padding: 18px 0 0 8px; height: 43px }
+.orb { position: relative; isolation: isolate; display: grid; place-items: center; flex: none; width: 28.5px; height: 28.5px; border-radius: 50%; background: var(--base); color: var(--ink) }
+.plate .orb { width: 61px; height: 61px }
+.compact .orb { width: 25px; height: 25px }
+.codex { --base:#abc8dc; --ink:#193648; --low:#80acc7; --high:#e4f3fa }
+.zcode { --base:#a5c6b0; --ink:#1d392d; --low:#86b29a; --high:#e2f0dc }
+.gemini { --base:#d0b7cc; --ink:#43283f; --low:#b08eae; --high:#fae5ed }
+.orb::before { content:""; position:absolute; inset:0; border-radius:inherit; opacity:0; background:conic-gradient(from -50deg,var(--base) 0% 23%,var(--low) 49%,var(--high) 62%,var(--low) 74%,var(--base) 94%); transition:opacity .65s ease-in-out; animation:flow 3.5s linear infinite }
+.orb[data-running=true]::before { opacity:1 }
+@keyframes flow { to { transform: rotate(1turn) } }
+.glyph { position:absolute; inset:18%; display:grid; place-items:center; transition:transform .18s ease }
+.glyph svg,.glyph img { display:block; width:100%; height:100% }
+.glyph svg { fill:currentColor; overflow:visible }
+.original .glyph { inset:13% }
+.original .zcode .glyph { inset:17%; border-radius:50%; overflow:hidden; background:#2d2d2d }
+.original .zcode .glyph img { transform:scale(1.12) }
+.original .gemini .glyph { inset:16% }
+.orb[data-notice=true] .glyph { transform: translate(-36%,-36%) scale(.45) }
+.orb .status { position:absolute; inset:0; display:grid; place-items:center; transform:translate(4%,6%); color:var(--ink); font:700 16px/1 "Segoe UI Symbol","Segoe UI",sans-serif }
+.compact .status { font-size:14px }
+.plate .status { font-size:33px }
+footer { margin: 18px 0 0; padding-top: 10px; border-top: 1px solid #bdc5bd; display: flex; gap: 16px; flex-wrap: wrap; color: #65736c; font-size: 11px }
+a { color: #435b50; text-underline-offset: 2px }
+@media(max-width:1000px) { .directions { grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)) } }
+@media(prefers-reduced-motion:reduce) { .orb::before { display:none } .glyph { transition:none } }
