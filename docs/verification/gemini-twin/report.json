@@ -1,0 +1,1014 @@
+{
+  "status": "Blocked",
+  "executableSHA256": "b0de650f5210aaa4d5c21ea4e15c783f98ce8519613fb02023077676d83c7bd0",
+  "productSourceRevision": "87e995cd2fb9751dfcbba6ceedd68bd1cee6741f",
+  "windowsVersion": "10.0.26200",
+  "pythonVersion": "3.11.9",
+  "normalFiveHourWeekly": {
+    "gemini": [
+      82,
+      16
+    ],
+    "partner": [
+      24,
+      90
+    ],
+    "web": [
+      68,
+      55
+    ]
+  },
+  "capture": "Win32 PrintWindow PW_RENDERFULLCONTENT, RGB on black backing; entire quota surface including footer; no resampling, no mask, zero tolerance",
+  "designGitRevision": "5296b2f836bc8d367c778c73150f883912339792",
+  "runtimeSHA256": "57f29c15d881707e13173026a82d610d52e690e987d7ce2c35fab821276de114",
+  "cases": {
+    "default-motion-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "82%",
+            "16%",
+            "24%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": false,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [
+        0,
+        0,
+        0
+      ],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "57687459733ec482a012836e99bf51f613552529ea0b6dce4a9dc39bd1c3605a",
+      "approvedDecodedRGBSHA256": "57687459733ec482a012836e99bf51f613552529ea0b6dce4a9dc39bd1c3605a",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "default-motion-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "16%",
+            "82%",
+            "90%",
+            "24%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": false,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [
+        0,
+        0,
+        0
+      ],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "997cc7e04c092519a04aaec668da4a0ef195f6e52252a5d588c95fc3676b68e0",
+      "approvedDecodedRGBSHA256": "997cc7e04c092519a04aaec668da4a0ef195f6e52252a5d588c95fc3676b68e0",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "zero-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "82%",
+            "0%",
+            "24%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 0%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "2b64bca70f3953c7d96c5cfc7da6c25373d5a100736787d3d79960b96e5124b9",
+      "approvedDecodedRGBSHA256": "2b64bca70f3953c7d96c5cfc7da6c25373d5a100736787d3d79960b96e5124b9",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "zero-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "0%",
+            "82%",
+            "90%",
+            "24%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 0%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "f77ced236b99938cc39b4ac318cc48095f84cf9dfce45eadaf4433ff0c81630d",
+      "approvedDecodedRGBSHA256": "f77ced236b99938cc39b4ac318cc48095f84cf9dfce45eadaf4433ff0c81630d",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "missing-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "82%",
+            "—",
+            "24%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，未读",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "84b91e4549ca1e27ebf0608b2407a8a5f468646a2d0d2f61b14ebe0388c623c6",
+      "approvedDecodedRGBSHA256": "84b91e4549ca1e27ebf0608b2407a8a5f468646a2d0d2f61b14ebe0388c623c6",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "missing-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "—",
+            "82%",
+            "90%",
+            "24%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，未读",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "af9d29be30e4c84ec49eed4785f2251b5a0f1fb0175310cdfd556184d1caf9ab",
+      "approvedDecodedRGBSHA256": "af9d29be30e4c84ec49eed4785f2251b5a0f1fb0175310cdfd556184d1caf9ab",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "stale-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "82%",
+            "16%上次",
+            "24%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，上次剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "6a0f429616fcd5c3e02d31d658ddfd808bfc53e14021ba4ac6f59d3c50213703",
+      "approvedDecodedRGBSHA256": "6a0f429616fcd5c3e02d31d658ddfd808bfc53e14021ba4ac6f59d3c50213703",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "stale-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "16%上次",
+            "82%",
+            "90%",
+            "24%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，上次剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "80ee344f9018a490a14c7b6e5311a23b2d9928fd15c18294cbc95f7389118842",
+      "approvedDecodedRGBSHA256": "80ee344f9018a490a14c7b6e5311a23b2d9928fd15c18294cbc95f7389118842",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "extremes-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "0%",
+            "16%",
+            "100%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 0%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 100%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "bc5ea1ed5add836bbf1275fbf1c8814a3b1ba4b4d905b385882d02d44802b89f",
+      "approvedDecodedRGBSHA256": "bc5ea1ed5add836bbf1275fbf1c8814a3b1ba4b4d905b385882d02d44802b89f",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "extremes-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "16%",
+            "0%",
+            "90%",
+            "100%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 0%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 100%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": null,
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "9143ea5587f4e8f43dc300293cf541b5bb07511dd7a98f1cef2490d4179fc2f5",
+      "approvedDecodedRGBSHA256": "9143ea5587f4e8f43dc300293cf541b5bb07511dd7a98f1cef2490d4179fc2f5",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "ready-standard": {
+      "product": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          300,
+          334
+        ],
+        "crop": [
+          0,
+          204,
+          300,
+          334
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 130,
+          "values": [
+            "82%",
+            "16%",
+            "24%",
+            "90%",
+            "68%",
+            "55%"
+          ],
+          "width": 300
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": "ready-standard-hwnd.png",
+      "settingsHWNDHeightBeforeCollapse": null,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 39000,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "57687459733ec482a012836e99bf51f613552529ea0b6dce4a9dc39bd1c3605a",
+      "approvedDecodedRGBSHA256": "57687459733ec482a012836e99bf51f613552529ea0b6dce4a9dc39bd1c3605a",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    },
+    "ready-narrow": {
+      "product": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96
+      },
+      "reference": {
+        "hwndSize": [
+          260,
+          252
+        ],
+        "crop": [
+          0,
+          204,
+          260,
+          252
+        ],
+        "origin": [
+          120,
+          0
+        ],
+        "dpi": 96,
+        "metrics": {
+          "dpr": 1,
+          "height": 48,
+          "values": [
+            "16%",
+            "82%",
+            "90%",
+            "24%",
+            "55%",
+            "68%"
+          ],
+          "width": 260
+        },
+        "runtime": "151.0.4129.78"
+      },
+      "reducedMotion": true,
+      "readingsBeforeCollapse": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "fullHWNDImage": "ready-narrow-hwnd.png",
+      "settingsHWNDHeightBeforeCollapse": 542,
+      "idleRepeatChangedRGBPixels": [],
+      "pixels": 12480,
+      "changedRGBPixels": 0,
+      "actualDecodedRGBSHA256": "997cc7e04c092519a04aaec668da4a0ef195f6e52252a5d588c95fc3676b68e0",
+      "approvedDecodedRGBSHA256": "997cc7e04c092519a04aaec668da4a0ef195f6e52252a5d588c95fc3676b68e0",
+      "maxChannelDifference": 0,
+      "differenceBounds": null
+    }
+  },
+  "manifestSHA256": "0e63e334b9ebb11834caa026f17f7caab7866585c5804f70c8a47e0a8ba18b89",
+  "reader": "Actual Windows UI Automation reading two anonymous Edge panels on a private desktop",
+  "details": {
+    "ready": {
+      "visibleRows": [
+        [
+          "AG Gemini",
+          "5 小时",
+          "82%",
+          "2 小时后重置"
+        ],
+        [
+          "AG Gemini",
+          "一周",
+          "16%",
+          "3 天后重置"
+        ],
+        [
+          "AG Claude/GPT",
+          "5 小时",
+          "24%",
+          "1 小时后重置"
+        ],
+        [
+          "AG Claude/GPT",
+          "一周",
+          "90%",
+          "面板未披露"
+        ],
+        [
+          "Gemini Web",
+          "5 小时",
+          "68%",
+          "4 小时后重置"
+        ],
+        [
+          "Gemini Web",
+          "一周",
+          "55%",
+          "2 天后重置"
+        ]
+      ],
+      "visibleDiagnostic": null,
+      "screenshots": [
+        "details-ready-scroll-0.png",
+        "details-ready-scroll-1.png",
+        "details-ready-scroll-3.png",
+        "details-ready-scroll-6.png",
+        "details-ready-scroll-8.png",
+        "details-ready-scroll-9.png"
+      ],
+      "restoredReadings": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，剩余 24%",
+        "AG Claude/GPT 一周，剩余 90%",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "restoredHWNDSize": [
+        300,
+        334
+      ],
+      "restoredOrigin": [
+        120,
+        0
+      ],
+      "restoredChangedRGBPixels": 0,
+      "restoredDifferenceBounds": null
+    },
+    "unreadable": {
+      "visibleRows": [
+        [
+          "AG Gemini",
+          "5 小时",
+          "82%",
+          "2 小时后重置"
+        ],
+        [
+          "AG Gemini",
+          "一周",
+          "16%",
+          "3 天后重置"
+        ],
+        [
+          "AG Claude/GPT",
+          "5 小时",
+          "未读",
+          "—"
+        ],
+        [
+          "AG Claude/GPT",
+          "一周",
+          "未读",
+          "—"
+        ],
+        [
+          "Gemini Web",
+          "5 小时",
+          "68%",
+          "4 小时后重置"
+        ],
+        [
+          "Gemini Web",
+          "一周",
+          "55%",
+          "2 天后重置"
+        ]
+      ],
+      "visibleDiagnostic": "来源：可见面板 · 面板未给出可识别的周期和百分比 · QGM-203",
+      "screenshots": [
+        "details-diagnostic-scroll-0.png",
+        "details-diagnostic-scroll-1.png",
+        "details-diagnostic-scroll-3.png",
+        "details-diagnostic-scroll-6.png",
+        "details-diagnostic-scroll-8.png",
+        "details-diagnostic-scroll-9.png",
+        "details-diagnostic-scroll-15.png"
+      ],
+      "restoredReadings": [
+        "AG Gemini 5 小时，剩余 82%",
+        "AG Gemini 一周，剩余 16%",
+        "AG Claude/GPT 5 小时，未读",
+        "AG Claude/GPT 一周，未读",
+        "Gemini Web 5 小时，剩余 68%",
+        "Gemini Web 一周，剩余 55%"
+      ],
+      "restoredHWNDSize": [
+        300,
+        334
+      ],
+      "restoredOrigin": [
+        120,
+        0
+      ],
+      "restoredChangedRGBPixels": 1,
+      "restoredDifferenceBounds": [
+        83,
+        83,
+        84,
+        84
+      ]
+    }
+  },
+  "taskInteractions": {
+    "hoveredTask": "查看 Codex 全部 0 个任务，部分或全部来源状态未知",
+    "openedPopover": "Codex 任务列表",
+    "clickFocusedOriginalButton": true,
+    "escapeClosedPopover": true,
+    "nextKeyboardButton": "查看 Gemini 全部 0 个任务，部分或全部来源状态未知",
+    "blankContextMenuOpenedSettings": true,
+    "boundsAfterClosing": [
+      120,
+      0,
+      420,
+      334
+    ]
+  },
+  "comparedRGBPixels": 308880,
+  "changedRGBPixels": 0,
+  "differingCases": [],
+  "differingDetailReturns": [
+    "unreadable"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "productionRevision": "87e995cd2fb9751dfcbba6ceedd68bd1cee6741f",
+  "trackedFrontendChanges": [],
+  "approvedDesignRevision": "5296b2f836bc8d367c778c73150f883912339792",
+  "testScriptSHA256": "854303aae65c96af58e9027495bd018cd11791e22d2cb201f6ee73f4809de87d",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "v24.18.0",
+  "pythonAndPillow": "3.11.9 12.2.0",
+  "rendering": "Edge 158.0.4370.33 | CPU full-frame rasterization | DPR 1 | reduced motion",
+  "loadedReleaseFiles": {
+    "/index.html": "255122b7bf663a56678e2c96f6bbada4c53d31bb51fac6da95f4c4807edaeb79",
+    "/assets/index-C9SFtmOY.js": "a71afe48f78e051288ef0af21cfc6a1a7c4e422521367e3a88eaded91fd8f2b2",
+    "/assets/index-C71CxeFQ.css": "8a133d1816136464498fc596062a6d00628d0a879af6dbde785ec8dc8b40b112",
+    "/assets/gemini-glass-BvT3ohpC.webp": "7df8fbee6b8f5d4d2a3a286d3f3e690968cca00880cc81f045322f02a85cd730"
+  },
+  "runs": [
+    "run-1",
+    "run-2"
+  ],
+  "command": "node <path-to-capture-gemini-twin-states.mjs> OUTPUT --verify-twice",
+  "workingDirectory": "Built release checkout containing dist/index.html and the approved design.",
+  "inputs": "Anonymous Tauri IPC. Five-hour/weekly values: AG Gemini 82/16, AG Claude/GPT 24/90, Gemini Web 68/55. Narrow states change only the AG Gemini weekly reading.",
+  "dimensions": {
+    "standard": [
+      300,
+      130
+    ],
+    "narrow": [
+      260,
+      48
+    ]
+  },
+  "pixelsComparedPerRun": 154440,
+  "cases": {
+    "reading-standard": {
+      "pixels": 39000,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "79c5b8672e3f7110979b008d3b5315f9430f46608d9842966a806c9b506f2c5b"
+    },
+    "updated-standard": {
+      "pixels": 39000,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "45851dd458c918976849ffc82b2d35705bf8955b708b7602a7e380c4bb96490e"
+    },
+    "failure-standard": {
+      "pixels": 39000,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "10fe88fbbdcc03cc2ee04b4ffb55317b8528e976d1e3b478f5a0c4f6841119e9"
+    },
+    "zero-narrow": {
+      "pixels": 12480,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "f3b02e103cfcc494daaa61aeb8138ecdb10dc6e899a857c24e0ab2ce24e053df"
+    },
+    "missing-narrow": {
+      "pixels": 12480,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "866c113c348415717fc22595bc4fbef5604d3710dd8db93a04afd7a35eb20fb9"
+    },
+    "stale-narrow": {
+      "pixels": 12480,
+      "differentRGBA": 0,
+      "maxChannelDifference": 0,
+      "sha256DecodedRGBA": "50d442523612ba4294c2c21889b442a2d9cfba370204eccb6080227d1e967ad1"
+    }
+  }
+}
