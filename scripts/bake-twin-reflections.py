@@ -126,3 +126,31 @@ for y in range(1, 44):
         pos = (x-7)/50
         plaque.putpixel((x, y), tuple(round(a+(b-a)*pos) for a,b in zip(start, end)))
 plaque.save(root / "src/twin-glass-plaque-narrow.webp", lossless=True, method=6)
+
+trim_narrow = Image.new("RGBA", (154, 46))
+for column, start in enumerate((38, 115)):
+    for y in range(46):
+        for x in range(77):
+            rgb = compact.getpixel((start+x, 1+y))
+            edge = abs((x+.5)/77-.5)
+            wall = ramp(edge, .38, .46) * ramp(y, 8, 14)
+            if y >= 42:
+                wall = max(wall, ramp(y, 42, 45) * ramp(edge, .23, .32))
+            if rgb[0]-min(rgb[1:]) > 17:
+                wall = 0
+            trim_narrow.putpixel((column*77+x, y), (*rgb, round(wall*235)))
+trim_narrow.save(root / "src/twin-glass-steel-narrow.webp", lossless=True, method=6)
+
+badge = panel.crop((48, 65, 107, 81))
+for y in range(2, 15):
+    start, end = badge.getpixel((4, y)), badge.getpixel((55, y))
+    for x in range(5, 55):
+        f = (x-4)/51
+        badge.putpixel((x,y), tuple(round(a+(b-a)*f) for a,b in zip(start,end)))
+badge = badge.convert("RGBA")
+for y in range(badge.height):
+    for x in range(badge.width):
+        red, green, blue, _ = badge.getpixel((x,y))
+        opacity = 1-ramp(blue-max(red, green), 12, 28)
+        badge.putpixel((x,y), (red,green,blue,round(255*opacity)))
+badge.save(root / "src/twin-glass-week-badge.webp", lossless=True, method=6)
