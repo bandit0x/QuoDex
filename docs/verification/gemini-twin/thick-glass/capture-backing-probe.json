@@ -1,0 +1,48 @@
+{
+  "standard": {
+    "cornerBlack": [
+      0,
+      0,
+      0,
+      255
+    ],
+    "cornerCream": [
+      0,
+      0,
+      0,
+      255
+    ],
+    "blackAlphaBounds": [
+      255,
+      255
+    ],
+    "creamAlphaBounds": [
+      255,
+      255
+    ],
+    "rgbPixelsChangedWhenPrefillingCaptureDC": 0
+  },
+  "narrow": {
+    "cornerBlack": [
+      0,
+      0,
+      0,
+      255
+    ],
+    "cornerCream": [
+      0,
+      0,
+      0,
+      255
+    ],
+    "blackAlphaBounds": [
+      255,
+      255
+    ],
+    "creamAlphaBounds": [
+      255,
+      255
+    ],
+    "rgbPixelsChangedWhenPrefillingCaptureDC": 0
+  }
+}
