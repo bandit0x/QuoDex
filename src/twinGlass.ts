@@ -2,6 +2,7 @@ import standardAtlas from "./twin-glass-standard.webp";
 import narrowAtlas from "./twin-glass-narrow.webp";
 import reflectionAtlas from "./twin-glass-reflections.webp";
 import waterlineAtlas from "./twin-glass-waterline.webp";
+import cavityAtlas from "./twin-glass-cavity.webp";
 
 const atlases = { standard: standardAtlas, narrow: narrowAtlas };
 type Layout = keyof typeof atlases;
@@ -9,6 +10,7 @@ export interface TwinGlassTextures {
   frames: HTMLImageElement;
   reflections: HTMLImageElement;
   waterline: HTMLImageElement;
+  cavity: HTMLImageElement;
 }
 const textures: Partial<Record<Layout, Promise<TwinGlassTextures>>> = {};
 const tileWidth = 172;
@@ -23,18 +25,26 @@ async function decode(url: string) {
   return image;
 }
 
-let highlights: Promise<[HTMLImageElement, HTMLImageElement]> | undefined;
+let highlights: Promise<[HTMLImageElement, HTMLImageElement, HTMLImageElement]> | undefined;
 export function loadTwinGlass(layout: Layout) {
-  highlights ??= Promise.all([decode(reflectionAtlas), decode(waterlineAtlas)]).catch(error => {
+  highlights ??= Promise.all([decode(reflectionAtlas), decode(waterlineAtlas), decode(cavityAtlas)]).catch(error => {
     highlights = undefined;
     throw error;
   });
-  return textures[layout] ??= Promise.all([decode(atlases[layout]), highlights]).then(([frames, [reflections, waterline]]) => ({
-    frames, reflections, waterline,
+  return textures[layout] ??= Promise.all([decode(atlases[layout]), highlights]).then(([frames, [reflections, waterline, cavity]]) => ({
+    frames, reflections, waterline, cavity,
   })).catch(error => {
     delete textures[layout];
     throw error;
   });
+}
+
+function meniscusPosition(level: number, narrow: boolean) {
+  const low = narrow ? .737 : .725;
+  const high = narrow ? .298 : .345;
+  if (level < .24) return 1 + (low - 1) * level / .24;
+  if (level <= .82) return low + (high - low) * (level - .24) / .58;
+  return high * (1 - (level - .82) / .18);
 }
 
 export function drawBakedTwinGlass(
@@ -45,6 +55,8 @@ export function drawBakedTwinGlass(
   context.save();
   const stirred = stir > .01 || nodes.some(offset => Math.abs(offset) > .05);
   const strips = stirred ? Math.min(nodes.length, width) : 1;
+  const narrow = layout === "narrow";
+  const sampleMeniscus = tileHeight * meniscusPosition(violet ? .24 : .82, narrow);
   let left = 0;
   for (let index = 0; index < strips; index++) {
     const right = Math.round((index + 1) * width / strips);
@@ -64,9 +76,23 @@ export function drawBakedTwinGlass(
     };
     paint(lower, 1);
     if (upperAlpha > 0) paint(lower + 1, upperAlpha);
+    const position = meniscusPosition(frame / 50, narrow);
+    const meniscus = position * height;
+    context.save();
+    context.globalAlpha = .82;
+    context.globalCompositeOperation = "source-atop";
+    const cavityX = Number(violet) * tileWidth + sourceLeft;
+    const cavityY = narrow ? tileHeight : 0;
+    if (meniscus > 0) {
+      context.drawImage(texture.cavity, cavityX, cavityY, sourceWidth, sampleMeniscus,
+        left, 0, right - left, meniscus);
+    }
+    if (meniscus < height) {
+      context.drawImage(texture.cavity, cavityX, cavityY + sampleMeniscus, sourceWidth, tileHeight - sampleMeniscus,
+        left, meniscus, right - left, height - meniscus);
+    }
+    context.restore();
     if (frame > 0 && frame < 50) {
-      const narrow = layout === "narrow";
-      const position = (narrow ? .88 : 1.01) - (narrow ? .67 : .81) * frame / 50;
       const power = narrow ? 4 : 2;
       const chord = Math.max(0, 1 - Math.abs(2 * position - 1) ** power) ** (1 / power);
       const span = width * chord;
@@ -75,7 +101,7 @@ export function drawBakedTwinGlass(
       context.beginPath();
       context.rect(left, 0, right - left, height);
       context.clip();
-      context.globalAlpha = .84;
+      context.globalAlpha = .5;
       context.globalCompositeOperation = "source-atop";
       const row = (narrow ? 2 : 0) + Number(violet);
       context.drawImage(texture.waterline, 0, row * 16, tileWidth, 16,
@@ -86,7 +112,6 @@ export function drawBakedTwinGlass(
   }
   context.globalAlpha = 1;
   context.globalCompositeOperation = "source-atop";
-  const narrow = layout === "narrow";
   const foot = 4 + (narrow ? 2 : 0) + Number(violet);
   const sampleHeight = height * (narrow ? .22 : .28);
   context.globalAlpha = Math.min(1, Math.max(0, percent / 21));

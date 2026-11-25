@@ -45,6 +45,7 @@ foreach ($layout in 'standard', 'narrow') {
 }
 python scripts/pack-twin-glass.py $frames src
 python scripts/bake-twin-reflections.py
+python scripts/bake-twin-cavity.py
 ```
 
 在 Windows 11、PowerShell 7、Python 3.11 环境下运行。Python 依赖为 pywin32、Pillow、psutil 和 Playwright。电脑需要 Edge、随便携包提供的 WebView2 运行时、Microsoft.Web.WebView2.Core.dll 以及同架构的 WebView2Loader.dll。
