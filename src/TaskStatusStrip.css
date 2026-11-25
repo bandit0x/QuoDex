@@ -24,56 +24,49 @@
   border: 0;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--orb-ink);
-  background: var(--orb-face);
+  color: var(--ring-color);
+  background: transparent;
   font: 700 30px/1 "Segoe UI Symbol", "Segoe UI", sans-serif;
 }
 .task-agent-orb[data-agent="Codex"] {
-  --orb-face: #abc8dc;
-  --orb-shade: #80acc7;
-  --orb-light: #e4f3fa;
-  --orb-ink: #193648;
+  --ring-color: #fff;
+  --ring-edge: rgb(0 0 0 / 56%);
 }
 .task-agent-orb[data-agent="ZCode"] {
-  --orb-face: #a5c6b0;
-  --orb-shade: #86b29a;
-  --orb-light: #e2f0dc;
-  --orb-ink: #1d392d;
+  --ring-color: #000;
+  --ring-edge: rgb(255 255 255 / 68%);
 }
 .task-agent-orb[data-agent="Gemini"] {
-  --orb-face: #d0b7cc;
-  --orb-shade: #b08eae;
-  --orb-light: #fae5ed;
-  --orb-ink: #43283f;
+  --ring-color: #2670df;
+  --ring-edge: rgb(255 255 255 / 48%);
 }
-.task-agent-orb::before {
-  content: "";
+.task-agent-ring {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  background: conic-gradient(from -50deg,
-    var(--orb-face) 0% 23%, var(--orb-shade) 49%, var(--orb-light) 62%,
-    var(--orb-shade) 74%, var(--orb-face) 94%);
-  opacity: 0;
-  visibility: hidden;
-  animation: agent-face-turn 3.5s linear infinite;
-  transition: opacity 650ms ease-in-out, visibility 0s linear 650ms;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-dasharray: 100 0;
+  stroke-linecap: round;
+  pointer-events: none;
+  transition: stroke-dasharray 240ms ease-out;
 }
-.task-agent-orb[data-spinning]::before {
-  opacity: 1;
-  visibility: visible;
-  transition-delay: 0s;
+.task-agent-ring circle:first-child { stroke: var(--ring-edge); stroke-width: 3.5; }
+.task-agent-ring circle:last-child { stroke: currentColor; stroke-width: 2.1; }
+.task-agent-orb[data-running] .task-agent-ring { stroke-dasharray: 86 14; }
+.task-agent-orb[data-spinning] .task-agent-ring { animation: agent-ring-turn 3.2s linear infinite; }
+.task-agent-orb span {
+  position: relative;
+  -webkit-text-stroke: 2px var(--ring-edge);
+  paint-order: stroke fill;
 }
-@starting-style {
-  .task-agent-orb[data-spinning]::before { opacity: 0; }
-}
-.task-agent-orb span { position: relative; }
-.task-agent-orb:focus-visible { outline: 3px solid var(--orb-ink); outline-offset: 3px; }
+.task-agent-orb:focus-visible { outline: 2px dashed currentColor; outline-offset: 2px; }
 .task-strip--compact .task-agent-orb { width: 50px; height: 50px; font-size: 27px; }
-@keyframes agent-face-turn { to { transform: rotate(1turn); } }
-.task-strip[data-reduced-motion] .task-agent-orb::before { display: none; }
+@keyframes agent-ring-turn { to { stroke-dashoffset: -100; } }
+.task-strip[data-reduced-motion] .task-agent-ring { transition: none; }
 @media (prefers-reduced-motion: reduce) {
-  .task-agent-orb::before { display: none; }
+  .task-agent-orb[data-spinning] .task-agent-ring { animation: none; }
+  .task-agent-ring { transition: none; }
 }
 .task-circle {
   position: relative;

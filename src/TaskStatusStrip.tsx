@@ -133,14 +133,18 @@ export function TaskStatusStrip({ tasks, now, sources = readyTaskSources(now), d
       {shown.map(group => {
         const states = group.tasks.map(task => task.state);
         const unavailable = group.statuses.some(status => status.health !== "ready");
-        const spinning = states.includes("running") && !reducedMotion;
+        const running = states.includes("running");
         const mark = states.includes("failed") ? "!" : states.includes("waiting") ? "Ⅱ"
           : states.includes("completed") ? "✔" : states.includes("unknown") || unavailable || diagnostic ? "?" : "";
         return <button type="button" key={group.name} className="task-agent-orb"
           data-agent={group.name}
-          data-spinning={spinning || undefined} aria-expanded={selection === group.name}
+          data-running={running || undefined} data-spinning={(running && !reducedMotion) || undefined} aria-expanded={selection === group.name}
           aria-label={`查看 ${group.name} 全部 ${group.tasks.length} 个任务${unavailable ? "，部分或全部来源状态未知" : ""}`}
           onMouseEnter={() => reveal(group.name)} onFocus={() => reveal(group.name)} onClick={() => reveal(group.name)}>
+          <svg className="task-agent-ring" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="13.8" pathLength="100" />
+            <circle cx="16" cy="16" r="13.8" pathLength="100" />
+          </svg>
           <span aria-hidden="true">{mark}</span>
         </button>;
       })}
