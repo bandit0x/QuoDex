@@ -5,7 +5,7 @@
   color: #f7eddc; text-align: center;
 }
 .face.twin-narrow .tn-column, .face.twin-narrow .tn-periods {
-  display: grid; grid-template-rows: 11px 16px 16px; align-content: center;
+  display: grid; grid-template-rows: 10px 16px 16px; align-content: end; padding-bottom: 1px;
   position: relative; min-width: 0; isolation: isolate;
 }
 .face.twin-narrow .tn-periods {
@@ -13,16 +13,16 @@
   font: 600 10px/16px "Segoe UI","Microsoft YaHei UI",sans-serif;
   color: #edf3f7; white-space: nowrap;
 }
-.face.twin-narrow .tn-periods span:first-child { grid-row: 2 }
-.face.twin-narrow .tn-periods span:last-child { grid-row: 3; color: #ffe0a2 }
+.face.twin-narrow .tn-week-label { grid-row: 2; color: #ffe0a2 }
+.face.twin-narrow .tn-five-label { grid-row: 3 }
 .face.twin-narrow .tn-port {
-  border-radius: 42% / 36%;
+  border-radius: 13% 13% 42% 42% / 26% 26% 36% 36%;
   background: conic-gradient(from 156deg,#243443,#a0aeb5 15%,#344958 29%,#b6c2c7 43%,#566b78 52%,#243442 70%,#768b95 81%,#222f40);
   box-shadow: inset 0 .8px #c4d6dfa6, inset 0 -1px #5e708a99,0 1px 2px #040c16;
 }
 .face.twin-narrow .tn-cavity {
   position: absolute; inset: 2px 3px 2px; z-index: -1; overflow: hidden;
-  border-radius: 39% / 34%; background: #142539;
+  border-radius: 12% 12% 39% 39% / 22% 22% 34% 34%; background: #142539;
   box-shadow: 0 0 0 1px #151d2c;
 }
 .face.twin-narrow .tn-cavity .q-liquid { width: 100%; height: 100%; display: block; border-radius: inherit }
@@ -36,7 +36,7 @@
 .face.twin-narrow .tn-fill { stroke: #efb85c; stroke-width: 1.5 }
 .face.twin-narrow .tn-mark { stroke: #fff0b8; stroke-width: 2.6; stroke-linecap: round }
 .face.twin-narrow .tn-source {
-  position: relative; align-self: center;
+  position: relative; align-self: center; top: 1px;
   font: 650 10px/11px "Segoe UI Variable Text","Segoe UI",sans-serif;
   color: #f7ebd6; white-space: nowrap; text-shadow: 0 1px 2px #071222,0 0 2px #071222;
 }

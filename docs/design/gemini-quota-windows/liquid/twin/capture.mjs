@@ -17,7 +17,17 @@ try {
   const narrow = page.locator('#native-strip .surface');
   assert.equal(await narrow.locator('.q-value').count(),6);
   assert.deepEqual(await narrow.evaluate(el => [el.offsetWidth,el.offsetHeight]),[260,48]);
+  assert.deepEqual(await narrow.locator('.tn-periods > span').allTextContents(),['一周','5 小时']);
+  for (const column of await narrow.locator('.tn-column').all()) {
+    const week = await column.locator('[data-period="week"].q-value').boundingBox();
+    const five = await column.locator('[data-period="five"].q-value').boundingBox();
+    assert.ok(week.y + week.height <= five.y, 'Weekly reading belongs above the five-hour reading');
+  }
+  for (const rail of await narrow.locator('.tn-rail').all()) {
+    assert.ok(await rail.evaluate(el => el.getBBox().y + el.getBBox().height < el.ownerSVGElement.viewBox.baseVal.height / 2));
+  }
   await page.locator('#proof').screenshot({path:path.join(directory,'review.png')});
+  await page.locator('.enlarged-strip .surface').screenshot({path:path.join(directory,'narrow.png')});
 
   // Use the native component sizes for each state on the contact sheet.
   await page.addStyleTag({content:'.enlarged-standard{zoom:1}'});

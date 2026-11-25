@@ -46,7 +46,7 @@
     }
   }
   function accessibleReadings() {
-    return Q.groups.flatMap(group => Q.periods.map(period => {
+    return Q.groups.flatMap(group => ['week','five'].map(period => {
       const { value, stale } = Q.read(group,period);
       const amount = value === null ? '未读' : (stale ? '上次剩余 ' : '剩余 ') + value + '%';
       return Q.names[group] + (period === 'five' ? ' 5 小时' : '一周') + amount;

@@ -1,7 +1,7 @@
 (() => {
   function weekTrack(group) {
     const { value, stale } = window.Q.read(group, "week");
-    const rail = "M2.5 28 Q3.5 42 18 43.2 Q40 45.3 62 43.2 Q76.5 42 77.5 28";
+    const rail = "M1.5 12 C1.5 4.4 1.5 1.45 5.7 1.4 Q40 .8 74.3 1.4 C78.5 1.45 78.5 4.4 78.5 12";
     const path = `pathLength="100" d="${rail}"`;
     const amount = value === null ? null : Math.max(0, Math.min(100, value));
     const fill = amount > 0 ? `<path class="tn-fill" ${path} stroke-dasharray="${amount} 101"/>` : "";
@@ -19,14 +19,14 @@
       `<span class="tn-cavity" aria-hidden="true">${Q.liquid(group, "five")}</span>${weekTrack(group)}`;
     return `<span class="tn-column ${isWeb ? "tn-plate" : "tn-port"}">
       ${material}<b class="tn-source">${title}</b>
-      <span class="tn-five">${Q.value(group, "five")}</span>
       <span class="tn-week">${Q.value(group, "week")}</span>
+      <span class="tn-five">${Q.value(group, "five")}</span>
     </span>`;
   }
 
   window.twinNarrow = () =>
     `<span class="tn-assembly">
-      <span class="tn-periods"><span>5 小时</span><span>一周</span></span>
+      <span class="tn-periods"><span class="tn-week-label">一周</span><span class="tn-five-label">5 小时</span></span>
       ${column("gemini", "AG Gemini")}${column("partner", "AG Claude/GPT")}${column("web", "Web")}
     </span>`;
 })();
