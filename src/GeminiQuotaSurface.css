@@ -77,6 +77,16 @@ body:has(.app-frame--gemini),
   height: 48px;
   border-radius: 12px;
 }
+.gemini-twin-surface--narrow::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38px;
+  z-index: -1;
+  content: "";
+  background: url("./twin-glass-label-panel.webp") left / 100% 100% no-repeat;
+  opacity: var(--twin-alpha);
+  pointer-events: none;
+}
 .gemini-twin-surface:not(.gemini-twin-surface--narrow)::before {
   position: absolute;
   inset: 0;
