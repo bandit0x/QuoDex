@@ -20,7 +20,7 @@ QuoDex 常驻桌面角落，不用切窗口就能确认 Codex / ZCode 还剩多�
 ## 功能亮点
 
 - **额度与重置** — 5 小时、周额度或单池套餐，Codex / ZCode 切换与轮播，可用重置次数一目了然。
-- **Gemini 双舷窗（Windows）** — 右键选择 Gemini。两只舷窗分别显示 Antigravity 的 Gemini 和 Claude/GPT 额度。液面表示 5 小时剩余，金色指针表示一周剩余，底座列出 Web 的两个读数。窄条按「一周、5 小时」从上到下显示三个来源。点击底部「详情」可查看重置提示和读取时间，也可连接 Gemini 网页账号。[双舷窗定稿](docs/design/gemini-quota-windows/liquid/twin/review.png) · [来源与连接说明](docs/verification/gemini-live/README.md#数据来源)
+- **Gemini 双舷窗（Windows）** — 右键选择 Gemini。两只舷窗分别显示 Antigravity 的 Gemini 和 Claude/GPT 额度，使用已安装的官方运行时后台读取，无需打开 Models。液面表示 5 小时剩余，金色指针表示一周剩余，底座列出 Web 的两个读数。窄条按「一周、5 小时」从上到下显示三个来源。点击底部「详情」可查看重置提示和读取时间，也可连接 Gemini 网页账号。[双舷窗定稿](docs/design/gemini-quota-windows/liquid/twin/review.png) · [来源与连接说明](docs/verification/gemini-live/README.md#数据来源)
 - **聊天任务** — 白色透明环代表 Codex，蓝色代表 Gemini，黑色代表 ZCode。静态环保留固定反光，有任务运行时两道水纹沿环缘流动。中心显示报错叹号、等待双竖线或完成勾与分钟数。未知状态用虚线问号。开启「减少动效」可定住水纹。悬停展开聊天，Gemini 详情标注 Web 或 Antigravity。[任务栏验证](docs/verification/gemini-taskbar/README.md)
 - **液态玻璃** — 液面随余额涨落，拖动自然晃动；标准和窄条两种视图，背景透明度可调。
 - **用量统计** — 设置面板一键打开本机网页：7 天到 1 年六区间、合并 / 分开视图、月度热力墙与趋势图，本地账本长期留存。
