@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => undefi
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => true, invoke: vi.fn(async () => undefined) }));
 afterEach(() => { document.body.innerHTML = ""; vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
-it("waits for positive native geometry during a viewport resize", async () => {
+it.each(["glass-shell", "gemini-twin-surface", "gemini-twin-surface gemini-twin-surface--narrow"])("registers %s after viewport geometry is ready", async (surfaceClass) => {
   let draw = () => undefined;
   vi.stubGlobal("requestAnimationFrame", (callback: () => undefined) => { draw = callback; return 1; });
   vi.stubGlobal("cancelAnimationFrame", () => undefined);
@@ -16,10 +16,11 @@ it("waits for positive native geometry during a viewport resize", async () => {
     constructor(callback: ResizeObserverCallback) { resized = callback; }
     observe() {} unobserve() {} disconnect() {}
   });
-  document.body.innerHTML = '<main class="app-frame"><section class="task-strip"></section><div class="glass-shell"></div></main>';
+  document.body.innerHTML = '<main class="app-frame"><section class="task-strip"></section><div data-test-surface></div></main>';
   const task = document.querySelector<HTMLElement>(".task-strip")!;
   task.getBoundingClientRect = () => ({ x: 10, y: 10, width: 200, height: 30 }) as DOMRect;
-  const shell = document.querySelector<HTMLElement>(".glass-shell")!;
+  const shell = document.querySelector<HTMLElement>("[data-test-surface]")!;
+  shell.className = surfaceClass;
   let height = 0;
   shell.getBoundingClientRect = () => ({ x: 10, y: 46, width: 200, height }) as DOMRect;
   const onError = vi.fn();

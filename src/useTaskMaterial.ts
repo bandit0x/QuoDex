@@ -32,7 +32,7 @@ export function useTaskMaterial(layoutKey: string, onError: (message: string) =>
     const update = () => {
       if (stopped) return;
       const regions = Array.from(document.querySelectorAll<HTMLElement>(".task-strip,.task-popover,[data-glass-lens],.dock-controls,.dock-error")).map(region);
-      const visibleRegions = Array.from(document.querySelectorAll<HTMLElement>(".task-strip,.task-popover,.task-common-diagnostic,.glass-shell,[data-glass-lens],.dock-controls,.dock-error,.control-message")).map(region);
+      const visibleRegions = Array.from(document.querySelectorAll<HTMLElement>(".task-strip,.task-popover,.task-common-diagnostic,.glass-shell,.gemini-twin-surface,[data-glass-lens],.dock-controls,.dock-error,.control-message")).map(region);
       // Native resize is asynchronous. Wait for the window viewport to catch up with the
       // approved popover layout; ResizeObserver delivers the final geometry afterwards.
       if ([...regions, ...visibleRegions].some(r => r.width <= 0 || r.height <= 0 || r.x < 0 || r.y < 0 || r.x + r.width > window.innerWidth + .1 || r.y + r.height > window.innerHeight + .1)) return;
@@ -73,7 +73,7 @@ export function useTaskMaterial(layoutKey: string, onError: (message: string) =>
     const root = document.querySelector<HTMLElement>(".app-frame");
     const observed = new Set<Element>();
     const observeRegions = () => {
-      const current = new Set<Element>(document.querySelectorAll(".app-frame,.task-strip,.task-popover,.task-common-diagnostic,.glass-shell,[data-glass-lens],.dock-controls,.dock-error,.control-message"));
+      const current = new Set<Element>(document.querySelectorAll(".app-frame,.task-strip,.task-popover,.task-common-diagnostic,.glass-shell,.gemini-twin-surface,[data-glass-lens],.dock-controls,.dock-error,.control-message"));
       observed.forEach(element => { if (!current.has(element)) { observer.unobserve(element); observed.delete(element); } });
       current.forEach(element => { if (!observed.has(element)) { observer.observe(element); observed.add(element); } });
       schedule();
