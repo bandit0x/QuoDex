@@ -1,7 +1,9 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { carouselCandidates, carouselLabels, selectedCarouselSources, type CarouselSource } from "./quotaCarousel";
-import { SETTINGS_CAROUSEL_EXTRA_HEIGHT } from "./windowClient";
+import { SETTINGS_CAROUSEL_EXTRA_HEIGHT, SETTINGS_GEMINI_EXTRA_HEIGHT } from "./windowClient";
 import type { Diagnostic, DisplayPreferences, SourceSelection } from "./capacityTypes";
+import type { GeminiPool } from "./geminiQuota";
+import { GeminiDockSection } from "./GeminiDockSection";
 import { PlanSegmented } from "./PlanSegmented";
 import { version } from "../package.json";
 import "./SettingsDock.css";
@@ -30,9 +32,12 @@ interface SettingsDockProps {
   details?: ReactNode;
   detailsOpen?: boolean;
   onToggleDetails?: () => void;
+  geminiPools?: GeminiPool[];
+  geminiReading?: boolean;
+  onRefreshGemini?: () => void;
 }
 
-export function SettingsDock({ preferences, source, saveState, saveError, usageEntryState = "idle", usageError = null, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit, onOpenUsage, collapsed = false, onToggleLayout, details, detailsOpen = false, onToggleDetails }: SettingsDockProps) {
+export function SettingsDock({ preferences, source, saveState, saveError, usageEntryState = "idle", usageError = null, appliedAlwaysOnTop, pinStateUnconfirmed = false, onChange, onPreviewOpacity, onCommitOpacity, onRetry, onClose, onQuit, onOpenUsage, collapsed = false, onToggleLayout, details, detailsOpen = false, onToggleDetails, geminiPools, geminiReading, onRefreshGemini }: SettingsDockProps) {
   const shownAlwaysOnTop = saveState === "saving" ? (preferences.alwaysOnTop ?? true) : (appliedAlwaysOnTop ?? preferences.alwaysOnTop ?? true);
   const [minimumNotice, setMinimumNotice] = useState(false);
   const carouselSources = selectedCarouselSources(preferences);
@@ -48,9 +53,13 @@ export function SettingsDock({ preferences, source, saveState, saveError, usageE
       : carouselCandidates.filter(source => source === candidate || carouselSources.includes(source)) });
   };
   const twoErrors = Boolean(saveError && usageError);
-  return <aside className="settings-dock" role="dialog" aria-label="显示设置" style={source === "carousel"
-    ? { "--carousel-space": `${SETTINGS_CAROUSEL_EXTRA_HEIGHT * 2}px` } as CSSProperties : undefined}>
-    <div className={`dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError || usageError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}${detailsOpen ? " dock-controls--details" : ""}`} data-save-state={saveState}>
+  const showGeminiSection = source === "gemini" || (source === "carousel" && carouselSources.includes("gemini"));
+  const dockStyle = {
+    ...(source === "carousel" ? { "--carousel-space": `${SETTINGS_CAROUSEL_EXTRA_HEIGHT * 2}px` } : {}),
+    ...(showGeminiSection ? { "--gemini-space": `${SETTINGS_GEMINI_EXTRA_HEIGHT * 2}px` } : {}),
+  } as CSSProperties;
+  return <aside className="settings-dock" role="dialog" aria-label="显示设置" style={dockStyle}>
+    <div className={`dock-controls${source !== "zcode" ? " dock-controls--simple" : ""}${saveError || usageError ? " dock-controls--error" : ""}${twoErrors ? " dock-controls--two-errors" : ""}${detailsOpen ? " dock-controls--details" : ""}${showGeminiSection ? " dock-controls--gemini" : ""}`} data-save-state={saveState}>
       <div className="dock-liquid-shell" aria-hidden="true" />
     <div className="dock-sources" role="group" aria-label="额度来源">
       {([['codex', 'Codex'], ['zcode', 'ZCode'], ['gemini', 'Gemini'], ['carousel', '轮播']] as const).map(([value, label]) => <button
@@ -119,6 +128,7 @@ export function SettingsDock({ preferences, source, saveState, saveError, usageE
         <button className="dock-collapse" type="button" aria-label="关闭设置" title="收起设置 · Esc" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg></button>
       </div>
       {detailsOpen && <div className="dock-details" aria-label="额度详情">{details}</div>}
+      {showGeminiSection && <GeminiDockSection pools={geminiPools} reading={geminiReading} onRefresh={onRefreshGemini} />}
       {usageError && <div className="dock-error dock-error--usage" role="alert"><span className="dock-error-message" title={[usageError.message, usageError.detail].filter(Boolean).join("；")}>{usageError.message}</span><span className="dock-error-code"> · {usageError.code}</span><button type="button" aria-label="重试打开用量统计" disabled={usageEntryState === "opening"} onClick={onOpenUsage}>{usageEntryState === "opening" ? "打开中" : "重试"}</button></div>}
       {saveError && <div className="dock-error" role="alert"><span className="dock-error-message" title={[saveError.message, saveError.detail].filter(Boolean).join("；")}>{saveError.message}</span><span className="dock-error-code"> · {saveError.code}</span><button type="button" aria-label="重试保存" disabled={saveState === "saving"} onClick={onRetry}>{saveState === "saving" ? "保存中" : "重试"}</button></div>}
     </div>

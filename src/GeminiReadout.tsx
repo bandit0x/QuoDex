@@ -2,8 +2,8 @@ import "./GeminiReadout.css";
 
 const legends = {
   web: { name: "Web", label: "WEB" },
-  gemini: { name: "AG Gemini", label: "GEMINI" },
-  partner: { name: "AG Claude/GPT", label: "CLAUDE/GPT" },
+  gemini: { name: "Gemini", label: "GEMINI" },
+  partner: { name: "Claude/GPT", label: "CLAUDE/GPT" },
 } as const;
 
 interface GeminiReadoutProps {
@@ -21,7 +21,6 @@ export function GeminiReadout({ pool, remainingPercent, stale }: GeminiReadoutPr
     <div className="gemini-readout" role="img"
       aria-label={`${legend.name}，${known ? `${stale ? "上次" : ""}剩余 ${value}%` : "额度未知"}`}>
       <div className="gemini-readout__legend" aria-hidden="true">
-        {pool !== "web" && <span className="gemini-readout__source">AG</span>}
         <span>{legend.label}</span>
       </div>
       <div className="gemini-readout__value" aria-hidden="true">

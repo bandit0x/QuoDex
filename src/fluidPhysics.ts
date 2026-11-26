@@ -3,6 +3,9 @@ export interface FluidMotionSample {
   accelerationX: number;
   accelerationY: number;
   phase: "idle" | "dragging" | "released";
+  velocityX?: number;
+  velocityY?: number;
+  elapsedMs?: number;
 }
 
 export const IDLE_FLUID_MOTION: FluidMotionSample = {
@@ -10,6 +13,9 @@ export const IDLE_FLUID_MOTION: FluidMotionSample = {
   accelerationX: 0,
   accelerationY: 0,
   phase: "idle",
+  velocityX: 0,
+  velocityY: 0,
+  elapsedMs: 16.667,
 };
 
 /** Two equal relaxation stages transfer a wall impulse into the liquid.

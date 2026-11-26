@@ -57,6 +57,7 @@ import {
   planSettingsExtraHeight,
   SETTINGS_DETAILS_EXTRA_HEIGHT,
   SETTINGS_CAROUSEL_EXTRA_HEIGHT,
+  SETTINGS_GEMINI_EXTRA_HEIGHT,
   type OverlayLayout,
   type OverlayPosition,
   type OverlayWorkArea,
@@ -832,13 +833,21 @@ export function App({
   }, []);
 
   const publishFluidMotion = useCallback(
-    (velocityX: number, velocityY: number, phase: FluidMotionSample["phase"]) => {
+    (velocityX: number, velocityY: number, phase: FluidMotionSample["phase"], elapsedMs = 16.667) => {
       const previous = previousMotionVelocityRef.current;
       const accelerationX = (velocityX - previous.x) * 8;
       const accelerationY = (velocityY - previous.y) * 8;
       previousMotionVelocityRef.current = { x: velocityX, y: velocityY };
       motionSequenceRef.current += 1;
-      setFluidMotion({ sequence: motionSequenceRef.current, accelerationX, accelerationY, phase });
+      setFluidMotion({
+        sequence: motionSequenceRef.current,
+        accelerationX,
+        accelerationY,
+        phase,
+        velocityX,
+        velocityY,
+        elapsedMs,
+      });
     },
     [],
   );
@@ -920,7 +929,7 @@ export function App({
     drag.lastPointerY = event.screenY;
     drag.lastTime = now;
     if (drag.ready) void setWindowPosition({ x: drag.positionX, y: drag.positionY });
-    publishFluidMotion(drag.velocityX, drag.velocityY, "dragging");
+    if (drag.moved) publishFluidMotion(drag.velocityX, drag.velocityY, "dragging", elapsed);
   }, [publishFluidMotion, setWindowPosition]);
 
   const handleDragEnd = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -932,13 +941,17 @@ export function App({
     if (drag.fromCollapsedSurface && drag.moved) {
       suppressCollapsedRestoreUntilRef.current = performance.now() + 250;
     }
+    const moved = drag.moved;
     drag.pointerId = -1;
     drag.ready = false;
     setIsWindowDragging(false);
-    const staleSample = performance.now() - drag.lastTime > 90;
+    if (!moved) return;
+    const now = performance.now();
+    const releaseElapsed = Math.max(8, now - drag.lastTime);
+    const staleSample = now - drag.lastTime > 90;
     let velocityX = staleSample || preferences.reducedMotion ? 0 : drag.velocityX;
     let velocityY = staleSample || preferences.reducedMotion ? 0 : drag.velocityY;
-    publishFluidMotion(velocityX, velocityY, "released");
+    publishFluidMotion(velocityX, velocityY, "released", releaseElapsed);
     if (Math.hypot(velocityX, velocityY) < 0.035) return;
 
     let positionX = drag.positionX;
@@ -965,10 +978,10 @@ export function App({
       positionX = nextX;
       positionY = nextY;
       void setWindowPosition({ x: positionX, y: positionY });
-      publishFluidMotion(velocityX, velocityY, "dragging");
+      publishFluidMotion(velocityX, velocityY, "dragging", elapsed);
       if (Math.hypot(velocityX, velocityY) < 0.018) {
         inertiaFrameRef.current = null;
-        publishFluidMotion(0, 0, "idle");
+        publishFluidMotion(0, 0, "idle", elapsed);
         return;
       }
       inertiaFrameRef.current = requestAnimationFrame(glide);
@@ -1106,9 +1119,11 @@ export function App({
     }
   }, [closeSettingsWindow, settingsPresentation, commitOpacity]);
 
+  const showGeminiActionsInDock = sourceSelection === "gemini" || (sourceSelection === "carousel" && carouselSources.includes("gemini"));
   const settingsExtraHeight = planSettingsExtraHeight(Boolean(preferenceSaveError), Boolean(usageOpenError))
     + (sourceSelection === "carousel" ? SETTINGS_CAROUSEL_EXTRA_HEIGHT : 0)
-    + (settingsDetailsOpen ? SETTINGS_DETAILS_EXTRA_HEIGHT : 0);
+    + (settingsDetailsOpen ? SETTINGS_DETAILS_EXTRA_HEIGHT : 0)
+    + (showGeminiActionsInDock ? SETTINGS_GEMINI_EXTRA_HEIGHT : 0);
   useEffect(() => {
     const generation = ++settingsResizeGeneration.current;
     if (!settingsPresentation || settingsTransitionRef.current) return;
@@ -1211,7 +1226,7 @@ export function App({
       .catch(() => setControlMessage("无法保存提醒移除操作；检查本地配置目录权限 · QDT-613"));
   };
 
-  const detailContent = activeIsGemini ? <GeminiQuotaDetails pools={gemini.pools} refresh={gemini.refresh} /> : activeSnapshot ? (
+  const detailContent = activeIsGemini ? <GeminiQuotaDetails pools={gemini.pools} /> : activeSnapshot ? (
     <div className="detail-strip">
       {activeIsZcode && zcodeSnapshot ? (
         <>
@@ -1262,8 +1277,7 @@ export function App({
       <TaskStatusStrip key={taskStripGeneration} tasks={tasks} now={taskStatus.now} sources={taskStatus.snapshot.sources} diagnostic={taskStatus.snapshot.diagnostic} reducedMotion={preferences.reducedMotion} compact={collapsed} onOpen={openTask} onDismiss={removeFailure} onPopoverChange={changeTaskPopover} />
       {activeIsGemini ? <GeminiQuotaSurface {...gemini} motion={fluidMotion} reducedMotion={preferences.reducedMotion}
         collapsed={collapsed} settingsOpen={settingsOpen} restoredHeight={overlayLayoutSizes[visibleLayout].height + taskSpace}
-        onRestore={restoreCollapsedLayout}
-        onDetails={() => { setSettingsDetailsOpen(true); void openSettings(); }} /> : (
+        onRestore={restoreCollapsedLayout} /> : (
       <div className={`glass-shell glass-shell--${visibleLayout} ${stale ? "glass-shell--stale" : ""} ${routeBlocked && activeSource === "codex" ? "glass-shell--route-blocked" : ""}`}>
         <OpticalShell
           dragging={isWindowDragging}
@@ -1383,6 +1397,9 @@ export function App({
         details={detailContent}
         detailsOpen={settingsDetailsOpen}
         onToggleDetails={() => setSettingsDetailsOpen(open => !open)}
+        geminiPools={gemini.pools}
+        geminiReading={gemini.reading}
+        onRefreshGemini={gemini.refresh}
         collapsed={collapsed}
         onToggleLayout={activeIsGemini || activeSnapshot ? () => void changeLayout(collapsed ? "compact" : "collapsed") : undefined}
         preferences={preferences}

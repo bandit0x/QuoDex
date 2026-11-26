@@ -9,9 +9,10 @@ import {
   type FluidMotionSample,
   linearLiquidLevel,
 } from "./fluidPhysics";
+import { GeminiCavityFluid, type GeminiCavityState } from "./geminiFluidPhysics";
 import { OpticalFluidRenderer, type FluidAccent } from "./opticalFluidRenderer";
 import { drawGeminiGlass, isGeminiAccent, loadGeminiGlass, type GeminiAccent } from "./geminiGlass";
-import { drawBakedTwinGlass, drawTwinGlass, loadTwinGlass, type TwinGlassTextures } from "./twinGlass";
+import { drawBakedTwinGlass, drawTwinGlass, getLoadedTwinGlass, loadTwinGlass, type TwinGlassTextures } from "./twinGlass";
 
 interface FluidReservoirProps {
   remainingPercent: number;
@@ -334,15 +335,30 @@ export function FluidReservoir({
   const surfaceRef = useRef(new FluidSurface(56));
   const bodyMomentumRef = useRef(new FluidBodyMomentum());
   const impulseLagRef = useRef(new FluidImpulseLag());
+  const geminiFluidRef = useRef<GeminiCavityFluid | null>(null);
+  if (!geminiFluidRef.current) geminiFluidRef.current = new GeminiCavityFluid(motionSeed);
+  const geminiStateRef = useRef<GeminiCavityState | null>(null);
+  const lastMotionSequenceRef = useRef(motion.sequence);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(0);
   const visibleLevelRef = useRef(remainingPercent);
+  const remainingPercentRef = useRef(remainingPercent);
+  remainingPercentRef.current = remainingPercent;
+  const staticFrameRef = useRef(false);
+  const transitionRef = useRef({
+    initialLevel: remainingPercent,
+    targetLevel: remainingPercent,
+    startTime: 0,
+    duration: twinGauge ? 380 : 600,
+  });
   const geminiAtlasRef = useRef<HTMLImageElement | undefined>(undefined);
-  const drawRef = useRef<() => void>(() => undefined);
+  const drawRef = useRef<(time?: number) => void>(() => undefined);
   const dynamics = useMemo(
     () => deriveFluidDynamics(remainingPercent, motionSeed),
     [motionSeed, remainingPercent],
   );
+  const dynamicsRef = useRef(dynamics);
+  dynamicsRef.current = dynamics;
 
   useEffect(() => {
     surfaceRef.current.configure(dynamics);
@@ -358,13 +374,9 @@ export function FluidReservoir({
     const palette = palettes[accent];
     let opticalRenderer: OpticalFluidRenderer | null = null;
     let atlas = geminiAtlasRef.current;
-    let twinTexture: TwinGlassTextures | undefined;
+    let twinTexture: TwinGlassTextures | undefined = twinGauge ? getLoadedTwinGlass(twinGauge) : undefined;
     let mounted = true;
-    // The effect owns one canvas, accent and target percentage.
-    let staticFrame = false;
-    const initialLevel = visibleLevelRef.current;
-    const transitionStart = performance.now();
-    const transitionDuration = twinGauge ? 380 : 600;
+    staticFrameRef.current = false;
 
     try {
       if (webglCanvas && !isGeminiAccent(accent)) opticalRenderer = new OpticalFluidRenderer(webglCanvas, accent);
@@ -375,21 +387,23 @@ export function FluidReservoir({
       webglCanvas.dataset.renderer = opticalRenderer ? "webgl" : "inactive";
       webglCanvas.style.display = opticalRenderer ? "block" : "none";
     }
-    fallbackCanvas.dataset.renderer = "canvas2d";
+    fallbackCanvas.dataset.renderer = twinGauge && twinTexture ? "twin-optical" : "canvas2d";
     fallbackCanvas.style.display = opticalRenderer ? "none" : "block";
 
     const render = (time = performance.now()) => {
+      const targetPercent = remainingPercentRef.current;
+      const currentDynamics = dynamicsRef.current;
       if (opticalRenderer) {
         opticalRenderer.render({
-          remainingPercent,
+          remainingPercent: targetPercent,
           surface: surface.heights,
           flowOffset: bodyMomentum.offset,
           agitation: bodyMomentum.agitation,
           timeMs: time,
           active: surface.isActive,
           ambientMotion: !reducedMotion,
-          phaseOffset: dynamics.phaseOffset,
-          flowScale: dynamics.flowScale,
+          phaseOffset: currentDynamics.phaseOffset,
+          flowScale: currentDynamics.flowScale,
         });
         return;
       }
@@ -405,34 +419,37 @@ export function FluidReservoir({
       if (fallbackCanvas.width !== pixelWidth || fallbackCanvas.height !== pixelHeight) {
         fallbackCanvas.width = pixelWidth;
         fallbackCanvas.height = pixelHeight;
-        staticFrame = false;
+        staticFrameRef.current = false;
       }
       const context = fallbackCanvas.getContext("2d");
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       if (isGeminiAccent(accent) && (twinGauge || atlas)) {
-        const progress = reducedMotion ? 1 : Math.min(1, Math.max(0, (time - transitionStart) / transitionDuration));
-        const level = remainingPercent + (initialLevel - remainingPercent) * (1 - progress) ** 3;
+        const transition = transitionRef.current;
+        const progress = reducedMotion || transition.duration <= 0
+          ? 1
+          : Math.min(1, Math.max(0, (time - transition.startTime) / transition.duration));
+        const level = transition.targetLevel + (transition.initialLevel - transition.targetLevel) * (1 - progress) ** 3;
         visibleLevelRef.current = level;
         if (twinGauge) {
-          const atRest = (initialLevel === remainingPercent || progress === 1)
-            && !surface.isActive && bodyMomentum.agitation === 0;
-          if (atRest && staticFrame) return;
-          staticFrame = atRest;
+          const geminiState = geminiStateRef.current;
+          const atRest = (transition.initialLevel === transition.targetLevel || progress === 1)
+            && !geminiState?.active;
+          if (atRest && staticFrameRef.current) return;
+          staticFrameRef.current = atRest;
           context.resetTransform();
-          const stir = initialLevel !== remainingPercent && progress < 1 ? Math.sin(progress * Math.PI) : 0;
           if (twinTexture) {
             drawBakedTwinGlass(context, twinTexture, twinGauge, pixelWidth, pixelHeight,
-              accent === "orchid", level, surface.heights, time, stir);
+              accent === "orchid", level, geminiState, time, 0);
           } else {
             drawTwinGlass(context, pixelWidth, pixelHeight, twinGauge === "narrow",
-              accent === "orchid", level, surface.heights, time, stir);
+              accent === "orchid", level, geminiState, time, 0);
           }
           return;
         }
         if (atlas) {
           drawGeminiGlass(context, atlas, accent, logicalWidth, logicalHeight, level, surface.heights,
-            time * dynamics.flowScale, !reducedMotion, dynamics.phaseOffset,
+            time * currentDynamics.flowScale, !reducedMotion, currentDynamics.phaseOffset,
             bodyMomentum.offset, bodyMomentum.agitation, bodyMomentum.lateralMomentum);
           return;
         }
@@ -441,25 +458,25 @@ export function FluidReservoir({
         context,
         logicalWidth,
         logicalHeight,
-        remainingPercent,
+        targetPercent,
         surface,
         bodyMomentum.offset,
         palette,
         time,
         surface.isActive,
         !reducedMotion,
-        dynamics.phaseOffset,
-        dynamics.flowScale,
+        currentDynamics.phaseOffset,
+        currentDynamics.flowScale,
         isGeminiAccent(accent),
       );
     };
-    drawRef.current = () => render();
+    drawRef.current = (time?: number) => render(time);
     render();
-    if (twinGauge) {
+    if (twinGauge && !twinTexture) {
       loadTwinGlass(twinGauge).then(texture => {
         if (!mounted) return;
         twinTexture = texture;
-        staticFrame = false;
+        staticFrameRef.current = false;
         fallbackCanvas.dataset.renderer = "twin-optical";
         render();
       }).catch(error => {
@@ -483,17 +500,20 @@ export function FluidReservoir({
     let ambientFrame: number | null = null;
     let lastAmbientTime = 0;
     const animateAmbient = (time: number) => {
-      if (frameRef.current === null && (twinGauge || time - lastAmbientTime >= 32)) {
+      if (frameRef.current === null && time - lastAmbientTime >= 32) {
         lastAmbientTime = time;
         render(time);
       }
-      if (!twinGauge || time < transitionStart + transitionDuration) ambientFrame = requestAnimationFrame(animateAmbient);
+      ambientFrame = requestAnimationFrame(animateAmbient);
     };
-    if (!reducedMotion && (!twinGauge || initialLevel !== remainingPercent)) ambientFrame = requestAnimationFrame(animateAmbient);
+    if (!reducedMotion && !twinGauge) ambientFrame = requestAnimationFrame(animateAmbient);
 
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
-      : new ResizeObserver(() => render());
+      : new ResizeObserver(() => {
+        staticFrameRef.current = false;
+        render();
+      });
     resizeObserver?.observe(opticalRenderer && webglCanvas ? webglCanvas : fallbackCanvas,
       twinGauge ? { box: "device-pixel-content-box" } : undefined);
     return () => {
@@ -502,21 +522,82 @@ export function FluidReservoir({
       if (ambientFrame !== null) cancelAnimationFrame(ambientFrame);
       opticalRenderer?.destroy();
     };
-  }, [accent, dynamics.phaseOffset, reducedMotion, remainingPercent, twinGauge]);
+  }, [accent, reducedMotion, twinGauge]);
+
+  useEffect(() => {
+    const startTime = performance.now();
+    const duration = twinGauge ? 380 : 600;
+    const initialLevel = visibleLevelRef.current;
+    transitionRef.current = {
+      initialLevel,
+      targetLevel: remainingPercent,
+      startTime,
+      duration,
+    };
+    staticFrameRef.current = false;
+    if (reducedMotion || initialLevel === remainingPercent) {
+      visibleLevelRef.current = remainingPercent;
+      drawRef.current();
+      return;
+    }
+    if (!twinGauge) {
+      drawRef.current();
+      return;
+    }
+    let levelFrame: number | null = null;
+    const stepLevel = (time: number) => {
+      if (frameRef.current === null) drawRef.current(time);
+      if (time < startTime + duration) {
+        levelFrame = requestAnimationFrame(stepLevel);
+      } else {
+        levelFrame = null;
+        if (frameRef.current === null) drawRef.current(startTime + duration);
+      }
+    };
+    levelFrame = requestAnimationFrame(stepLevel);
+    return () => {
+      if (levelFrame !== null) cancelAnimationFrame(levelFrame);
+    };
+  }, [remainingPercent, reducedMotion, twinGauge]);
 
   useEffect(() => {
     const surface = surfaceRef.current;
     const bodyMomentum = bodyMomentumRef.current;
+    const geminiFluid = geminiFluidRef.current;
     if (reducedMotion) {
+      lastMotionSequenceRef.current = motion.sequence;
       surface.reset();
       bodyMomentum.reset();
       impulseLagRef.current.reset();
+      geminiFluid?.reset();
+      geminiStateRef.current = null;
+      staticFrameRef.current = false;
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       drawRef.current();
       return;
     }
-    if (motion.sequence === 0) return;
+    if (motion.sequence === 0 || motion.sequence === lastMotionSequenceRef.current) return;
+    lastMotionSequenceRef.current = motion.sequence;
+
+    if (twinGauge && geminiFluid) {
+      geminiFluid.pushMotion(motion);
+      if (frameRef.current !== null) return;
+      lastTimeRef.current = performance.now();
+
+      const animateTwin = (time: number) => {
+        const elapsedMs = Math.min(40, Math.max(4, time - lastTimeRef.current));
+        lastTimeRef.current = time;
+        const state = geminiFluid.step(elapsedMs, visibleLevelRef.current, twinGauge === "narrow");
+        geminiStateRef.current = state;
+        staticFrameRef.current = false;
+        drawRef.current(time);
+        frameRef.current = state.active ? requestAnimationFrame(animateTwin) : null;
+      };
+      frameRef.current = requestAnimationFrame(animateTwin);
+      return;
+    }
+
     const lag = isGeminiAccent(accent) ? impulseLagRef.current : null;
     const disturb = (x: number, y: number, released = false) => {
       surface.disturb(x, y, released);
@@ -535,8 +616,7 @@ export function FluidReservoir({
       const surfaceActive = surface.step(frameScale);
       const bodyActive = bodyMomentum.step(frameScale);
       const active = surfaceActive || bodyActive || !!impulse;
-      if (twinGauge && !active) bodyMomentum.reset();
-      drawRef.current();
+      drawRef.current(time);
       frameRef.current = active ? requestAnimationFrame(animate) : null;
     };
     frameRef.current = requestAnimationFrame(animate);
@@ -553,7 +633,7 @@ export function FluidReservoir({
         ref={fallbackCanvasRef}
         className="fluid-reservoir"
         aria-hidden="true"
-        style={{ display: "none" }}
+        style={{ display: twinGauge && isGeminiAccent(accent) ? "block" : "none" }}
       />
     </>
   );

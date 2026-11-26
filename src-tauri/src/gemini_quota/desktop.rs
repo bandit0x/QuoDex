@@ -70,15 +70,16 @@ pub(super) fn read(manual: bool) -> [Pool; 2] {
     }
 
     // Layer 2 (Official personal CLI): `agy -p /usage --output-format json`.
+    // Fall back to Layer 3 (local Desktop runtime) if `agy` is absent or returns an error.
     let pools = match agy_cli::read_cli(&salt) {
         Ok(Some(cli_pools)) => cli_pools,
-        Err(diag) => failure_with_source("cli", diag),
-        Ok(None) => {
-            // Layer 3 (Fallback when `agy` CLI is not installed): reuse active hub or de-noised runtime.
-            desktop_runtime::sample()
-                .and_then(|sample| decode(sample, &salt))
-                .unwrap_or_else(failure)
-        }
+        cli_outcome => match desktop_runtime::sample().and_then(|sample| decode(sample, &salt)) {
+            Ok(desktop_pools) => desktop_pools,
+            Err(desktop_diag) => match cli_outcome {
+                Err(cli_diag) => failure_with_source("cli", cli_diag),
+                _ => failure(desktop_diag),
+            },
+        },
     };
 
     *last = Some(CachedRead {

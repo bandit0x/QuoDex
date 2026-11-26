@@ -142,12 +142,32 @@ unsafe fn web_panel(
     if matches!(
         url.path().trim_end_matches('/').rsplit('/').next(),
         Some("usage" | "usage-limits")
-    ) && by_name(ui, doc, WEB_TITLES).is_some()
-    {
+    ) {
         if let Some(list) = by_name(ui, doc, &["Usage cycles", "用量周期", "用量週期"]) {
             return Some(Pool::from_lines(&web_cycle_lines(ui, &list).ok()?));
         }
-        return Some(Pool::from_lines(&text_lines(ui, doc).ok()?));
+        if let Some(heading) = by_name(ui, doc, WEB_TITLES) {
+            if let Ok(walker) = ui.ControlViewWalker() {
+                let mut container = heading;
+                for _ in 0..6 {
+                    let Ok(parent) = walker.GetParentElement(&container) else {
+                        break;
+                    };
+                    container = parent;
+                    if let Ok(lines) = text_lines(ui, &container) {
+                        if lines.iter().any(|l| super::period(&l.to_lowercase()).is_some()) {
+                            return Some(Pool::from_lines(&lines));
+                        }
+                    }
+                    if ui.CompareElements(&container, doc).ok().is_some_and(|b| b.as_bool()) {
+                        break;
+                    }
+                }
+            }
+        }
+        if by_name(ui, doc, WEB_TITLES).is_some() {
+            return Some(Pool::from_lines(&text_lines(ui, doc).ok()?));
+        }
     }
     None
 }
@@ -378,7 +398,7 @@ fn visit_documents(
             let Ok(docs) = root.FindAll(TreeScope_Descendants, &document) else {
                 continue;
             };
-            for index in 0..docs.Length()?.min(if desktop { 8 } else { 1 }) {
+            for index in 0..docs.Length()?.min(if desktop { 8 } else { 4 }) {
                 let Ok(doc) = docs.GetElement(index) else {
                     continue;
                 };
@@ -398,6 +418,7 @@ fn visit_documents(
 fn browser_candidate_title(title: &str) -> bool {
     title.contains("gemini")
         || title.contains("antigravity")
+        || WEB_TITLES.iter().any(|t| title.contains(&t.to_lowercase()))
         || matches!(
             title.split(" - ").next(),
             Some("usage" | "用量" | "使用情况" | "使用狀況")

@@ -225,12 +225,12 @@
 .reduce-motion .dock-shortcuts button, .reduce-motion .dock-footer button { transition:none; transform:none !important; }
 
 /* One continuous control chamber; source rail is part of the same shell. */
-.settings-dock .dock-controls { margin-top:0; height:calc(404px + var(--carousel-space, 0px)); padding:54px 36px 26px; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
-.settings-dock .dock-controls--error { height:calc(472px + var(--carousel-space, 0px)); }
-.settings-dock .dock-controls--two-errors { height:calc(540px + var(--carousel-space, 0px)); }
-.settings-dock .dock-controls--details { height:calc(500px + var(--carousel-space, 0px)); }
-.settings-dock .dock-controls--details.dock-controls--error { height:calc(568px + var(--carousel-space, 0px)); }
-.settings-dock .dock-controls--details.dock-controls--two-errors { height:calc(636px + var(--carousel-space, 0px)); }
+.settings-dock .dock-controls { margin-top:0; height:calc(404px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); padding:54px 36px 26px; background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
+.settings-dock .dock-controls--error { height:calc(472px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); }
+.settings-dock .dock-controls--two-errors { height:calc(540px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); }
+.settings-dock .dock-controls--details { height:calc(500px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); }
+.settings-dock .dock-controls--details.dock-controls--error { height:calc(568px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); }
+.settings-dock .dock-controls--details.dock-controls--two-errors { height:calc(636px + var(--carousel-space, 0px) + var(--gemini-space, 0px)); }
 .dock-controls .dock-sources { position:relative; z-index:5; flex-shrink:0; height:76px; gap:4px; border-bottom:1px solid rgba(114,219,246,.22); }
 .dock-controls .glass-lens { flex-direction:row; border:0; background:transparent; box-shadow:none; gap:8px; }
 .dock-controls .glass-lens::after { content:none; }
@@ -310,3 +310,103 @@
   transform: translateY(-1px) rotate(-45deg);
 }
 .dock-carousel-choices label:focus-within { outline: 2px solid #bceafa; }
+
+/* Gemini 连接与登录操作区：位于设置面板最下方，复用原生水光细分隔线与水滴材质按钮。 */
+.dock-gemini {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(114, 219, 246, 0.22);
+}
+.dock-gemini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 18px;
+  line-height: 22px;
+  color: #d4e6ec;
+}
+.dock-gemini-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-gemini-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dock-gemini-dot--ready { background: #58f2ab; box-shadow: 0 0 8px rgba(88, 242, 171, 0.85); }
+.dock-gemini-dot--fallback { background: #ffd37a; box-shadow: 0 0 8px rgba(255, 211, 122, 0.85); }
+.dock-gemini-dot--unauth { background: #ff8976; box-shadow: 0 0 8px rgba(255, 137, 118, 0.85); }
+.dock-gemini-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #cdecf7;
+  font-size: 18px;
+  font-weight: 540;
+  text-shadow: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dock-gemini-refresh:hover:not(:disabled) { color: #ffffff; background: rgba(205, 243, 255, 0.08); }
+.dock-gemini-refresh:disabled { opacity: 0.55; cursor: default; }
+.dock-gemini-refresh svg { width: 18px; height: 18px; }
+.dock-gemini-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.dock-gemini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 52px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 24px;
+  color: #f1fcff;
+  background: transparent url("./droplet-surface.svg") center / 100% 100% no-repeat;
+  font-size: 19px;
+  font-weight: 560;
+  text-shadow: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 130ms ease, transform 130ms ease;
+}
+.dock-gemini-btn:hover:not(:disabled) { filter: brightness(1.3); transform: translateY(-1px); }
+.dock-gemini-btn:active:not(:disabled) { transform: scaleY(0.94); }
+.dock-gemini-btn:disabled { opacity: 0.55; cursor: default; }
+.dock-gemini-btn svg { width: 19px; height: 19px; flex-shrink: 0; }
+.dock-gemini-btn .ico-login { color: #d8bfff; }
+.dock-gemini-btn .ico-hook-on { color: #9ff3cd; }
+.dock-gemini-btn .ico-hook-off { color: #9fe8ff; }
+.dock-gemini-btn .ico-web { color: #9fe8ff; }
+.dock-gemini-feedback {
+  margin: 0;
+  padding: 2px 4px 0;
+  font-size: 16px;
+  line-height: 1.3;
+  color: #9ff3cd;
+}
+.reduce-motion .dock-gemini-btn { transition: none; transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .dock-gemini-btn { transition: none; transform: none !important; }
+}

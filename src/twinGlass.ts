@@ -3,6 +3,7 @@ import narrowAtlas from "./twin-glass-narrow.webp";
 import reflectionAtlas from "./twin-glass-reflections.webp";
 import waterlineAtlas from "./twin-glass-waterline.webp";
 import cavityAtlas from "./twin-glass-cavity.webp";
+import { cavityHalfWidth, twinMeniscusRatio, type GeminiCavityState } from "./geminiFluidPhysics";
 
 const atlases = { standard: standardAtlas, narrow: narrowAtlas };
 type Layout = keyof typeof atlases;
@@ -13,6 +14,7 @@ export interface TwinGlassTextures {
   cavity: HTMLImageElement;
 }
 const textures: Partial<Record<Layout, Promise<TwinGlassTextures>>> = {};
+const loadedTextures: Partial<Record<Layout, TwinGlassTextures>> = {};
 const tileWidth = 172;
 const tileHeight = 108;
 const columns = 9;
@@ -26,70 +28,162 @@ async function decode(url: string) {
 }
 
 let highlights: Promise<[HTMLImageElement, HTMLImageElement, HTMLImageElement]> | undefined;
+export function getLoadedTwinGlass(layout: Layout): TwinGlassTextures | undefined {
+  return loadedTextures[layout];
+}
 export function loadTwinGlass(layout: Layout) {
   highlights ??= Promise.all([decode(reflectionAtlas), decode(waterlineAtlas), decode(cavityAtlas)]).catch(error => {
     highlights = undefined;
     throw error;
   });
-  return textures[layout] ??= Promise.all([decode(atlases[layout]), highlights]).then(([frames, [reflections, waterline, cavity]]) => ({
-    frames, reflections, waterline, cavity,
-  })).catch(error => {
+  return textures[layout] ??= Promise.all([decode(atlases[layout]), highlights]).then(([frames, [reflections, waterline, cavity]]) => {
+    const loaded = { frames, reflections, waterline, cavity };
+    loadedTextures[layout] = loaded;
+    return loaded;
+  }).catch(error => {
     delete textures[layout];
     throw error;
   });
 }
 
-function meniscusPosition(level: number, narrow: boolean) {
-  const low = narrow ? .737 : .725;
-  const high = narrow ? .298 : .345;
-  if (level < .24) return 1 + (low - 1) * level / .24;
-  if (level <= .82) return low + (high - low) * (level - .24) / .58;
-  return high * (1 - (level - .82) / .18);
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.max(minimum, Math.min(maximum, value));
+
+const clingColors = {
+  blue: {
+    filmPeak: "rgba(118, 182, 255, 0.42)",
+    filmMid: "rgba(68, 118, 214, 0.28)",
+    filmFade: "rgba(52, 98, 196, 0)",
+    lipBack: "rgba(165, 205, 255, 0.22)",
+    lipCenter: "rgba(58, 96, 178, 0.36)",
+    lipFront: "rgba(198, 238, 255, 0.44)",
+    glint: "rgba(210, 244, 255, 0.52)",
+  },
+  violet: {
+    filmPeak: "rgba(222, 148, 255, 0.42)",
+    filmMid: "rgba(154, 86, 198, 0.28)",
+    filmFade: "rgba(126, 58, 164, 0)",
+    lipBack: "rgba(236, 188, 255, 0.22)",
+    lipCenter: "rgba(116, 62, 148, 0.36)",
+    lipFront: "rgba(252, 224, 255, 0.44)",
+    glint: "rgba(255, 228, 255, 0.52)",
+  },
+};
+
+function drawClingingFilm(
+  context: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  narrow: boolean,
+  violet: boolean,
+  side: -1 | 1,
+  wetV: number,
+  edgeV: number,
+  filmStrength: number,
+) {
+  const span = edgeV - wetV;
+  if (span <= 0.012 || filmStrength <= 0.01) return;
+
+  const palette = violet ? clingColors.violet : clingColors.blue;
+  const vTop = clamp(wetV, -0.96, 0.94);
+  const vRoot = clamp(edgeV + 0.04, -0.90, 0.98);
+  const steps = 22;
+  const outer: Array<[number, number]> = [];
+  const inner: Array<[number, number]> = [];
+  const sheenPts: Array<[number, number]> = [];
+  const rootThickness = (narrow ? 0.125 : 0.105) * (0.4 + 0.6 * filmStrength);
+
+  for (let i = 0; i <= steps; i += 1) {
+    const s = i / steps;
+    const v = vTop + (vRoot - vTop) * s;
+    const hw = cavityHalfWidth(v, narrow);
+    const wallX = cx + side * hw * rx;
+    const wallY = cy + v * ry;
+    outer.push([wallX + side * 4, wallY]);
+
+    const sheetThickness = 0.024 * Math.sin(Math.PI * Math.min(1, s * 1.1)) * filmStrength;
+    const filletFlare = rootThickness * Math.pow(s, 2.4);
+    const inward = (sheetThickness + filletFlare) * rx;
+    inner.push([wallX - side * inward, wallY]);
+    sheenPts.push([wallX - side * inward * 0.42, wallY]);
+  }
+
+  context.save();
+  // Soften the clinging film polygon edge so it melts into the dry glass instead of looking cut out.
+  context.filter = `blur(${Math.max(0.8, rx * 0.014).toFixed(2)}px)`;
+  context.beginPath();
+  context.moveTo(outer[0][0], outer[0][1]);
+  for (let i = 1; i <= steps; i += 1) context.lineTo(outer[i][0], outer[i][1]);
+  for (let i = steps; i >= 0; i -= 1) context.lineTo(inner[i][0], inner[i][1]);
+  context.closePath();
+
+  // Horizontal wall-to-center fade + vertical tip/root fade (prevents any hard bottom or inner cut).
+  const wallEdgeX = cx + side * rx * 0.95;
+  const fadeEdgeX = wallEdgeX - side * rootThickness * rx * 1.15;
+  const lateralGrad = context.createLinearGradient(wallEdgeX, 0, fadeEdgeX, 0);
+  lateralGrad.addColorStop(0, palette.filmPeak);
+  lateralGrad.addColorStop(0.55, palette.filmMid);
+  lateralGrad.addColorStop(1, palette.filmFade);
+
+  context.fillStyle = lateralGrad;
+  context.globalAlpha = clamp(filmStrength * 0.85, 0, 0.85);
+  context.fill();
+
+  // Delicate, feathered wet-glass sheen inside the film (replaces the hard 2px stroke).
+  context.beginPath();
+  context.moveTo(sheenPts[0][0], sheenPts[0][1]);
+  for (let i = 1; i <= steps; i += 1) context.lineTo(sheenPts[i][0], sheenPts[i][1]);
+  const sheenGrad = context.createLinearGradient(0, cy + vTop * ry, 0, cy + vRoot * ry);
+  sheenGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
+  sheenGrad.addColorStop(0.32, palette.glint);
+  sheenGrad.addColorStop(0.78, palette.lipBack);
+  sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+  context.strokeStyle = sheenGrad;
+  context.globalAlpha = clamp(filmStrength * 0.42, 0, 0.42);
+  context.lineWidth = Math.max(0.9, rx * 0.016);
+  context.stroke();
+  context.restore();
 }
 
 export function drawBakedTwinGlass(
   context: CanvasRenderingContext2D, texture: TwinGlassTextures, layout: Layout, width: number, height: number,
-  violet: boolean, percent: number, nodes: Float32Array, time: number, stir: number,
+  violet: boolean, percent: number, fluidState: GeminiCavityState | null, _time: number, _stir: number,
 ) {
   context.clearRect(0, 0, width, height);
   context.save();
-  const stirred = stir > .01 || nodes.some(offset => Math.abs(offset) > .05);
-  const strips = stirred ? Math.min(nodes.length, width) : 1;
   const narrow = layout === "narrow";
-  const sampleMeniscus = tileHeight * meniscusPosition(violet ? .24 : .82, narrow);
-  let left = 0;
-  for (let index = 0; index < strips; index++) {
-    const right = Math.round((index + 1) * width / strips);
-    const fraction = (index + .5) / strips;
-    const node = Math.min(nodes.length - 1, Math.floor(fraction * nodes.length));
-    const wave = stirred ? nodes[node] + Math.sin(7 * fraction + time / 60) * stir : 0;
-    const frame = Math.min(50, Math.max(0, (percent - 2 * wave) / 2));
+  const sampleMeniscus = tileHeight * twinMeniscusRatio(violet ? .24 : .82, narrow);
+  const activeSurge = Boolean(fluidState?.active);
+
+  if (!activeSurge) {
+    // Stationary / level-transition path: always draw 1 cohesive optical frame without vertical slicing.
+    const frame = Math.min(50, Math.max(0, percent / 2));
     const lower = Math.floor(frame);
     const upperAlpha = frame - lower;
-    const sourceLeft = left * tileWidth / width;
-    const sourceWidth = (right - left) * tileWidth / width;
     const paint = (tile: number, opacity: number) => {
       context.globalAlpha = opacity;
       const x = tile % columns * tileWidth;
       const y = (Math.floor(tile / columns) + (violet ? rowsPerColor : 0)) * tileHeight;
-      context.drawImage(texture.frames, x + sourceLeft, y, sourceWidth, tileHeight, left, 0, right - left, height);
+      context.drawImage(texture.frames, x, y, tileWidth, tileHeight, 0, 0, width, height);
     };
     paint(lower, 1);
     if (upperAlpha > 0) paint(lower + 1, upperAlpha);
-    const position = meniscusPosition(frame / 50, narrow);
+    const position = twinMeniscusRatio(frame / 50, narrow);
     const meniscus = position * height;
     context.save();
     context.globalAlpha = narrow ? .96 : Math.min(1, frame / 3, (51 - frame) / 2);
     context.globalCompositeOperation = "source-atop";
-    const cavityX = Number(violet) * tileWidth + sourceLeft;
+    const cavityX = Number(violet) * tileWidth;
     const cavityY = narrow ? tileHeight : 0;
     if (meniscus > 0) {
-      context.drawImage(texture.cavity, cavityX, cavityY, sourceWidth, sampleMeniscus,
-        left, 0, right - left, meniscus);
+      context.drawImage(texture.cavity, cavityX, cavityY, tileWidth, sampleMeniscus,
+        0, 0, width, meniscus);
     }
     if (meniscus < height) {
-      context.drawImage(texture.cavity, cavityX, cavityY + sampleMeniscus, sourceWidth, tileHeight - sampleMeniscus,
-        left, meniscus, right - left, height - meniscus);
+      context.drawImage(texture.cavity, cavityX, cavityY + sampleMeniscus, tileWidth, tileHeight - sampleMeniscus,
+        0, meniscus, width, height - meniscus);
     }
     context.restore();
     if (frame > 0 && frame < 50) {
@@ -98,9 +192,6 @@ export function drawBakedTwinGlass(
       const span = width * chord;
       const depth = height * (narrow ? .115 : .11) * Math.min(1, frame / 5, (50 - frame) / 4);
       context.save();
-      context.beginPath();
-      context.rect(left, 0, right - left, height);
-      context.clip();
       context.globalAlpha = narrow ? .5 : .19;
       context.globalCompositeOperation = "source-atop";
       const row = (narrow ? 2 : 0) + Number(violet);
@@ -108,15 +199,138 @@ export function drawBakedTwinGlass(
         (width - span) / 2, position * height - depth / 2, span, depth);
       context.restore();
     }
-    left = right;
+    context.globalAlpha = 1;
+    context.globalCompositeOperation = "source-atop";
+    const foot = 4 + (narrow ? 2 : 0) + Number(violet);
+    const sampleHeight = height * (narrow ? .22 : .28);
+    context.globalAlpha = Math.min(1, Math.max(0, percent / 21)) * (narrow ? 1 : .35);
+    context.drawImage(texture.waterline, 0, foot * 16, tileWidth, 16,
+      width * .07, height * .95 - sampleHeight, width * .86, sampleHeight);
+    context.globalAlpha = narrow ? 1 : .34;
+    context.drawImage(texture.reflections, violet ? tileWidth : 0, layout === "narrow" ? tileHeight : 0,
+      tileWidth, tileHeight, 0, 0, width, height);
+    context.restore();
+    return;
   }
-  context.globalAlpha = 1;
+
+  // Active surge + curved-wall clinging composite sharing the exact baked optical cavity material.
+  const level = clamp(percent / 100, 0, 1);
+  const colorRowOffset = violet ? rowsPerColor : 0;
+  const cavityX = Number(violet) * tileWidth;
+  const cavityY = narrow ? tileHeight : 0;
+  const cavityAlpha = narrow ? 0.96 : clamp(level * 12, 0.35, 1);
+  const surgeBlend = clamp((fluidState?.intensity ?? 0) * 1.6, 0, 1);
+
+  // Layer 1: Stationary dry cavity + baked dry optical material establishes the exact silhouette & glass tone.
+  context.drawImage(texture.frames, 0, colorRowOffset * tileHeight, tileWidth, tileHeight, 0, 0, width, height);
+  context.save();
   context.globalCompositeOperation = "source-atop";
-  const foot = 4 + (narrow ? 2 : 0) + Number(violet);
-  const sampleHeight = height * (narrow ? .22 : .28);
-  context.globalAlpha = Math.min(1, Math.max(0, percent / 21)) * (narrow ? 1 : .35);
-  context.drawImage(texture.waterline, 0, foot * 16, tileWidth, 16,
-    width * .07, height * .95 - sampleHeight, width * .86, sampleHeight);
+  context.globalAlpha = cavityAlpha;
+  context.drawImage(texture.cavity, cavityX, cavityY, tileWidth, sampleMeniscus, 0, 0, width, height);
+  context.restore();
+
+  if (level > 0.004 && fluidState) {
+    const cx = width * 0.5;
+    const cy = height * 0.5;
+    const rx = width * 0.5;
+    const ry = height * 0.5;
+    const surfSteps = 32;
+    const surfPts: Array<[number, number]> = [];
+    let minSurfY = height;
+    for (let i = 0; i <= surfSteps; i += 1) {
+      const xi = -1 + (2 * i) / surfSteps;
+      const sv = fluidState.surfaceV(xi);
+      const hw = cavityHalfWidth(sv, narrow);
+      const px = cx + xi * hw * rx;
+      const py = cy + sv * ry;
+      if (py < minSurfY) minSurfY = py;
+      surfPts.push([px, py]);
+    }
+
+    // Layer 2: Continuous cohesive liquid body using 1:1 full-wet frame + baked wet cavity material.
+    const bulkPath = new Path2D();
+    bulkPath.moveTo(-4, surfPts[0][1]);
+    for (let i = 0; i <= surfSteps; i += 1) bulkPath.lineTo(surfPts[i][0], surfPts[i][1]);
+    bulkPath.lineTo(width + 4, surfPts[surfSteps][1]);
+    bulkPath.lineTo(width + 4, height + 4);
+    bulkPath.lineTo(-4, height + 4);
+    bulkPath.closePath();
+
+    context.save();
+    context.clip(bulkPath);
+    context.globalCompositeOperation = "source-atop";
+    const fullTileX = (50 % columns) * tileWidth;
+    const fullTileY = (Math.floor(50 / columns) + colorRowOffset) * tileHeight;
+    context.globalAlpha = clamp(level / 0.045, 0.35, 1);
+    context.drawImage(texture.frames, fullTileX, fullTileY, tileWidth, tileHeight, 0, 0, width, height);
+
+    const wetTop = clamp(minSurfY - height * 0.02, 0, height - 1);
+    context.globalAlpha = cavityAlpha;
+    context.drawImage(texture.cavity, cavityX, cavityY + sampleMeniscus, tileWidth, tileHeight - sampleMeniscus,
+      0, wetTop, width, height - wetTop);
+
+    const foot = 4 + (narrow ? 2 : 0) + Number(violet);
+    const sampleHeight = height * (narrow ? .22 : .28);
+    const footShift = -fluidState.tilt * width * 0.08;
+    context.globalAlpha = Math.min(1, Math.max(0, percent / 21)) * (narrow ? 1 : .35);
+    context.drawImage(texture.waterline, 0, foot * 16, tileWidth, 16,
+      width * .07 + footShift, height * .95 - sampleHeight, width * .86, sampleHeight);
+    context.restore();
+
+    // Layer 3: Asymmetric feathered wall-clinging films & intensity-blended meniscus band.
+    context.save();
+    context.globalCompositeOperation = "source-atop";
+    drawClingingFilm(context, cx, cy, rx, ry, narrow, violet, -1, fluidState.wetL, fluidState.edgeL, fluidState.filmL);
+    drawClingingFilm(context, cx, cy, rx, ry, narrow, violet, 1, fluidState.wetR, fluidState.edgeR, fluidState.filmR);
+
+    if (surgeBlend > 0.01) {
+      const palette = violet ? clingColors.violet : clingColors.blue;
+      const bandHalf = Math.min(height * 0.075, height * 0.24 * level);
+      const midY = surfPts[Math.floor(surfSteps / 2)][1];
+      const lipPath = new Path2D();
+      lipPath.moveTo(surfPts[0][0] - 2, surfPts[0][1]);
+      for (let i = 1; i <= surfSteps; i += 1) {
+        lipPath.lineTo(surfPts[i][0], surfPts[i][1] - bandHalf * Math.sin((i / surfSteps) * Math.PI));
+      }
+      lipPath.lineTo(surfPts[surfSteps][0] + 2, surfPts[surfSteps][1]);
+      for (let i = surfSteps; i >= 0; i -= 1) {
+        lipPath.lineTo(surfPts[i][0], surfPts[i][1] + bandHalf * Math.sin((i / surfSteps) * Math.PI));
+      }
+      lipPath.closePath();
+
+      context.save();
+      context.filter = `blur(${Math.max(1, height * 0.016).toFixed(2)}px)`;
+      const lipGrad = context.createLinearGradient(0, midY - bandHalf, 0, midY + bandHalf);
+      lipGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
+      lipGrad.addColorStop(0.28, palette.lipBack);
+      lipGrad.addColorStop(0.54, palette.lipCenter);
+      lipGrad.addColorStop(0.78, palette.lipFront);
+      lipGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      context.globalAlpha = Math.min(1, level * 5) * (narrow ? 0.64 : 0.48) * surgeBlend;
+      context.fillStyle = lipGrad;
+      context.fill(lipPath);
+      context.restore();
+    }
+
+    // Sub-surface waterline texture rotated along the instantaneous free-surface tilt.
+    const leftPt = surfPts[0];
+    const rightPt = surfPts[surfSteps];
+    const chordLen = Math.hypot(rightPt[0] - leftPt[0], rightPt[1] - leftPt[1]);
+    const angle = Math.atan2(rightPt[1] - leftPt[1], rightPt[0] - leftPt[0]);
+    const wlDepth = height * (narrow ? 0.115 : 0.11) * Math.min(1, level * 5);
+    const wlRow = (narrow ? 2 : 0) + Number(violet);
+    context.save();
+    context.translate((leftPt[0] + rightPt[0]) * 0.5, (leftPt[1] + rightPt[1]) * 0.5);
+    context.rotate(angle);
+    context.globalAlpha = Math.min(1, level * 5) * (narrow ? 0.48 : 0.22);
+    context.drawImage(texture.waterline, 0, wlRow * 16, tileWidth, 16,
+      -chordLen * 0.5, -wlDepth * 0.5, chordLen, wlDepth);
+    context.restore();
+    context.restore();
+  }
+
+  // Layer 4: Stationary outer dome glass reflections.
+  context.globalCompositeOperation = "source-atop";
   context.globalAlpha = narrow ? 1 : .34;
   context.drawImage(texture.reflections, violet ? tileWidth : 0, layout === "narrow" ? tileHeight : 0,
     tileWidth, tileHeight, 0, 0, width, height);
@@ -132,7 +346,7 @@ const optics = {
 
 export function drawTwinGlass(
   context: CanvasRenderingContext2D, width: number, height: number, narrow: boolean,
-  violet: boolean, percent: number, nodes: Float32Array, time: number, stir: number,
+  violet: boolean, percent: number, fluidState: GeminiCavityState | null, time: number, stir: number,
 ) {
   const color = violet ? optics.violet : optics.blue;
   const hull = new Path2D(narrow
@@ -157,17 +371,49 @@ export function drawTwinGlass(
   const level = Math.max(0, Math.min(1, percent / 100));
   if (level > 0) {
     const y = 48 - level * 96;
-    const tilt = Math.max(-17, Math.min(17, (nodes[nodes.length - 1] - nodes[0]) * 1.35));
     const wobble = Math.sin(time / 44) * stir * 3;
     const depth = Math.min(4.3, level * 19, 1.4 + (1 - level) * 20);
-    const back = y - tilt / 2;
-    const front = y + tilt / 2;
     const liquid = new Path2D();
-    liquid.moveTo(-64, back);
-    liquid.bezierCurveTo(-27, back - depth + wobble, 27, front - depth - wobble, 64, front);
-    liquid.lineTo(64, 52);
-    liquid.lineTo(-64, 52);
-    liquid.closePath();
+    const meniscus = new Path2D();
+
+    if (fluidState?.active) {
+      const steps = 28;
+      const pts: Array<[number, number]> = [];
+      for (let i = 0; i <= steps; i += 1) {
+        const xi = -1 + (2 * i) / steps;
+        const sv = fluidState.surfaceV(xi);
+        const hw = cavityHalfWidth(sv, narrow);
+        pts.push([xi * hw * 62, sv * 50]);
+      }
+      liquid.moveTo(-64, pts[0][1]);
+      for (const [px, py] of pts) liquid.lineTo(px, py);
+      liquid.lineTo(64, pts[steps][1]);
+      liquid.lineTo(64, 52);
+      liquid.lineTo(-64, 52);
+      liquid.closePath();
+
+      meniscus.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i <= steps; i += 1) {
+        meniscus.lineTo(pts[i][0], pts[i][1] - depth * 0.65 * Math.sin((i / steps) * Math.PI));
+      }
+      for (let i = steps; i >= 0; i -= 1) {
+        meniscus.lineTo(pts[i][0], pts[i][1] + depth * 0.65 * Math.sin((i / steps) * Math.PI));
+      }
+      meniscus.closePath();
+    } else {
+      const back = y;
+      const front = y;
+      liquid.moveTo(-64, back);
+      liquid.bezierCurveTo(-27, back - depth + wobble, 27, front - depth - wobble, 64, front);
+      liquid.lineTo(64, 52);
+      liquid.lineTo(-64, 52);
+      liquid.closePath();
+
+      meniscus.moveTo(-64, back);
+      meniscus.bezierCurveTo(-27, back - depth + wobble, 27, front - depth - wobble, 64, front);
+      meniscus.bezierCurveTo(29, front + depth - wobble, -29, back + depth + wobble, -64, back);
+    }
+
     context.save();
     context.clip(liquid);
     context.fillStyle = linear(0, y - depth, 0, 51, [
@@ -204,10 +450,11 @@ export function drawTwinGlass(
     }
     context.restore();
 
-    const meniscus = new Path2D();
-    meniscus.moveTo(-64, back);
-    meniscus.bezierCurveTo(-27, back - depth + wobble, 27, front - depth - wobble, 64, front);
-    meniscus.bezierCurveTo(29, front + depth - wobble, -29, back + depth + wobble, -64, back);
+    if (fluidState?.active) {
+      drawClingingFilm(context, 0, 0, 62, 50, narrow, violet, -1, fluidState.wetL, fluidState.edgeL, fluidState.filmL);
+      drawClingingFilm(context, 0, 0, 62, 50, narrow, violet, 1, fluidState.wetR, fluidState.edgeR, fluidState.filmR);
+    }
+
     context.fillStyle = linear(0, y - depth, 0, y + depth, [[0, color.edge], [.36, color.depth], [.77, color.light], [1, color.glint]]);
     context.fill(meniscus);
     context.strokeStyle = color.edge;

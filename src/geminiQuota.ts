@@ -36,7 +36,9 @@ export const AG_FALLBACK_INTERVAL_MS = 30 * 60_000;
 /** Delay after an Antigravity task completes so backend quota counters settle. */
 export const AG_COMPLETION_DELAY_MS = 3_000;
 /** Pure local UIA check for visible Gemini Web usage tab (zero network traffic). */
-const WEB_PASSIVE_UIA_INTERVAL_MS = 60_000;
+const WEB_PASSIVE_UIA_INTERVAL_MS = 10_000;
+/** Faster local UIA check while the dedicated Gemini Web window is open. */
+const WEB_SESSION_UIA_INTERVAL_MS = 2_500;
 
 const emptyPools: GeminiPool[] = Array.from({ length: 3 }, () => ({
   state: "absent", windows: [], observedAtMs: null,
@@ -115,11 +117,10 @@ export function useGeminiQuota(
     const busy = new Set<GeminiSource | undefined>();
     const split = load === readGeminiQuota;
     let webGeneration = 0;
-    let webConnecting = false;
-    let webNeedsRead = false;
+    let webSessionTimer: number | undefined;
 
     async function poll(source?: GeminiSource, manual = false) {
-      if (cancelled || busy.has(source) || (source === "web" && webConnecting)) return;
+      if (cancelled || busy.has(source)) return;
       const generation = webGeneration;
       const isCurrent = () => !cancelled && (source !== "web" || generation === webGeneration);
       busy.add(source);
@@ -141,10 +142,6 @@ export function useGeminiQuota(
       } finally {
         busy.delete(source);
         if (!cancelled) setReading(busy.size > 0);
-        if (source === "web" && webNeedsRead) {
-          webNeedsRead = false;
-          void poll("web", false);
-        }
       }
     }
 
@@ -155,16 +152,24 @@ export function useGeminiQuota(
       } else void poll(undefined, manual);
     }
 
+    const clearWebSessionTimer = () => {
+      if (webSessionTimer !== undefined) {
+        window.clearInterval(webSessionTimer);
+        webSessionTimer = undefined;
+      }
+    };
+
     const connection = split ? listen<boolean>("gemini-web-session", ({ payload: opening }) => {
       if (cancelled) return;
-      webConnecting = opening;
+      clearWebSessionTimer();
       if (opening) {
         webGeneration++;
-        webNeedsRead = false;
         setPools(previous => (previous ?? emptyPools).map((pool, index) => index === 0
           ? { ...emptyPools[0], state: "pending", source: "panel" } : pool));
-      } else if (busy.has("web")) webNeedsRead = true;
-      else void poll("web", false);
+        webSessionTimer = window.setInterval(() => { void poll("web", false); }, WEB_SESSION_UIA_INTERVAL_MS);
+      } else {
+        void poll("web", false);
+      }
     }).catch(() => undefined) : undefined;
 
     trigger.current = () => refreshAll(true);
@@ -183,6 +188,7 @@ export function useGeminiQuota(
 
     return () => {
       cancelled = true;
+      clearWebSessionTimer();
       trigger.current = () => {};
       refreshSource.current = () => {};
       timers.forEach(timer => window.clearInterval(timer));

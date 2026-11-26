@@ -24,8 +24,8 @@
   position: absolute; inset: 0; content: ""; border-radius: inherit; pointer-events: none;
 }
 
-.gemini-twin--standard { height: 109px }
-.gemini-twin--standard .twin-instruments { padding: 3px 7px 1px; grid-template-rows: minmax(0, 1fr) 19px; gap: 3px }
+.gemini-twin--standard { height: 130px }
+.gemini-twin--standard .twin-instruments { padding: 4px 7px 5px; grid-template-rows: minmax(0, 1fr) 20px; gap: 4px }
 .gemini-twin--standard .twin-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-height: 0 }
 .gemini-twin--standard .twin-dial {
   position: relative; display: block; isolation: isolate; overflow: hidden; border-radius: 49% / 46%;
@@ -56,17 +56,19 @@
 .gemini-twin--standard .twin-fill { stroke: #efb75e; stroke-width: 2.3 }
 .gemini-twin--standard .twin-ticks { stroke: #f0d3a48c; stroke-width: .68 }
 .gemini-twin--standard .twin-marker { stroke: #fff6d5; stroke-width: 2.7; stroke-linecap: round; filter: drop-shadow(0 0 1px #23180b) }
+.gemini-twin--standard .twin-pointer-pill { fill: rgba(11, 16, 24, 0.84); stroke: rgba(239, 183, 94, 0.62); stroke-width: 0.7 }
+.gemini-twin--standard .twin-pointer-value { fill: #ffedc4; font: 700 8.2px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; font-variant-numeric: tabular-nums }
 .gemini-twin--standard .twin-dial > :is(.twin-source, .twin-five) {
   position: absolute; left: 50%; transform: translateX(-50%); z-index: 1;
   line-height: 1; white-space: nowrap; text-shadow: 0 1px 2px #090e1b, 0 0 3px #090e1b;
 }
 .gemini-twin--standard .twin-dial .twin-source {
-  top: 17px; color: #f1e8d8; font: 600 10.5px/1.1 Georgia, "Segoe UI", serif;
+  top: 31px; color: #f1e8d8; font: 600 10.5px/1.1 Georgia, "Segoe UI", serif;
   text-shadow: 0 1px 2px #08111a, 0 0 3px #08111a;
 }
 .gemini-twin--standard .twin-dial[data-pool="gemini"] .twin-source { margin-left: -1px }
 .gemini-twin--standard :is(.twin-five, .twin-week) { display: inline-flex; align-items: baseline; gap: 4px }
-.gemini-twin--standard .twin-dial > .twin-five { top: 34px; margin-left: 3px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
+.gemini-twin--standard .twin-dial > .twin-five { top: 50px; margin-left: 2px; text-shadow: 0 1px 2px #07101a, 0 0 3px #07101a }
 .gemini-twin--standard .twin-five .twin-value { font: italic 21.5px/1 Georgia, serif; color: #f8eddd; font-variant-numeric: lining-nums tabular-nums }
 .gemini-twin--standard .twin-key { color: #e2e9ec; font: 500 8.5px/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; white-space: nowrap }
 .gemini-twin--standard .twin-week .twin-key { color: #edcd91 }

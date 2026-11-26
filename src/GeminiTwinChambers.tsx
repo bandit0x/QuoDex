@@ -1,12 +1,11 @@
-import { useLayoutEffect, useRef } from "react";
 import { FluidReservoir } from "./FluidReservoir";
 import type { FluidMotionSample } from "./fluidPhysics";
 import type { GeminiPool } from "./geminiQuota";
-import { geminiPeriods, getGeminiReading, type GeminiPeriod, type GeminiReading } from "./geminiQuotaReadout";
+import { getGeminiReading, type GeminiPeriod, type GeminiReading } from "./geminiQuotaReadout";
 import "./GeminiTwinChambers.css";
 
-const agGemini = { key: "gemini", name: "AG Gemini", index: 1, accent: "indigo", seed: 0.46 } as const;
-const agPartner = { key: "partner", name: "AG Claude/GPT", index: 2, accent: "orchid", seed: 0.72 } as const;
+const agGemini = { key: "gemini", name: "Gemini", index: 1, accent: "indigo", seed: 0.46 } as const;
+const agPartner = { key: "partner", name: "Claude/GPT", index: 2, accent: "orchid", seed: 0.72 } as const;
 const agSources = [agGemini, agPartner] as const;
 const geminiWeb = { key: "web", name: "Gemini Web", index: 0 } as const;
 type Source = typeof agGemini | typeof agPartner | typeof geminiWeb;
@@ -39,21 +38,36 @@ function QuotaValue({ source, period, reading }: { source: Source; period: Gemin
 function dialPoint(fraction: number, inset: number) {
   const angle = Math.PI * (1 - fraction);
   const x = 67 + (61 - inset) * Math.cos(angle);
-  const y = 51 - (46 - inset) * Math.sin(angle);
+  const y = 48 - (42 - inset) * Math.sin(angle);
   return `${x.toFixed(2)},${y.toFixed(2)}`;
 }
 const ticks = Array.from({ length: 21 }, (_, i) =>
   `M${dialPoint(i / 20, -1.1)} L${dialPoint(i / 20, i % 5 ? 0.9 : 2.6)}`).join(" ");
-const standardArc = "M6,51 A61,46 0 0 1 128,51";
+const standardArc = "M6,48 A61,42 0 0 1 128,48";
 const narrowArc = "M1.5 12 C1.5 4.4 1.5 1.45 5.7 1.4 Q40 .8 74.3 1.4 C78.5 1.45 78.5 4.4 78.5 12";
+
+function pointerBadgeLayout(value: number) {
+  const fraction = Math.max(0, Math.min(1, value / 100));
+  const angle = Math.PI * (1 - fraction);
+  const text = `${Number(value.toFixed(1))}%`;
+  const rawX = 67 + (61 - 11.5) * Math.cos(angle);
+  const rawY = 48 - (42 - 12.2) * Math.sin(angle);
+  // Nudge upward near 0% and 100% so the badge stays clear of the 5-hour readout.
+  const y = rawY - Math.pow(Math.abs(Math.cos(angle)), 3) * 3.8;
+  const width = Math.max(15, text.length * 4.9 + 6);
+  const halfWidth = width / 2;
+  const cx = Math.max(11 + halfWidth, Math.min(123 - halfWidth, rawX + Math.cos(angle) * (-halfWidth * 0.45)));
+  return { text, cx, y, width, height: 10.6 };
+}
 
 function WeekScale({ reading, collapsed, source }: { reading: GeminiReading; collapsed: boolean; source: Source }) {
   const { value, stale } = reading;
   const arc = collapsed ? narrowArc : standardArc;
   const fraction = (value ?? 0) / 100;
+  const badge = !collapsed && value !== null ? pointerBadgeLayout(value) : null;
   return <svg className="twin-scale" aria-hidden={collapsed || undefined} role={collapsed ? undefined : "img"}
     aria-label={collapsed ? undefined : quotaLabel(source, "weekly", reading)}
-    viewBox={collapsed ? "0 0 80 46" : "0 0 134 86"}
+    viewBox={collapsed ? "0 0 80 46" : "0 0 134 94"}
     preserveAspectRatio="none">
     <path className="twin-rail" d={arc} pathLength={collapsed ? 100 : undefined}
       strokeDasharray={value === null ? (collapsed ? "1.5 3" : "1.4 2.4") : undefined} />
@@ -61,9 +75,15 @@ function WeekScale({ reading, collapsed, source }: { reading: GeminiReading; col
       {value > 0 && <path className="twin-fill" d={arc} pathLength={100} strokeDasharray={`${value} ${collapsed ? 101 : 100}`} />}
       {collapsed
         ? <path className="twin-marker" d={arc} pathLength={100} strokeDasharray=".25 110" strokeDashoffset={-Math.min(99.75, value)} />
-        : <path className="twin-marker" d={`M${dialPoint(fraction, -2)} L${dialPoint(fraction, 5.3)}`} />}
+        : <path className="twin-marker" d={`M${dialPoint(fraction, -2)} L${dialPoint(fraction, 5.1)}`} />}
     </g>}
     {!collapsed && <path className="twin-ticks" d={ticks} />}
+    {badge && <g className="twin-pointer-badge" opacity={stale ? 0.78 : 1}>
+      <rect className="twin-pointer-pill" x={(badge.cx - badge.width / 2).toFixed(2)} y={(badge.y - badge.height / 2).toFixed(2)}
+        width={badge.width.toFixed(2)} height={badge.height} rx="3.4" />
+      <text className="twin-pointer-value" x={badge.cx.toFixed(2)} y={(badge.y + 0.4).toFixed(2)}
+        textAnchor="middle" dominantBaseline="central">{badge.text}</text>
+    </g>}
   </svg>;
 }
 
@@ -81,7 +101,7 @@ function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, 
   return <span className={isWeb ? "twin-plaque" : "twin-dial"} data-pool={source.key}>
     {source.key !== "web" && <>
       <span className="twin-cavity" aria-hidden="true">
-        {!firstReadPending && <FluidReservoir key={five.value === null ? "dry" : "known"} remainingPercent={five.value ?? 0}
+        {!firstReadPending && <FluidReservoir remainingPercent={five.value ?? 0}
           accent={source.accent} motionSeed={source.seed} motion={motion} reducedMotion={reducedMotion || five.value === null}
           twinGauge={collapsed ? "narrow" : "standard"} />}
       </span>
@@ -94,31 +114,11 @@ function SourceInstrument({ source, pools, firstReadPending, collapsed, motion, 
 }
 
 export function GeminiTwinChambers(props: GeminiTwinChambersProps) {
-  const pairRef = useRef<HTMLSpanElement>(null);
-  const previousReadings = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const pair = pairRef.current;
-    const parent = pair?.parentNode;
-    if (!pair || !parent) {
-      previousReadings.current = null;
-      return;
-    }
-    const readings = JSON.stringify(agSources.flatMap(({ index }) =>
-      geminiPeriods.map(period => props.pools[index] ? getGeminiReading(props.pools[index], period) : missingReading)));
-    const previous = previousReadings.current;
-    previousReadings.current = readings;
-    if (previous === null || previous === readings) return;
-    // WebView2 can retain part of the old metal gradient after a partial repaint.
-    // Invalidate the whole pair before paint, preserving both live liquid canvases.
-    const next = pair.nextSibling;
-    parent.removeChild(pair);
-    parent.insertBefore(pair, next);
-  }, [props.collapsed, props.pools]);
   const dials = agSources.map(source => <SourceInstrument key={source.key} source={source} {...props} />);
   return <span className={`gemini-twin ${props.collapsed ? "gemini-twin--narrow" : "gemini-twin--standard"}`}>
     <span className="twin-instruments">
       {props.collapsed && <span className="twin-periods" aria-hidden="true"><span>一周</span><span>5 小时</span></span>}
-      {props.collapsed ? dials : <span className="twin-pair" ref={pairRef}>{dials}</span>}
+      {props.collapsed ? dials : <span className="twin-pair">{dials}</span>}
       <SourceInstrument source={geminiWeb} {...props} />
     </span>
   </span>;

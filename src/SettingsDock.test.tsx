@@ -132,6 +132,18 @@ describe("SettingsDock 用量统计入口", () => {
     await userEvent.click(screen.getByRole("button", { name: /用量统计/ }));
     expect(onOpenUsage).toHaveBeenCalledTimes(1);
   });
+
+  it("在 Gemini 来源下于设置面板最下方渲染登录与连接操作区", async () => {
+    const onRefreshGemini = vi.fn();
+    renderDock({ source: "gemini", onRefreshGemini });
+    const group = screen.getByRole("group", { name: "Gemini 连接与操作" });
+    expect(group).toBeVisible();
+    expect(screen.getByRole("button", { name: "登录 agy" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "零请求钩子" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "连接网页" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "刷新 Gemini 额度" }));
+    expect(onRefreshGemini).toHaveBeenCalledOnce();
+  });
 });
 
 describe("planSettingsExtraHeight 配套断言", () => {

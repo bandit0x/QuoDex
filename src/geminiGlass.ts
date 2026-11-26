@@ -61,13 +61,13 @@ export function drawGeminiGlass(
   const disturbed = nodes.some(offset => Math.abs(offset) > 0.05);
   const bands = disturbed || ambientMotion ? nodes.length - 1 : transitionStir > 0.01 ? 16 : 1;
   const strips = Math.min(bands, pixels);
-  const tilt = (nodes[0] - nodes[nodes.length - 1]) * pixelsPerLogicalUnit / height;
+  const tilt = (nodes[nodes.length - 1] - nodes[0]) * pixelsPerLogicalUnit / height;
   const seconds = ambientMotion ? time / 1000 : 0;
   const swell = Math.sin(seconds * 0.28 + phase);
   // Refract the photographed highlights through the moving surface normal.
   // Anchor both side walls: the lens and its bevel belong to the stationary glass.
   const refraction = ambientMotion
-    ? Math.max(-0.12, Math.min(0.12, tilt * 0.52 + swell * 0.007 + lateralMomentum * 0.10))
+    ? Math.max(-0.12, Math.min(0.12, tilt * 0.52 + swell * 0.007 - lateralMomentum * 0.10))
     : 0;
   const refract = (x: number, strength: number) => x + Math.sin(Math.PI * x) * refraction * strength;
   context.save();
@@ -76,9 +76,9 @@ export function drawGeminiGlass(
     const left = Math.round(i * pixels / strips) / pixels;
     const right = Math.round((i + 1) * pixels / strips) / pixels;
     const x = (left + right) * 0.5;
-    const wave = nodes[Math.round(x * (nodes.length - 1))] * pixelsPerLogicalUnit
+    const wave = -nodes[Math.round(x * (nodes.length - 1))] * pixelsPerLogicalUnit
       + (ambientMotion ? ambientBreezeOffset(x, time, disturbed, phase) * pixelsPerLogicalUnit
-        + height * (lateralMomentum * (1 - 2 * x) * 0.10
+        + height * (lateralMomentum * (2 * x - 1) * 0.10
           + agitation * Math.sin(x * 8.5 - seconds * 1.8 + phase) * 0.035) : 0);
     // Even at 100% the lens has headroom above the photographed meniscus.
     const displacement = Math.min(surfaceY - halfDepth, Math.max(-surfaceY + halfDepth, wave))
