@@ -3,6 +3,7 @@ use regex::Regex;
 use serde::Serialize;
 use std::sync::LazyLock;
 
+mod agy_cli;
 #[cfg(windows)]
 mod desktop;
 #[cfg(windows)]
@@ -42,14 +43,6 @@ impl Pool {
             account_key: None,
         }
     }
-    fn background(windows: Vec<Window>, observed_at_ms: i64) -> Self {
-        Self {
-            windows,
-            observed_at_ms: Some(observed_at_ms),
-            source: "background",
-            ..Self::unavailable("available")
-        }
-    }
     fn error(state: &'static str, code: &'static str, message: &'static str) -> Self {
         Self {
             diagnostic: Some(Diagnostic::new(code, message)),
@@ -77,34 +70,55 @@ pub struct GeminiQuota {
 }
 
 #[tauri::command]
-pub async fn read_gemini_quota(source: Option<String>) -> Result<GeminiQuota, Diagnostic> {
+pub async fn read_gemini_quota(
+    source: Option<String>,
+    manual: Option<bool>,
+) -> Result<GeminiQuota, Diagnostic> {
+    let manual = manual.unwrap_or(false);
     #[cfg(windows)]
     let pools = match source.as_deref() {
         Some("web") => [
-            web_session::read().await,
+            read_web_passive().await,
             Pool::unavailable("absent"),
             Pool::unavailable("absent"),
         ],
         Some("desktop") => {
-            let [gemini, partner] = read_desktop().await;
+            let [gemini, partner] = read_desktop(manual).await;
             [Pool::unavailable("absent"), gemini, partner]
         }
         Some("panel") => read_panels().await,
         None => {
-            let (web, [gemini, partner]) = tokio::join!(web_session::read(), read_desktop());
+            let (web, [gemini, partner]) =
+                tokio::join!(read_web_passive(), read_desktop(manual));
             [web, gemini, partner]
         }
         _ => return Err(Diagnostic::new("QGM-233", "无法识别 Gemini 额度来源")),
     };
     #[cfg(not(windows))]
     let pools = {
-        let _ = source;
+        let _ = (source, manual);
         std::array::from_fn(|_| Pool::unavailable("unsupported"))
     };
     Ok(GeminiQuota {
         pools,
         observed_at_ms: chrono::Utc::now().timestamp_millis(),
     })
+}
+
+#[cfg(windows)]
+async fn read_web_passive() -> Pool {
+    let mut web = tauri::async_runtime::spawn_blocking(windows_reader::read_web_only)
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .unwrap_or_else(|| Pool::unavailable("absent"));
+    if web.state == "absent" && web.diagnostic.is_none() {
+        web.diagnostic = Some(Diagnostic::new(
+            "QGM-211",
+            "已停用后台无头抓取以防主号风控；在浏览器打开 gemini.google.com/usage 可自动同步",
+        ));
+    }
+    web
 }
 
 #[cfg(windows)]
@@ -117,8 +131,8 @@ async fn read_panels() -> [Pool; 3] {
 }
 
 #[cfg(windows)]
-async fn read_desktop() -> [Pool; 2] {
-    tauri::async_runtime::spawn_blocking(desktop::read)
+async fn read_desktop(manual: bool) -> [Pool; 2] {
+    tauri::async_runtime::spawn_blocking(move || desktop::read(manual))
         .await
         .unwrap_or_else(|_| {
             std::array::from_fn(|_| Pool {
@@ -141,6 +155,21 @@ pub fn connect_gemini_web(app: tauri::AppHandle) -> Result<(), Diagnostic> {
     }
 }
 
+#[tauri::command]
+pub fn read_agy_cli_status() -> agy_cli::AgyCliStatus {
+    agy_cli::status()
+}
+
+#[tauri::command]
+pub fn login_agy_cli() -> Result<String, Diagnostic> {
+    agy_cli::login_cli()
+}
+
+#[tauri::command]
+pub fn setup_agy_statusline() -> Result<String, Diagnostic> {
+    agy_cli::setup_statusline()
+}
+
 #[cfg(all(test, windows))]
 mod live_tests {
     use super::*;
@@ -148,7 +177,9 @@ mod live_tests {
     #[tokio::test]
     #[ignore = "requires installed Antigravity Desktop and an existing signed-in account"]
     async fn desktop_reads_real_quota_without_models_panel() {
-        let snapshot = read_gemini_quota(Some("desktop".into())).await.unwrap();
+        let snapshot = read_gemini_quota(Some("desktop".into()), Some(true))
+            .await
+            .unwrap();
         for (index, pool) in snapshot.pools.iter().enumerate().skip(1) {
             assert_eq!(
                 pool.state, "available",

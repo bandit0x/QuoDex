@@ -1,4 +1,13 @@
-use super::{desktop_runtime, Pool, Window};
+//! Safe, low-frequency Antigravity quota orchestrator.
+//!
+//! Priority order (inspired by `yuhuan-dev/antigravity-usage-monitor` and `steipete/CodexBar`):
+//! 1. Zero-network local snapshot from official `agy` `/statusline` hook.
+//! 2. Official unmodified `agy -p /usage --output-format json` CLI (when installed).
+//! 3. Fallback to local Desktop runtime (reusing an active hub discovery session when available,
+//!    or a de-noised fixed-directory local service without forced cache bypass).
+//!
+//! Hard cooldown gates prevent high-frequency hammering against Google backends.
+use super::{agy_cli, desktop_runtime, Pool, Window};
 use crate::capacity::Diagnostic;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -10,26 +19,81 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Coalesce calls from multiple windows without advancing the sample timestamp.
-static LAST_READ: Mutex<Option<(Instant, [Pool; 2])>> = Mutex::new(None);
+/// Minimum interval between automatic remote reads (5 minutes).
+const AUTO_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+/// Minimum debounce between manual refresh clicks (30 seconds).
+const MANUAL_COOLDOWN: Duration = Duration::from_secs(30);
 
-pub(super) fn read() -> [Pool; 2] {
+struct CachedRead {
+    at: Instant,
+    pools: [Pool; 2],
+    from_network: bool,
+}
+
+static LAST_READ: Mutex<Option<CachedRead>> = Mutex::new(None);
+
+pub(super) fn read(manual: bool) -> [Pool; 2] {
+    let salt = match account_salt() {
+        Ok(salt) => salt,
+        Err(diag) => return failure(diag),
+    };
+    let now_ms = chrono::Utc::now().timestamp_millis();
+
+    // Layer 1 (Zero network): Official `agy` /statusline local snapshot.
+    // Even on manual refresh, reuse a statusline snapshot written in the last 30 seconds.
+    if let Some(statusline) = agy_cli::read_statusline(&salt, now_ms) {
+        let fresh_for_manual = statusline[0]
+            .observed_at_ms
+            .is_some_and(|at| now_ms.saturating_sub(at) < 30_000);
+        if !manual || fresh_for_manual {
+            if let Ok(mut last) = LAST_READ.lock() {
+                *last = Some(CachedRead {
+                    at: Instant::now(),
+                    pools: statusline.clone(),
+                    from_network: false,
+                });
+            }
+            return statusline;
+        }
+    }
+
     let Ok(mut last) = LAST_READ.lock() else {
         return failure(Diagnostic::new("QGM-251", "AG 采样状态异常，请重启 QuoDex"));
     };
-    if let Some((at, pools)) = &*last {
-        if at.elapsed() < Duration::from_secs(5) {
-            return pools.clone();
+    if let Some(cached) = &*last {
+        if cached.from_network {
+            let cooldown = if manual { MANUAL_COOLDOWN } else { AUTO_COOLDOWN };
+            if cached.at.elapsed() < cooldown {
+                return cached.pools.clone();
+            }
         }
     }
-    let result = account_salt()
-        .and_then(|salt| desktop_runtime::sample().and_then(|sample| decode(sample, &salt)));
-    let pools = result.unwrap_or_else(failure);
-    *last = Some((Instant::now(), pools.clone()));
+
+    // Layer 2 (Official personal CLI): `agy -p /usage --output-format json`.
+    let pools = match agy_cli::read_cli(&salt) {
+        Ok(Some(cli_pools)) => cli_pools,
+        Err(diag) => failure_with_source("cli", diag),
+        Ok(None) => {
+            // Layer 3 (Fallback when `agy` CLI is not installed): reuse active hub or de-noised runtime.
+            desktop_runtime::sample()
+                .and_then(|sample| decode(sample, &salt))
+                .unwrap_or_else(failure)
+        }
+    };
+
+    *last = Some(CachedRead {
+        at: Instant::now(),
+        pools: pools.clone(),
+        from_network: true,
+    });
     pools
 }
 
 fn failure(diagnostic: Diagnostic) -> [Pool; 2] {
+    failure_with_source("desktop", diagnostic)
+}
+
+fn failure_with_source(source: &'static str, diagnostic: Diagnostic) -> [Pool; 2] {
     let state = match diagnostic.code {
         "QGM-230" => "absent",
         "QGM-244" => "authRequired",
@@ -38,7 +102,7 @@ fn failure(diagnostic: Diagnostic) -> [Pool; 2] {
         _ => "failed",
     };
     std::array::from_fn(|_| Pool {
-        source: "desktop",
+        source,
         diagnostic: Some(diagnostic.clone()),
         ..Pool::unavailable(state)
     })

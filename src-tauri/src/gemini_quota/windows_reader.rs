@@ -404,6 +404,16 @@ fn browser_candidate_title(title: &str) -> bool {
         )
 }
 
+pub(super) fn read_web_only() -> Result<Pool> {
+    let mut web = Pool::unavailable("absent");
+    visit_documents(false, |ui, doc, url, browser, _, _| unsafe {
+        if browser && url.host_str() == Some("gemini.google.com") {
+            insert(&mut web, web_panel(ui, doc, url));
+        }
+    })?;
+    Ok(web)
+}
+
 pub(super) fn read() -> Result<[Pool; 3]> {
     let mut pools = std::array::from_fn(|_| Pool::unavailable("absent"));
     let mut saw_ag_panel = false;

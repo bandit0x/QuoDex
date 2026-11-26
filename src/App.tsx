@@ -759,7 +759,15 @@ export function App({
   const shownCarouselSource = carouselSources.includes(carouselSource)
     ? carouselSource : nextCarouselSource(carouselSource, carouselSources);
   const geminiEnabled = sourceSelection === "gemini" || (sourceSelection === "carousel" && carouselSources.includes("gemini"));
-  const gemini = useGeminiQuota(geminiEnabled, loadGeminiSnapshot);
+  const agCompletionKey = useMemo(() => {
+    let latest: ChatTask | null = null;
+    for (const task of taskStatus.snapshot.tasks) {
+      if (task.source !== "antigravity" || task.state !== "completed") continue;
+      if (!latest || (task.completedAtMs ?? 0) > (latest.completedAtMs ?? 0)) latest = task;
+    }
+    return latest ? `${latest.id}:${latest.turnId}:${latest.completedAtMs ?? 0}` : null;
+  }, [taskStatus.snapshot.tasks]);
+  const gemini = useGeminiQuota(geminiEnabled, loadGeminiSnapshot, agCompletionKey);
 
   useEffect(() => {
     if (sourceSelection !== "carousel") return;

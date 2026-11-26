@@ -44,7 +44,13 @@ export function geminiPoolNotes(pool: GeminiPool, index: number): string[] {
       }
     }
   }
-  if (pool.source) notes.push(`来源：${{ panel: "可见面板", background: "独立网页登录", desktop: "AG 后台" }[pool.source]}`);
+  if (pool.source) notes.push(`来源：${{
+    panel: "可见面板",
+    background: "独立网页登录",
+    desktop: "AG 本地服务",
+    cli: "agy CLI",
+    statusline: "agy 状态栏（零请求）",
+  }[pool.source]}`);
   if (pool.diagnostic) {
     notes.push(`${pool.diagnostic.message} · ${pool.diagnostic.code}`);
     return notes;

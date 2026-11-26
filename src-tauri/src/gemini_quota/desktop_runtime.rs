@@ -193,7 +193,6 @@ impl Drop for Job {
 struct Runtime {
     child: Child,
     job: Job,
-    data_dir: PathBuf,
     cleaned: bool,
 }
 impl Runtime {
@@ -214,12 +213,6 @@ impl Runtime {
         self.child
             .wait()
             .map_err(|_| Diagnostic::new("QGM-249", "无法确认 AG 采样服务退出，请重启 QuoDex"))?;
-        // data_dir is constructed only from the user's home and our fresh UUID;
-        // never point this cleanup at the user's Antigravity application data.
-        if self.data_dir.exists() {
-            fs::remove_dir_all(&self.data_dir)
-                .map_err(|_| Diagnostic::new("QGM-248", "AG 采样临时目录被占用，请稍后刷新"))?;
-        }
         self.cleaned = true;
         Ok(())
     }
@@ -265,26 +258,13 @@ fn owns_port(pid: u32, port: u16) -> bool {
     }
 }
 
-fn request(
-    run: &mut Runtime,
+fn send_rpc(
     client: &Client,
     port: u16,
     session: &str,
     method: &str,
     body: Value,
 ) -> Result<Value, Diagnostic> {
-    if run
-        .child
-        .try_wait()
-        .map_err(|_| Diagnostic::new("QGM-243", "无法检查 AG 采样服务，请重试"))?
-        .is_some()
-        || !owns_port(run.child.id(), port)
-    {
-        return Err(Diagnostic::new(
-            "QGM-243",
-            "AG 采样服务已退出或端口变化，请刷新重试",
-        ));
-    }
     let failure = |error: reqwest::Error| {
         let code = if error.is_timeout() {
             "QGM-252"
@@ -343,6 +323,95 @@ fn request(
         .map_err(|_| Diagnostic::new("QGM-247", "AG 额度响应格式改变，请更新 QuoDex"))
 }
 
+fn request(
+    run: &mut Runtime,
+    client: &Client,
+    port: u16,
+    session: &str,
+    method: &str,
+    body: Value,
+) -> Result<Value, Diagnostic> {
+    if run
+        .child
+        .try_wait()
+        .map_err(|_| Diagnostic::new("QGM-243", "无法检查 AG 采样服务，请重试"))?
+        .is_some()
+        || !owns_port(run.child.id(), port)
+    {
+        return Err(Diagnostic::new(
+            "QGM-243",
+            "AG 采样服务已退出或端口变化，请刷新重试",
+        ));
+    }
+    send_rpc(client, port, session, method, body)
+}
+
+/// Inspired by `yuhuan-dev/antigravity-usage-monitor`: try reusing an already-running
+/// local Antigravity hub via its daemon discovery file (`~/.gemini/antigravity/daemon/hub_*.json`)
+/// before ever spawning a fallback process.
+fn try_running_hub(home: &Path, client: &Client) -> Option<Sample> {
+    let daemon_dir = home.join(".gemini/antigravity/daemon");
+    let entries = fs::read_dir(&daemon_dir).ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("hub_") || !name.ends_with(".json") {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        let Ok(info) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        let port = info
+            .get("httpsPort")
+            .or_else(|| info.get("https_port"))
+            .or_else(|| info.get("port"))
+            .and_then(Value::as_u64)
+            .and_then(|p| u16::try_from(p).ok())
+            .filter(|p| *p > 0)?;
+        let pid = info.get("pid").and_then(Value::as_u64).and_then(|p| u32::try_from(p).ok());
+        if let Some(pid) = pid {
+            if !owns_port(pid, port) {
+                continue;
+            }
+        }
+        let Some(token) = info
+            .get("csrfToken")
+            .or_else(|| info.get("csrf_token"))
+            .and_then(Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+        else {
+            continue;
+        };
+        let Ok(before) = send_rpc(client, port, token, "GetUserStatus", json!({})) else {
+            continue;
+        };
+        if before
+            .pointer("/userStatus/email")
+            .and_then(Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+            .is_none()
+        {
+            continue;
+        }
+        // Respect server/local caching: do NOT send `forceRefresh: true`.
+        let Ok(quota) = send_rpc(client, port, token, "RetrieveUserQuotaSummary", json!({})) else {
+            continue;
+        };
+        let Ok(after) = send_rpc(client, port, token, "GetUserStatus", json!({})) else {
+            continue;
+        };
+        return Some(Sample {
+            before,
+            quota,
+            after,
+        });
+    }
+    None
+}
+
 pub(super) fn sample() -> Result<Sample, Diagnostic> {
     if RATE_LIMIT_UNTIL
         .lock()
@@ -360,7 +429,16 @@ pub(super) fn sample() -> Result<Sample, Diagnostic> {
     let home = std::env::var_os("USERPROFILE")
         .map(PathBuf::from)
         .ok_or_else(|| Diagnostic::new("QGM-248", "找不到当前用户的 AG 数据目录"))?;
-    let directory_name = format!("quodex-quota-{}", uuid::Uuid::new_v4());
+
+    // First try attaching to an already-running official hub without spawning a new process.
+    if let Some(sample) = try_running_hub(&home, &client) {
+        return Ok(sample);
+    }
+
+    // Fallback when no discovery file is exposed: reuse one stable isolated data directory
+    // instead of creating a brand-new random UUID directory on every sample, keep normal
+    // telemetry settings intact, and avoid forced cache bypass (`forceRefresh: true`).
+    let directory_name = "quodex-quota";
     let session = uuid::Uuid::new_v4().to_string();
     let job = Job::new()?;
     let mut child = Command::new(root.join("bin/language_server.exe"))
@@ -377,12 +455,11 @@ pub(super) fn sample() -> Result<Sample, Diagnostic> {
             "--https_server_port",
             "0",
             "--app_data_dir",
-            &directory_name,
+            directory_name,
             "--api_server_url",
             "https://generativelanguage.googleapis.com",
             "--cloud_code_endpoint",
             "https://daily-cloudcode-pa.googleapis.com",
-            "--disable_telemetry",
         ])
         .env("ANTIGRAVITY_SERVER_CSRF_TOKEN", &session)
         .env("AGY_REQUIRE_AUTHENTICATED_UI_BOOTSTRAP", "1")
@@ -408,7 +485,6 @@ pub(super) fn sample() -> Result<Sample, Diagnostic> {
     let mut run = Runtime {
         child,
         job,
-        data_dir: home.join(".gemini").join(directory_name),
         cleaned: false,
     };
     let (send, receive) = mpsc::sync_channel(1);
@@ -480,7 +556,7 @@ pub(super) fn sample() -> Result<Sample, Diagnostic> {
             port,
             &session,
             "RetrieveUserQuotaSummary",
-            json!({"forceRefresh": true}),
+            json!({}),
         )?;
         let after = request(
             &mut run,

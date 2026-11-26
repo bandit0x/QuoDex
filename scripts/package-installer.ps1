@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "",
     [string]$WebView2RuntimePath = ""
 )
@@ -90,7 +90,15 @@ $config = [ordered]@{
 $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $generatedConfig -Encoding UTF8
 
 $previousCargoTargetDir = $env:CARGO_TARGET_DIR
+$previousRustFlags = $env:RUSTFLAGS
 $env:CARGO_TARGET_DIR = $cargoTargetRoot
+$cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
+$remapFlags = @(
+    "--remap-path-prefix=$cargoHome=/cargo",
+    "--remap-path-prefix=$($env:USERPROFILE)=/user",
+    "--remap-path-prefix=$projectRoot=/src"
+) -join " "
+$env:RUSTFLAGS = if ([string]::IsNullOrWhiteSpace($previousRustFlags)) { $remapFlags } else { "$previousRustFlags $remapFlags" }
 try {
     & npm.cmd run tauri:build -- --config $generatedConfig -- --locked
     if ($LASTEXITCODE -ne 0) {
@@ -103,6 +111,12 @@ finally {
     }
     else {
         $env:CARGO_TARGET_DIR = $previousCargoTargetDir
+    }
+    if ($null -eq $previousRustFlags) {
+        Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:RUSTFLAGS = $previousRustFlags
     }
 }
 
